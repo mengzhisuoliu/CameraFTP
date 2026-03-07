@@ -6,9 +6,10 @@
 //!
 //! 负责自签名证书的生成、存储和轮换。
 
+use rcgen::{generate_simple_self_signed, CertifiedKey};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 /// 证书文件名
 const CERT_FILE: &str = "ftp.crt";
@@ -113,33 +114,13 @@ fn generate_and_save_certificates(
 ) -> crate::error::AppResult<CertificatePaths> {
     info!("Generating new self-signed TLS certificate");
 
-    let mut params =
-        rcgen::CertificateParams::new(vec!["CameraFTP".to_string(), "localhost".to_string()])
+    // 生成自签名证书
+    let CertifiedKey { cert, key_pair } =
+        generate_simple_self_signed(vec!["CameraFTP".to_string(), "localhost".to_string()])
             .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
 
-    params.is_ca = rcgen::IsCa::NoCa;
-
-    // 设置有效期为10年
-    let now = std::time::SystemTime::now();
-    let duration = std::time::Duration::from_secs(CERT_VALIDITY_DAYS * 24 * 60 * 60);
-    let end = now + duration;
-
-    params.not_before = std::time::SystemTime::UNIX_EPOCH
-        .elapsed()
-        .map(|d| rcgen::TimeOffsetDateTime::UNIX_EPOCH + d)
-        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
-    params.not_after = std::time::SystemTime::UNIX_EPOCH
-        .elapsed()
-        .map(|d| rcgen::TimeOffsetDateTime::UNIX_EPOCH + d + duration)
-        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
-
-    let cert = rcgen::Certificate::from_params(params)
-        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
-
-    let cert_pem = cert
-        .serialize_pem()
-        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
-    let key_pem = cert.serialize_private_key_pem();
+    let cert_pem = cert.pem();
+    let key_pem = key_pair.serialize_pem();
 
     // 写入证书文件
     fs::write(cert_path, cert_pem).map_err(|e| crate::error::AppError::Io(e.to_string()))?;
