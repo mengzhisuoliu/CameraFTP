@@ -2,6 +2,8 @@
 // Copyright (C) 2026 GoldJohnKing <GoldJohnKing@Live.cn>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub mod tls;
+
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
