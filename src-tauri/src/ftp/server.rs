@@ -5,6 +5,7 @@
 use crate::constants::{
     CHECK_INTERVAL_MS, SERVER_READY_TIMEOUT_SECS, SERVER_SHUTDOWN_TIMEOUT_SECS,
 };
+use crate::crypto::tls;
 use crate::error::{AppError, AppResult};
 use crate::ftp::events::EventBus;
 use crate::ftp::listeners::{FtpDataListener, FtpPresenceListener};
@@ -316,7 +317,10 @@ impl FtpServerActor {
         let bind_addr: SocketAddr = ([0, 0, 0, 0], port).into();
         let bind_str = bind_addr.to_string();
 
-        // Build and start the server
+        // 确保 TLS 证书有效
+        let cert_paths = tls::ensure_valid_certificate()?;
+
+        // Build and start the server with FTPS
         let result = ServerBuilder::with_authenticator(
             Box::new(move || Self::create_filesystem(&root_path)),
             authenticator,
@@ -325,6 +329,7 @@ impl FtpServerActor {
         .idle_session_timeout(config.idle_timeout_seconds)
         .notify_data(data_listener)
         .notify_presence(presence_listener)
+        .ftps(&cert_paths.cert_path, &cert_paths.key_path)
         .shutdown_indicator(async move {
             let _ = shutdown_rx.await;
             info!("Shutdown signal received");
