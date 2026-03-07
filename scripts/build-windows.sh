@@ -17,18 +17,20 @@ check_windows_env() {
 }
 
 terminate_running_process() {
-    info "正在检查运行中的进程..."
-    if taskkill.exe /F /IM cameraftp.exe >/dev/null 2>&1; then
-        info "已终止进程: cameraftp.exe"
+    local process_name="$1"
+    info "正在检查运行中的进程: $process_name"
+    if taskkill.exe /F /IM "$process_name" >/dev/null 2>&1; then
+        info "已终止进程: $process_name"
     fi
 }
 
 build_windows() {
     local BUILD_TYPE="${1:-release}"
+    local OUTPUT_NAME="cameraftp.exe"
 
     info "开始构建 Windows 应用程序 ($BUILD_TYPE 模式)..."
 
-    terminate_running_process
+    terminate_running_process "$OUTPUT_NAME"
 
     local cargo_cmd
     cargo_cmd=$(get_tool_cmd "cargo")
@@ -45,10 +47,7 @@ build_windows() {
 
     cd ..
 
-    # 复制输出
-    local VERSION
-    VERSION=$(get_version)
-    local OUTPUT_NAME="cameraftp.exe"
+    local VERSION=$(get_version)
     local DEST_NAME
     local SRC_PATH
 
@@ -60,7 +59,9 @@ build_windows() {
         DEST_NAME="CameraFTP_v${VERSION}.exe"
     fi
 
-    copy_to_out "$SRC_PATH" "$DEST_NAME" "Windows $BUILD_TYPE"
+    terminate_running_process "$DEST_NAME"
+
+    move_to_out "$SRC_PATH" "$DEST_NAME" "Windows $BUILD_TYPE"
 }
 
 # 显示帮助信息

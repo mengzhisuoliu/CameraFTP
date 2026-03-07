@@ -148,6 +148,26 @@ The project is licensed under AGPL-3.0. Use the appropriate comment syntax for e
 4. Call it from the frontend: `window.BridgeName?.methodName()`
 5. Verify: `./build.sh android`
 
+### Update Version Number
+
+When updating the application version, **ALL THREE** of the following files must be updated:
+
+| File | Field | Purpose |
+|------|-------|---------|
+| `package.json` | `version` | Frontend package version |
+| `src-tauri/Cargo.toml` | `version` | Rust crate version |
+| `src-tauri/tauri.conf.json` | `version` | Tauri application version (displayed in About dialog) |
+
+**Example**: Updating from v1.0.0 to v1.1.0:
+
+```bash
+# 1. Update package.json
+# 2. Update src-tauri/Cargo.toml
+# 3. Update src-tauri/tauri.conf.json
+```
+
+**IMPORTANT**: If `tauri.conf.json` is not updated, the About dialog will display the old version even though the build shows the new version in logs.
+
 ---
 
 ## Common Pitfalls

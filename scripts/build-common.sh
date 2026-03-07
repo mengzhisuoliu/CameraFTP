@@ -283,13 +283,13 @@ detect_linux_java_home() {
     return 1
 }
 
-copy_to_out() {
+move_to_out() {
     local src="$1"
     local dest_name="$2"
     local desc="$3"
-    
+
     mkdir -p "$OUTPUT_DIR"
-    
+
     # 支持确定路径和 glob 模式
     local src_file=""
     for f in $src; do
@@ -298,9 +298,9 @@ copy_to_out() {
             break
         fi
     done
-    
+
     if [ -n "$src_file" ]; then
-        cp "$src_file" "$OUTPUT_DIR/$dest_name"
+        mv "$src_file" "$OUTPUT_DIR/$dest_name"
         success "$desc 构建完成"
         info "输出位置: $OUTPUT_DIR/$dest_name"
     else

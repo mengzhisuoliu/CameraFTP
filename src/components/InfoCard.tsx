@@ -48,7 +48,7 @@ export const InfoCard = memo(function InfoCard() {
       <div className="space-y-3 text-sm">
         <div className="flex justify-between">
           <span className="text-gray-500">协议</span>
-          <span className="font-medium text-gray-800">FTP/FTPS (PASV / 被动模式)</span>
+          <span className="font-medium text-gray-800">FTP / FTPS (PASV / 被动模式)</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">IP 地址</span>

@@ -293,21 +293,21 @@ build_android() {
 
     case $BUILD_TYPE in
         "debug")
-            bun run tauri android build --debug --target aarch64 || {
+            bun run tauri android build --debug --apk --target aarch64 || {
                 error "Android debug 构建失败"
                 exit 1
             }
-            copy_to_out \
+            move_to_out \
                 "src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk" \
                 "CameraFTP_v${VERSION}-debug.apk" \
                 "Debug APK"
             ;;
         "release")
-            bun run tauri android build --target aarch64 || {
+            bun run tauri android build --apk --target aarch64 || {
                 error "Android release 构建失败"
                 exit 1
             }
-            copy_to_out \
+            move_to_out \
                 "src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk" \
                 "CameraFTP_v${VERSION}.apk" \
                 "Release APK"
