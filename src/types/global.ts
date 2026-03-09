@@ -130,6 +130,20 @@ interface GalleryAndroid {
    * @returns JSON string containing { images: GalleryImage[] }
    */
   getGalleryImages(storagePath: string): Promise<string>;
+  
+  /**
+   * Delete images by their IDs
+   * @param idsJson JSON array of image IDs to delete
+   * @returns true if deletion succeeded, false otherwise
+   */
+  deleteImages(idsJson: string): Promise<boolean>;
+  
+  /**
+   * Share images by their IDs
+   * @param idsJson JSON array of image IDs to share
+   * @returns true if sharing succeeded, false otherwise
+   */
+  shareImages(idsJson: string): Promise<boolean>;
 }
 
 // ===== 全局窗口扩展 =====
