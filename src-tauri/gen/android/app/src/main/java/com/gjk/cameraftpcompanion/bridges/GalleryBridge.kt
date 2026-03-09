@@ -72,7 +72,8 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
                     val id = it.getLong(idColumn)
                     val name = it.getString(nameColumn)
                     val path = it.getString(dataColumn)
-                    val dateModified = it.getLong(dateColumn) * 1000 // Convert to milliseconds
+                    // Use file system lastModified time (consistent with Rust side)
+                    val dateModified = File(path).lastModified()
 
                     // Get thumbnail using MediaStore
                     val thumbnail = getThumbnail(id)
