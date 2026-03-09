@@ -23,7 +23,6 @@ import androidx.core.content.ContextCompat
 import com.gjk.cameraftpcompanion.bridges.BaseJsBridge
 import org.json.JSONObject
 import android.content.ClipData
-import android.content.SharedPreferences
 import android.database.Cursor
 import android.provider.MediaStore
 import java.io.File
@@ -39,8 +38,6 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         private const val TAG = "PermissionBridge"
         // Request code for notification permission - shared with MainActivity
         const val REQUEST_POST_NOTIFICATIONS = 1001
-        private const val PREFS_NAME = "image_viewer_prefs"
-        private const val KEY_IMAGE_VIEWER_PACKAGE = "preferred_image_viewer_package"
     }
 
     /**
@@ -445,43 +442,5 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         } else {
             Uri.fromFile(file)
         }
-    }
-
-    /**
-     * Reset the preferred image viewer by opening system app settings
-     * This allows user to clear the default app setting for image viewing
-     * @return JSON string with success status
-     */
-    @JavascriptInterface
-    fun resetImageViewerPreference(): String {
-        Log.d(TAG, "resetImageViewerPreference: opening app settings")
-
-        val result = JSONObject()
-
-        runOnUiThread {
-            try {
-                // Open the app's detail settings page where user can clear defaults
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:${activity.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                activity.startActivity(intent)
-                Log.d(TAG, "resetImageViewerPreference: settings page opened")
-
-                // Show a toast to guide the user
-                Toast.makeText(
-                    activity,
-                    "请点击「清除默认设置」来重置打开方式",
-                    Toast.LENGTH_LONG
-                ).show()
-
-            } catch (e: Exception) {
-                Log.e(TAG, "resetImageViewerPreference: failed to open settings", e)
-                Toast.makeText(activity, "无法打开设置: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        result.put("success", true)
-        return result.toString()
     }
 }
