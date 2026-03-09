@@ -7,7 +7,9 @@
 package com.gjk.cameraftpcompanion.bridges
 
 import android.annotation.SuppressLint
+import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -15,6 +17,7 @@ import android.media.ExifInterface
 import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -100,6 +103,47 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         }
 
         return createResult(images)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun deleteImages(idsJson: String): Boolean {
+        Log.d(TAG, "deleteImages: idsJson=$idsJson")
+        
+        return try {
+            val ids = JSONArray(idsJson).let { json ->
+                (0 until json.length()).map { json.getInt(it) }
+            }
+            
+            if (ids.isEmpty()) {
+                Log.w(TAG, "deleteImages: no IDs provided")
+                return false
+            }
+            
+            val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            var deletedCount = 0
+            
+            ids.forEach { id ->
+                val contentUri = ContentUris.withAppendedId(uri, id.toLong())
+                val deleted = context.contentResolver.delete(contentUri, null, null)
+                if (deleted > 0) {
+                    deletedCount++
+                    Log.d(TAG, "Deleted image id=$id")
+                }
+            }
+            
+            Log.d(TAG, "deleteImages: deleted $deletedCount/${ids.size} images")
+            activity.runOnUiThread {
+                Toast.makeText(context, "已删除 $deletedCount 张图片", Toast.LENGTH_SHORT).show()
+            }
+            
+            deletedCount > 0
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteImages error", e)
+            activity.runOnUiThread {
+                Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            false
+        }
     }
 
     @SuppressLint("Recycle")
