@@ -5,7 +5,7 @@
  */
 
 import { memo, useCallback, useEffect, useState, useRef } from 'react';
-import { RefreshCw, ImageOff, Loader2 } from 'lucide-react';
+import { RefreshCw, ImageOff, Loader2, Check, X, Trash2, Share2, MoreVertical } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { useConfigStore } from '../stores/configStore';
 import type { GalleryImage } from '../types';
@@ -22,6 +22,10 @@ export const GalleryCard = memo(function GalleryCard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [visibleImages, setVisibleImages] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   const loadImages = useCallback(async () => {
@@ -90,11 +94,37 @@ export const GalleryCard = memo(function GalleryCard() {
     }
   }, []);
 
-  const handleImageClick = useCallback((image: GalleryImage) => {
-    if (window.PermissionAndroid?.openImageWithChooser) {
-      window.PermissionAndroid.openImageWithChooser(image.path);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const LONG_PRESS_DURATION = 500;
+
+  const handleTouchStart = useCallback((image: GalleryImage) => {
+    longPressTimerRef.current = setTimeout(() => {
+      setIsSelectionMode(true);
+      setSelectedIds(new Set([image.id]));
+    }, LONG_PRESS_DURATION);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
     }
   }, []);
+
+  const handleImageClick = useCallback((image: GalleryImage) => {
+    if (isSelectionMode) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.has(image.id) ? next.delete(image.id) : next.add(image.id);
+        if (next.size === 0) {
+          setIsSelectionMode(false);
+        }
+        return next;
+      });
+    } else if (window.PermissionAndroid?.openImageWithChooser) {
+      window.PermissionAndroid.openImageWithChooser(image.path);
+    }
+  }, [isSelectionMode]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -112,6 +142,49 @@ export const GalleryCard = memo(function GalleryCard() {
       }, remaining);
     }
   }, [loadImages]);
+
+  const handleDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    
+    if (confirm(`确定删除 ${selectedIds.size} 张图片？`)) {
+      const success = await window.GalleryAndroid?.deleteImages(JSON.stringify([...selectedIds]));
+      if (success) {
+        loadImages();
+        setIsSelectionMode(false);
+        setSelectedIds(new Set());
+        setShowMenu(false);
+      }
+    }
+  }, [selectedIds, loadImages]);
+
+  const handleShare = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    
+    await window.GalleryAndroid?.shareImages(JSON.stringify([...selectedIds]));
+    setShowMenu(false);
+  }, [selectedIds]);
+
+  const handleCancelSelection = useCallback(() => {
+    setIsSelectionMode(false);
+    setSelectedIds(new Set());
+    setShowMenu(false);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
 
   // Not on Android
   if (!window.GalleryAndroid) {
