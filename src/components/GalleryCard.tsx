@@ -19,6 +19,7 @@ export const GalleryCard = memo(function GalleryCard() {
   const { config } = useConfigStore();
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [visibleImages, setVisibleImages] = useState<Set<number>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -95,8 +96,21 @@ export const GalleryCard = memo(function GalleryCard() {
     }
   }, []);
 
-  const handleRefresh = useCallback(() => {
-    loadImages();
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    const startTime = Date.now();
+
+    try {
+      await loadImages();
+    } finally {
+      // 确保动画至少持续 200ms，让用户能看到刷新效果
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 200 - elapsed);
+
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, remaining);
+    }
   }, [loadImages]);
 
   // Not on Android
@@ -156,11 +170,11 @@ export const GalleryCard = memo(function GalleryCard() {
         </h2>
         <button
           onClick={handleRefresh}
-          disabled={isLoading}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+          disabled={isRefreshing}
+          className="text-sm text-blue-500 hover:text-blue-600 flex items-center gap-1.5 disabled:opacity-50 transition-colors"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          刷新
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>{isRefreshing ? '刷新中...' : '刷新'}</span>
         </button>
       </div>
 
