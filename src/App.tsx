@@ -13,6 +13,7 @@ import { StatsCard } from './components/StatsCard';
 import { InfoCard } from './components/InfoCard';
 import { LatestPhotoCard } from './components/LatestPhotoCard';
 import { ConfigCard } from './components/ConfigCard';
+import { GalleryCard } from './components/GalleryCard';
 import { BottomNav } from './components/BottomNav';
 import { PermissionDialog } from './components/PermissionDialog';
 import { PreviewWindow } from './components/PreviewWindow';
@@ -182,6 +183,8 @@ function App() {
               <LatestPhotoCard />
               <StatsCard />
             </>
+          ) : activeTab === 'gallery' ? (
+            <GalleryCard />
           ) : (
             <ConfigCard />
           )}
