@@ -97,7 +97,10 @@ export const GalleryCard = memo(function GalleryCard() {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const LONG_PRESS_DURATION = 500;
 
-  const handleTouchStart = useCallback((image: GalleryImage) => {
+  const handleTouchStart = useCallback((image: GalleryImage, e: React.TouchEvent) => {
+    // Prevent default long-press behavior (drag preview, context menu)
+    e.preventDefault();
+    
     longPressTimerRef.current = setTimeout(() => {
       setIsSelectionMode(true);
       setSelectedIds(new Set([image.id]));
@@ -252,7 +255,7 @@ export const GalleryCard = memo(function GalleryCard() {
   }
 
   return (
-    <div className="space-y-3 pt-6">
+    <div className="space-y-3 pt-6 select-none">
       {/* Header with refresh button */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">
@@ -276,11 +279,12 @@ export const GalleryCard = memo(function GalleryCard() {
             data-id={image.id}
             ref={imageRefCallback}
             onClick={() => handleImageClick(image)}
-            onTouchStart={() => handleTouchStart(image)}
+            onTouchStart={(e) => handleTouchStart(image, e)}
             onTouchEnd={handleTouchEnd}
             onTouchMove={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
-            className={`aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative ${
+            onContextMenu={(e) => e.preventDefault()}
+            className={`aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative select-none ${
               isSelectionMode && selectedIds.has(image.id) ? 'ring-2 ring-blue-500' : ''
             }`}
           >
@@ -288,8 +292,9 @@ export const GalleryCard = memo(function GalleryCard() {
               <img
                 src={image.thumbnail}
                 alt={image.filename}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover pointer-events-none"
                 loading="lazy"
+                draggable={false}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
@@ -317,7 +322,7 @@ export const GalleryCard = memo(function GalleryCard() {
         <div className="fixed bottom-20 right-4 z-50" ref={menuRef}>
           {/* Menu */}
           {showMenu && (
-            <div className="absolute bottom-16 right-0 bg-white rounded-xl shadow-xl min-w-[140px] overflow-hidden mb-2">
+            <div className="absolute bottom-16 right-0 bg-white rounded-xl shadow-xl min-w-[140px] overflow-hidden mb-2 select-none">
               <button
                 onClick={handleDelete}
                 disabled={selectedIds.size === 0}
