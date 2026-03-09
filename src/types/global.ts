@@ -105,6 +105,13 @@ interface PermissionAndroid {
     * @returns JSON 字符串，包含 success 和 message
     */
    openImageWithChooser: (path: string) => string;
+   
+   /**
+    * 重置图片打开方式的默认设置
+    * 打开系统应用设置页面，让用户清除默认设置
+    * @returns JSON 字符串，包含 success
+    */
+   resetImageViewerPreference: () => string;
 }
 
 // ===== 全局窗口扩展 =====
