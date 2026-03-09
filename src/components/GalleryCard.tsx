@@ -259,7 +259,12 @@ export const GalleryCard = memo(function GalleryCard() {
             data-id={image.id}
             ref={imageRefCallback}
             onClick={() => handleImageClick(image)}
-            className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+            onTouchStart={() => handleTouchStart(image)}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            className={`aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative ${
+              isSelectionMode && selectedIds.has(image.id) ? 'ring-2 ring-blue-500' : ''
+            }`}
           >
             {visibleImages.has(image.id) ? (
               <img
@@ -271,6 +276,18 @@ export const GalleryCard = memo(function GalleryCard() {
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
+              </div>
+            )}
+            
+            {isSelectionMode && (
+              <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center ${
+                selectedIds.has(image.id)
+                  ? 'bg-blue-500'
+                  : 'bg-black/30 border-2 border-white/70'
+              }`}>
+                {selectedIds.has(image.id) && (
+                  <Check className="w-4 h-4 text-white" />
+                )}
               </div>
             )}
           </div>
