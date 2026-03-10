@@ -86,45 +86,61 @@ export const GalleryCard = memo(function GalleryCard() {
 
     setIsLoading(true);
     setError(null);
-    // Clear thumbnails when refreshing
-    setThumbnails(new Map());
-    setLoadingThumbnails(new Set());
-    // Also clear refs
-    loadingThumbnailsRef.current.clear();
-    loadedThumbnailsRef.current.clear();
+    // Don't clear thumbnails here - let the useEffect handle it when images change
+    // This prevents race conditions between clear and load
 
     try {
       // Load only metadata (fast, no thumbnails)
       const result = await window.GalleryAndroid.getGalleryImages(config.savePath);
       const response = JSON.parse(result) as { images: GalleryImage[] };
-      const parsed = response.images;
-      setImages(parsed);
-
-      // 延迟预加载前9张图片的缩略图（约3屏内容），避免阻塞渲染
-      // 使用 requestAnimationFrame 确保 DOM 更新完成后再开始加载
-      requestAnimationFrame(() => {
-        const imagesToPreload = parsed.slice(0, 9);
-        imagesToPreload.forEach((image, index) => {
-          // 使用 setTimeout 错峰加载，避免主线程阻塞
-          setTimeout(() => {
-            if (!loadedThumbnailsRef.current.has(image.id) && !loadingThumbnailsRef.current.has(image.id)) {
-              loadThumbnail(image.id);
-            }
-          }, index * 50); // 增加延迟到 50ms，减少卡顿
-        });
-      });
+      setImages(response.images);
+      // Thumbnail loading is handled by the useEffect that watches images array
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load images');
       setImages([]);
     } finally {
       setIsLoading(false);
     }
-  }, [config?.savePath, loadThumbnail]);
+  }, [config?.savePath]);
 
   // Load images on mount
   useEffect(() => {
     loadImages();
   }, [loadImages]);
+
+  // Force thumbnail reload when images array changes (after refresh)
+  useEffect(() => {
+    if (images.length > 0 && !isLoading) {
+      // Reset thumbnail loading state for all images to ensure fresh load
+      loadingThumbnailsRef.current.clear();
+      loadedThumbnailsRef.current.clear();
+      
+      // Clear any stale thumbnail data that doesn't match current images
+      const currentIds = new Set(images.map(img => img.id));
+      setThumbnails(prev => {
+        const next = new Map();
+        prev.forEach((value, key) => {
+          if (currentIds.has(key)) {
+            next.set(key, value);
+          }
+        });
+        return next;
+      });
+      
+      // Preload first 9 images after a short delay to ensure DOM is ready
+      requestAnimationFrame(() => {
+        const imagesToPreload = images.slice(0, 9);
+        imagesToPreload.forEach((image, index) => {
+          setTimeout(() => {
+            // Force reload by clearing the loaded state first
+            loadedThumbnailsRef.current.delete(image.id);
+            loadingThumbnailsRef.current.delete(image.id);
+            loadThumbnail(image.id);
+          }, index * 50);
+        });
+      });
+    }
+  }, [images, isLoading, loadThumbnail]);
 
   // Listen for file index changes
   useEffect(() => {
