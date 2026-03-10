@@ -136,6 +136,80 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         }
     }
 
+    /**
+     * Get the latest image from the specified directory using MediaStore.
+     * Uses DATE_MODIFIED for sorting (fast, consistent with getGalleryImages).
+     * This replaces Rust FileIndex for Android platform to avoid data inconsistency.
+     *
+     * @param storagePath The directory path to query
+     * @return JSON string containing { id, path, filename, dateModified } or null if not found
+     */
+    @android.webkit.JavascriptInterface
+    fun getLatestImage(storagePath: String): String {
+        Log.d(TAG, "getLatestImage: storagePath=$storagePath")
+
+        return try {
+            val imagesDir = File(storagePath)
+            if (!imagesDir.exists() || !imagesDir.isDirectory) {
+                Log.w(TAG, "Directory does not exist: $storagePath")
+                return "null"
+            }
+
+            // Normalize the path for comparison (remove trailing slash for consistent matching)
+            val normalizedPath = storagePath.removeSuffix("/")
+            Log.d(TAG, "getLatestImage: normalizedPath=$normalizedPath")
+
+            val projection = arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.DATA,
+                MediaStore.Images.Media.DATE_MODIFIED
+            )
+
+            // Query all images and filter by path prefix (more reliable than LIKE query)
+            val sortOrder = "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+
+            context.contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                null,  // No selection - we'll filter in code
+                null,
+                sortOrder
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+                val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+                val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val name = cursor.getString(nameColumn)
+                    val path = cursor.getString(dataColumn)
+                    val dateModified = cursor.getLong(dateColumn) * 1000
+
+                    // Check if this image is in the target directory (path starts with normalizedPath)
+                    if (path.startsWith(normalizedPath)) {
+                        val result = JSONObject().apply {
+                            put("id", id)
+                            put("path", path)
+                            put("filename", name)
+                            put("dateModified", dateModified)
+                        }.toString()
+
+                        Log.d(TAG, "getLatestImage: found $name at $path")
+                        return result
+                    }
+                }
+            }
+
+            Log.d(TAG, "getLatestImage: no images found in $normalizedPath")
+            "null"
+        } catch (e: Exception) {
+            Log.e(TAG, "getLatestImage error", e)
+            "null"
+        }
+    }
+
     @android.webkit.JavascriptInterface
     fun deleteImages(idsJson: String): Boolean {
         Log.d(TAG, "deleteImages: idsJson=$idsJson")

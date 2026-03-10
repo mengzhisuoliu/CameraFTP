@@ -34,37 +34,7 @@ export const GalleryCard = memo(function GalleryCard() {
   const loadingThumbnailsRef = useRef<Set<number>>(new Set());
   const loadedThumbnailsRef = useRef<Set<number>>(new Set());
 
-  const loadImages = useCallback(async () => {
-    if (!config?.savePath || !window.GalleryAndroid) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    // Clear thumbnails when refreshing
-    setThumbnails(new Map());
-    setLoadingThumbnails(new Set());
-    // Also clear refs
-    loadingThumbnailsRef.current.clear();
-    loadedThumbnailsRef.current.clear();
-
-    try {
-      // Load only metadata (fast, no thumbnails)
-      const result = await window.GalleryAndroid.getGalleryImages(config.savePath);
-      const response = JSON.parse(result) as { images: GalleryImage[] };
-      const parsed = response.images;
-      // Sort by sortTime descending (newest first)
-      parsed.sort((a, b) => b.sortTime - a.sortTime);
-      setImages(parsed);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load images');
-      setImages([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [config?.savePath]);
-
-  // Load thumbnail for a specific image
+  // Load thumbnail for a specific image - defined before loadImages to avoid TDZ
   const loadThumbnail = useCallback(async (imageId: number) => {
     // Skip if already loaded or loading (check refs for current state)
     if (loadedThumbnailsRef.current.has(imageId) || loadingThumbnailsRef.current.has(imageId)) {
@@ -97,6 +67,48 @@ export const GalleryCard = memo(function GalleryCard() {
     }
   }, []); // No dependencies - uses refs for state checks
 
+  const loadImages = useCallback(async () => {
+    if (!config?.savePath || !window.GalleryAndroid) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    // Clear thumbnails when refreshing
+    setThumbnails(new Map());
+    setLoadingThumbnails(new Set());
+    // Also clear refs
+    loadingThumbnailsRef.current.clear();
+    loadedThumbnailsRef.current.clear();
+
+    try {
+      // Load only metadata (fast, no thumbnails)
+      const result = await window.GalleryAndroid.getGalleryImages(config.savePath);
+      const response = JSON.parse(result) as { images: GalleryImage[] };
+      const parsed = response.images;
+      setImages(parsed);
+
+      // 延迟预加载前9张图片的缩略图（约3屏内容），避免阻塞渲染
+      // 使用 requestAnimationFrame 确保 DOM 更新完成后再开始加载
+      requestAnimationFrame(() => {
+        const imagesToPreload = parsed.slice(0, 9);
+        imagesToPreload.forEach((image, index) => {
+          // 使用 setTimeout 错峰加载，避免主线程阻塞
+          setTimeout(() => {
+            if (!loadedThumbnailsRef.current.has(image.id) && !loadingThumbnailsRef.current.has(image.id)) {
+              loadThumbnail(image.id);
+            }
+          }, index * 50); // 增加延迟到 50ms，减少卡顿
+        });
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load images');
+      setImages([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [config?.savePath, loadThumbnail]);
+
   // Load images on mount
   useEffect(() => {
     loadImages();
@@ -117,28 +129,54 @@ export const GalleryCard = memo(function GalleryCard() {
   // Setup intersection observer for lazy loading thumbnails
   // Observer is created once and uses loadThumbnail which tracks state via refs
   useEffect(() => {
+    // 批量处理可见图片，减少重渲染
+    const pendingLoads = new Set<number>();
+    let loadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const processPendingLoads = () => {
+      loadTimeout = null;
+      pendingLoads.forEach((id) => {
+        if (!loadedThumbnailsRef.current.has(id) && !loadingThumbnailsRef.current.has(id)) {
+          loadThumbnail(id);
+        }
+      });
+      pendingLoads.clear();
+    };
+
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           const id = Number(entry.target.getAttribute('data-id'));
-          if (entry.isIntersecting) {
-            // Load thumbnail when image becomes visible
-            loadThumbnail(id);
+          if (entry.isIntersecting && id) {
+            pendingLoads.add(id);
           }
         });
+
+        // 批量延迟加载，减少主线程压力
+        if (pendingLoads.size > 0 && !loadTimeout) {
+          loadTimeout = setTimeout(processPendingLoads, 50);
+        }
       },
-      { rootMargin: '100px' } // Preload images 100px before they enter viewport
+      { 
+        rootMargin: '200px', // 增加预加载范围到 200px
+        threshold: 0.01 // 只要进入 rootMargin 就触发
+      }
     );
 
     return () => {
+      if (loadTimeout) {
+        clearTimeout(loadTimeout);
+      }
       observerRef.current?.disconnect();
     };
   }, [loadThumbnail]); // loadThumbnail is stable (no deps), so this runs once
 
-  // Observe image elements
+  // Observe image elements - 仅观察，不立即加载（避免与预加载重复）
   const imageRefCallback = useCallback((el: HTMLDivElement | null) => {
     if (el && observerRef.current) {
       observerRef.current.observe(el);
+      // 注意：不在这里立即加载，让 IntersectionObserver 处理可见图片
+      // 预加载逻辑在 loadImages 中通过 requestAnimationFrame 延迟执行
     }
   }, []);
 

@@ -150,6 +150,15 @@ interface GalleryAndroid {
   getImageSortTime(imageId: number): Promise<number>;
 
   /**
+   * Get the latest image from the specified directory.
+   * Uses MediaStore DATE_MODIFIED for sorting (fast, consistent with getGalleryImages).
+   * This replaces Rust FileIndex for Android platform to ensure data consistency.
+   * @param storagePath The directory path to query
+   * @returns JSON string containing { id, path, filename, dateModified } or "null" if not found
+   */
+  getLatestImage(storagePath: string): Promise<string>;
+
+  /**
    * Delete images by their IDs
    * @param idsJson JSON array of image IDs to delete
    * @returns true if deletion succeeded, false otherwise
