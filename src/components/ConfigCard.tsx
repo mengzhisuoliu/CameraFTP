@@ -136,7 +136,7 @@ export const ConfigCard = memo(function ConfigCard() {
   }, [updateDraft]);
 
   return (
-    <>
+    <div className="space-y-4">
       {/* 基础设置 - Android上增加顶部留白 */}
       <Card className={`overflow-hidden ${isAndroid ? 'mt-6' : ''}`}>
         <CardHeader 
@@ -250,6 +250,6 @@ export const ConfigCard = memo(function ConfigCard() {
 
       {/* 关于 - 放在配置页面底部 */}
       <AboutCard />
-    </>
+    </div>
   );
 });
