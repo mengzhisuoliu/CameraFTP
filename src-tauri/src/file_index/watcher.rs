@@ -4,22 +4,13 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-#[cfg(not(target_os = "android"))]
 use std::time::Duration;
-use notify::RecommendedWatcher;
-#[cfg(not(target_os = "android"))]
-use notify::{Event, RecursiveMode, Watcher};
-use tokio::sync::mpsc::Sender;
-#[cfg(not(target_os = "android"))]
-use tokio::sync::mpsc::channel;
-use tracing::info;
-#[cfg(not(target_os = "android"))]
-use tracing::{debug, error, warn};
+use notify::{Event, RecursiveMode, Watcher, RecommendedWatcher};
+use tokio::sync::mpsc::{channel, Sender};
+use tracing::{info, debug, error, warn};
 
 use crate::file_index::FileIndexService;
-#[cfg(not(target_os = "android"))]
 use crate::constants::FILE_READY_TIMEOUT_SECS;
-#[cfg(not(target_os = "android"))]
 use crate::utils::wait_for_file_ready;
 
 /// 文件系统事件类型
@@ -37,8 +28,10 @@ pub enum FileSystemEvent {
 
 /// 跨平台文件系统监听器
 /// 
-/// 桌面平台（Windows/Linux/macOS）使用 notify crate
-/// Android 平台使用 FileObserver（在 Kotlin 侧实现）
+/// 所有平台统一使用 notify crate
+/// - Windows: ReadDirectoryChangesW
+/// - Linux/Android: inotify
+/// - macOS: FSEvents
 pub struct FileWatcher {
     watcher: Option<RecommendedWatcher>,
     watch_path: PathBuf,
@@ -61,9 +54,7 @@ impl FileWatcher {
     /// * `file_index` - 文件索引服务，用于同步索引
     /// 
     /// # Platform Support
-    /// - Windows/Linux/macOS: 使用 notify crate
-    /// - Android: 返回 false，Android 使用 FileObserverBridge
-    #[cfg(not(target_os = "android"))]
+    /// - Windows/Linux/macOS/Android: 统一使用 notify crate
     pub async fn start(&mut self, file_index: Arc<FileIndexService>) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         if self.watcher.is_some() {
             info!("File watcher already running");
@@ -108,13 +99,6 @@ impl FileWatcher {
         Ok(true)
     }
 
-    /// Android 平台不支持 notify，返回 false
-    #[cfg(target_os = "android")]
-    pub async fn start(&mut self, _file_index: Arc<FileIndexService>) -> Result<bool, Box<dyn std::error::Error>> {
-        info!("File watcher on Android is handled by FileObserverBridge");
-        Ok(false)
-    }
-
     /// 停止监听
     pub fn stop(&mut self) {
         if let Some(watcher) = self.watcher.take() {
@@ -125,7 +109,6 @@ impl FileWatcher {
     }
 
     /// 处理 notify 事件，转换为内部事件格式
-    #[cfg(not(target_os = "android"))]
     fn handle_notify_event(event: Event, tx: &Sender<FileSystemEvent>) {
         use notify::EventKind;
 
@@ -174,7 +157,6 @@ impl FileWatcher {
     }
 
     /// 处理文件系统事件并同步到索引
-    #[cfg(not(target_os = "android"))]
     async fn process_event(event: FileSystemEvent, file_index: Arc<FileIndexService>) {
         match event {
             FileSystemEvent::Created(path) => {
