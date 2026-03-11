@@ -9,7 +9,6 @@ import { Image } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useServerStore } from '../stores/serverStore';
-import { useConfigStore } from '../stores/configStore';
 import { IconContainer } from './ui';
 import type { FileInfo } from '../types';
 
@@ -20,58 +19,29 @@ interface FileIndexChangedEvent {
 
 export const LatestPhotoCard = memo(function LatestPhotoCard() {
   const { stats } = useServerStore();
-  const { config } = useConfigStore();
   const [scannedLatestFile, setScannedLatestFile] = useState<FileInfo | null>(null);
 
   // 加载时获取扫描的最新文件
   useEffect(() => {
     const fetchLatestFile = async () => {
-      // Android: 使用 MediaStore 获取最新图片（与图库一致，确保数据一致性）
-      if (window.GalleryAndroid?.getLatestImage && config?.savePath) {
-        try {
-          const result = await window.GalleryAndroid.getLatestImage(config.savePath);
-          if (result && result !== 'null') {
-            const latest = JSON.parse(result) as FileInfo;
-            setScannedLatestFile(latest);
-          } else if (result === 'null') {
-            // MediaStore 查询成功但无数据，明确设置为 null
-            setScannedLatestFile(null);
-          }
-          // 如果抛出异常，保留现有状态（可能是 Rust 索引的数据）
-        } catch (err) {
-          console.error('[LatestPhotoCard] getLatestImage failed:', err);
-          // 出错时保留现有状态，避免覆盖有效数据
-        }
-        return;
-      }
-
-      // Windows: 使用 Rust 文件索引
       try {
-        const latest = await invoke<FileInfo | null>('get_latest_file');
+        const latest = await invoke<FileInfo | null>('get_latest_image');
         setScannedLatestFile(latest);
-      } catch {
-        // Silently ignore - non-critical feature
+      } catch (err) {
+        console.error('[LatestPhotoCard] Failed to fetch latest image:', err);
       }
     };
 
-    // 立即获取一次
     fetchLatestFile();
-  }, [config?.savePath]);
+  }, []);
 
-  // 监听文件索引变化事件（仅Windows平台使用Rust索引）
+  // 监听文件索引变化事件
   useEffect(() => {
-    // Android使用MediaStore，不需要监听Rust文件索引变化
-    if (window.GalleryAndroid) {
-      return;
-    }
-
     const unlistenPromise = listen<FileIndexChangedEvent>('file-index-changed', (event) => {
-      // 当文件索引变化时，重新获取最新文件
       if (event.payload.count === 0) {
         setScannedLatestFile(null);
       } else {
-        // 重新获取最新文件信息
-        invoke<FileInfo | null>('get_latest_file')
+        invoke<FileInfo | null>('get_latest_image')
           .then((latest) => {
             setScannedLatestFile(latest);
           })
@@ -103,58 +73,21 @@ export const LatestPhotoCard = memo(function LatestPhotoCard() {
   const filename = getFilename();
 
   const handleOpenPreview = useCallback(async () => {
-    if (!config?.savePath) return;
-
-    // Android: 使用 MediaStore 实时获取最新图片
-    if (window.GalleryAndroid?.getLatestImage) {
-      try {
-        const result = await window.GalleryAndroid.getLatestImage(config.savePath);
-        if (result && result !== 'null') {
-          const latest = JSON.parse(result) as FileInfo;
-          setScannedLatestFile(latest);
-          const targetPath = latest.path.replace(/\\/g, '/');
-          window.PermissionAndroid?.openImageWithChooser(targetPath);
-        } else {
-          setScannedLatestFile(null);
-        }
-      } catch {
-        // Silently ignore
-      }
-      return;
-    }
-
-    // Windows: 使用 Rust 文件索引
-    let targetPath: string | null = null;
     try {
-      const latest = await invoke<FileInfo | null>('get_latest_file');
+      const latest = await invoke<FileInfo | null>('get_latest_image');
       if (latest) {
-        targetPath = latest.path.replace(/\\/g, '/');
         setScannedLatestFile(latest);
-      } else {
-        setScannedLatestFile(null);
+        // 打开图片
+        if (window.GalleryAndroid) {
+          window.PermissionAndroid?.openImageWithChooser(latest.path);
+        } else {
+          await invoke('open_preview_window', { filePath: latest.path });
+        }
       }
     } catch {
-      // 如果获取失败，回退到缓存的数据
+      // Silently ignore
     }
-
-    // 如果实时获取失败，回退到 stats 或缓存
-    if (!targetPath) {
-      if (stats.lastFile) {
-        targetPath = `${config.savePath}/${stats.lastFile}`.replace(/\\/g, '/');
-      } else if (scannedLatestFile) {
-        targetPath = scannedLatestFile.path.replace(/\\/g, '/');
-      }
-    }
-
-    // Windows: 使用 Tauri 命令打开预览窗口
-    if (targetPath) {
-      try {
-        await invoke('open_preview_window', { filePath: targetPath });
-      } catch {
-        // Silently ignore - preview is optional
-      }
-    }
-  }, [stats.lastFile, scannedLatestFile, config?.savePath]);
+  }, []);
 
   // 优先使用 scannedLatestFile 判断是否有文件（实时更新）
   const hasFile = scannedLatestFile || stats.lastFile;
