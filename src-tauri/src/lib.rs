@@ -279,22 +279,20 @@ fn restore_and_focus_window(app_handle: &tauri::AppHandle) {
 /// 先执行文件扫描，扫描完成后再启动文件监听，避免竞态条件
 fn spawn_background_tasks(app_handle: &tauri::AppHandle) {
     let handle = app_handle.clone();
-    
+
     tauri::async_runtime::spawn(async move {
         // 1. 先执行文件扫描
         let file_index: tauri::State<'_, Arc<FileIndexService>> = handle.state::<Arc<FileIndexService>>();
         if let Err(e) = file_index.scan_directory().await {
             tracing::error!("Failed to scan directory: {}", e);
         }
-        
+
         // 2. 扫描完成后，启动文件监听
-        {
-            let file_index_arc = Arc::clone(&file_index);
-            match FileIndexService::start_watcher(file_index_arc).await {
-                Ok(true) => tracing::info!("File watcher started successfully"),
-                Ok(false) => tracing::info!("File watcher not started (unsupported platform)"),
-                Err(e) => tracing::error!("Failed to start file watcher: {}", e),
-            }
+        let file_index_arc = Arc::clone(&file_index);
+        match FileIndexService::start_watcher(file_index_arc).await {
+            Ok(true) => tracing::info!("File watcher started successfully"),
+            Ok(false) => tracing::info!("File watcher not started (unsupported platform)"),
+            Err(e) => tracing::error!("Failed to start file watcher: {}", e),
         }
     });
 }

@@ -10,6 +10,7 @@ use crate::config::{AppConfig, PreviewWindowConfig};
 use crate::crypto;
 use crate::error::AppError;
 use crate::file_index::FileIndexService;
+use std::sync::Arc;
 
 #[command]
 #[instrument]
@@ -21,7 +22,7 @@ pub fn load_config() -> AppConfig {
 #[instrument(skip(config, file_index))]
 pub async fn save_config(
     config: AppConfig,
-    file_index: State<'_, FileIndexService>,
+    file_index: State<'_, Arc<FileIndexService>>,
 ) -> Result<(), AppError> {
     // 加载旧配置以比较 save_path
     let old_config = AppConfig::load();
@@ -141,7 +142,7 @@ pub async fn open_preview_window(
     let path = std::path::PathBuf::from(&file_path);
     
     // 先在 FileIndexService 中查找并设置索引
-    let file_index = app.state::<FileIndexService>();
+    let file_index = app.state::<Arc<FileIndexService>>();
     if let Some(index) = file_index.find_file_index(&path).await {
         file_index.navigate_to(index).await?;
     }
