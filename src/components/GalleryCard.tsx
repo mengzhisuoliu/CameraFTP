@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { useConfigStore } from '../stores/configStore';
+import { permissionBridge } from '../types';
 import type { GalleryImage, FileInfo } from '../types';
 
 interface FileIndexChangedEvent {
@@ -258,6 +259,15 @@ export const GalleryCard = memo(function GalleryCard() {
   }, [isSelectionMode]);
 
   const handleRefresh = useCallback(async () => {
+    // Check storage permission first on Android
+    if (permissionBridge.isAvailable()) {
+      const permissions = await permissionBridge.checkAll();
+      if (permissions && !permissions.storage) {
+        permissionBridge.requestStorage();
+        return;
+      }
+    }
+
     setIsRefreshing(true);
     const startTime = Date.now();
 
@@ -340,28 +350,19 @@ export const GalleryCard = memo(function GalleryCard() {
     return null;
   }
 
-  // Loading state
-  if (isLoading && images.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        <p className="mt-3 text-gray-500">加载中...</p>
-      </div>
-    );
-  }
-
-  // Empty state
-  if (!isLoading && images.length === 0) {
+  // Empty state (remains visible during refresh, only button changes)
+  if (images.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <ImageOff className="w-12 h-12 text-gray-300" />
         <p className="mt-3 text-gray-500">暂无图片</p>
         <button
           onClick={handleRefresh}
-          className="mt-4 flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          disabled={isLoading || isRefreshing}
+          className="mt-4 flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
         >
-          <RefreshCw className="w-4 h-4" />
-          刷新
+          <RefreshCw className={`w-4 h-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
+          <span>{isLoading || isRefreshing ? '刷新中...' : '刷新'}</span>
         </button>
       </div>
     );
@@ -374,10 +375,11 @@ export const GalleryCard = memo(function GalleryCard() {
         <p className="text-red-500">{error}</p>
         <button
           onClick={handleRefresh}
-          className="mt-4 flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          disabled={isRefreshing}
+          className="mt-4 flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
         >
-          <RefreshCw className="w-4 h-4" />
-          重试
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>{isRefreshing ? '刷新中...' : '重试'}</span>
         </button>
       </div>
     );
