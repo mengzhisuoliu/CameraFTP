@@ -264,13 +264,17 @@ impl FileIndexService {
         
         // sort_time 优先使用 exif_time
         let sort_time = exif_time.unwrap_or(modified_time);
-        
+        let sort_time_ms = sort_time
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
         Ok(FileInfo {
             path: path.to_path_buf(),
             filename,
             exif_time,
             modified_time,
-            sort_time,
+            sort_time: sort_time_ms,
         })
     }
 
