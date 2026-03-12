@@ -6,7 +6,6 @@
 
 import { memo, useCallback, useEffect, useState, useRef } from 'react';
 import { RefreshCw, ImageOff, Loader2, Check, X, Trash2, Share2, MoreVertical } from 'lucide-react';
-import { toast } from 'sonner';
 import { listen } from '@tauri-apps/api/event';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { useConfigStore } from '../stores/configStore';
@@ -315,7 +314,6 @@ export const GalleryCard = memo(function GalleryCard() {
     try {
       const resultJson = await window.GalleryAndroid?.deleteImages(JSON.stringify([...selectedIds]));
       if (!resultJson) {
-        toast.error('删除失败');
         setShowDeleteConfirm(false);
         return;
       }
@@ -327,7 +325,6 @@ export const GalleryCard = memo(function GalleryCard() {
       const failedPaths = new Set(failed);
 
       if (pathsToAnimate.size === 0 && failedPaths.size > 0) {
-        toast.error('删除失败');
         setShowDeleteConfirm(false);
         return;
       }
@@ -356,14 +353,8 @@ export const GalleryCard = memo(function GalleryCard() {
         setIsSelectionMode(false);
       }
 
-      if (failedPaths.size > 0) {
-        toast.success(`已删除 ${pathsToAnimate.size} 张图片，${failedPaths.size} 张删除失败`);
-      } else {
-        toast.success(`已删除 ${pathsToAnimate.size} 张图片`);
-      }
     } catch (err) {
       console.error('Delete failed:', err);
-      toast.error('删除失败');
       setShowDeleteConfirm(false);
     }
   }, [selectedIds]);
@@ -376,7 +367,6 @@ export const GalleryCard = memo(function GalleryCard() {
       setShowMenu(false);
     } catch (err) {
       console.error('Share failed:', err);
-      toast.error('分享失败');
     }
   }, [selectedIds]);
 
