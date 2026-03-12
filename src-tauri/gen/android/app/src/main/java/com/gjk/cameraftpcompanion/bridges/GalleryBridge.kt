@@ -150,8 +150,17 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         return createThumbnailFromFile(file)
     }
 
+    /**
+     * Deletion result for a single file
+     */
+    data class FileDeletionResult(
+        val path: String,
+        val success: Boolean,
+        val existed: Boolean
+    )
+
     @android.webkit.JavascriptInterface
-    fun deleteImages(pathsJson: String): Boolean {
+    fun deleteImages(pathsJson: String): String {
         Log.d(TAG, "deleteImages: pathsJson=$pathsJson")
 
         return try {
@@ -161,14 +170,18 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
 
             if (paths.isEmpty()) {
                 Log.w(TAG, "deleteImages: no paths provided")
-                return false
+                return """{"deleted":[],"notFound":[],"failed":[]}"""
             }
 
-            var deletedCount = 0
+            val deleted = mutableListOf<String>()
+            val notFound = mutableListOf<String>()
+            val failed = mutableListOf<String>()
 
             paths.forEach { path ->
                 val file = File(path)
-                if (file.exists()) {
+                val existed = file.exists()
+
+                if (existed) {
                     // Try to delete via MediaStore first (for proper media index update)
                     val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
                     val rowsDeleted = context.contentResolver.delete(
@@ -178,24 +191,74 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
                     )
 
                     // Also delete the actual file if it still exists
-                    if (file.exists() && file.delete()) {
-                        deletedCount++
+                    val fileDeleted = file.exists() && file.delete()
+
+                    if (fileDeleted || rowsDeleted > 0) {
+                        deleted.add(path)
                         Log.d(TAG, "Deleted image path=$path")
-                    } else if (rowsDeleted > 0) {
-                        deletedCount++
-                        Log.d(TAG, "Deleted image via MediaStore path=$path")
                     } else {
+                        failed.add(path)
                         Log.w(TAG, "Failed to delete image path=$path")
                     }
                 } else {
-                    Log.w(TAG, "File does not exist path=$path")
+                    // File doesn't exist, treat as "deleted" for animation purposes
+                    notFound.add(path)
+                    Log.d(TAG, "File not found, will remove from UI path=$path")
                 }
             }
 
-            Log.d(TAG, "deleteImages: deleted $deletedCount/${paths.size} images")
-            deletedCount > 0
+            Log.d(TAG, "deleteImages: deleted=${deleted.size}, notFound=${notFound.size}, failed=${failed.size}")
+
+            // Build JSON response
+            val deletedJson = deleted.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
+            val notFoundJson = notFound.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
+            val failedJson = failed.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
+            
+            "{\"deleted\":$deletedJson,\"notFound\":$notFoundJson,\"failed\":$failedJson}"
         } catch (e: Exception) {
             Log.e(TAG, "deleteImages error", e)
+            """{"deleted":[],"notFound":[],"failed":[]}"""
+        }
+    }
+
+    /**
+     * Escape special characters in JSON string
+     */
+    private fun escapeJson(str: String): String {
+        return str
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+    }
+
+    /**
+     * Remove thumbnail cache files for deleted images
+     * Called by frontend after delete animation completes
+     */
+    @android.webkit.JavascriptInterface
+    fun removeThumbnails(pathsJson: String): Boolean {
+        Log.d(TAG, "removeThumbnails: pathsJson=$pathsJson")
+
+        return try {
+            val paths = JSONArray(pathsJson).let { json ->
+                (0 until json.length()).map { json.getString(it) }
+            }
+
+            var removedCount = 0
+            paths.forEach { path ->
+                val cacheFile = getThumbnailCacheFile(path)
+                if (cacheFile.exists() && cacheFile.delete()) {
+                    removedCount++
+                    Log.d(TAG, "Removed thumbnail cache for path=$path")
+                }
+            }
+
+            Log.d(TAG, "removeThumbnails: removed $removedCount/${paths.size} thumbnails")
+            removedCount > 0
+        } catch (e: Exception) {
+            Log.e(TAG, "removeThumbnails error", e)
             false
         }
     }

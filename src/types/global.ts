@@ -121,6 +121,18 @@ export interface GalleryImage {
 }
 
 /**
+ * Result of deleting images
+ */
+export interface DeleteImagesResult {
+  /** Paths of successfully deleted files */
+  deleted: string[];
+  /** Paths of files that didn't exist (should still animate) */
+  notFound: string[];
+  /** Paths of files that failed to delete (should not animate) */
+  failed: string[];
+}
+
+/**
  * Android Gallery interface
  * Provides access to device image gallery via direct file access
  * Uses lazy loading for thumbnails to improve performance
@@ -136,9 +148,17 @@ interface GalleryAndroid {
   /**
    * Delete images by their paths
    * @param pathsJson JSON array of image paths to delete
-   * @returns true if deletion succeeded, false otherwise
+   * @returns JSON string with deletion results containing deleted, notFound, and failed arrays
    */
-  deleteImages(pathsJson: string): Promise<boolean>;
+  deleteImages(pathsJson: string): Promise<string>;
+
+  /**
+   * Remove thumbnail cache files for the given paths
+   * Called after delete animation completes
+   * @param pathsJson JSON array of image paths to remove thumbnails for
+   * @returns true if any thumbnails were removed
+   */
+  removeThumbnails(pathsJson: string): Promise<boolean>;
 
   /**
    * Share images by their paths

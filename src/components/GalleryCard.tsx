@@ -11,7 +11,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { useConfigStore } from '../stores/configStore';
 import { permissionBridge } from '../types';
-import type { GalleryImage, FileInfo } from '../types';
+import type { GalleryImage, FileInfo, DeleteImagesResult } from '../types';
 
 interface FileIndexChangedEvent {
   count: number;
@@ -30,6 +30,7 @@ export const GalleryCard = memo(function GalleryCard() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   // Refs to track loading state without causing re-renders in observer callback
@@ -296,23 +297,66 @@ export const GalleryCard = memo(function GalleryCard() {
   }, [selectedIds.size]);
 
   const handleDeleteConfirm = useCallback(async (confirmed: boolean) => {
-    if (confirmed) {
-      try {
-        const success = await window.GalleryAndroid?.deleteImages(JSON.stringify([...selectedIds]));
-        if (success) {
-          loadImages();
-          setIsSelectionMode(false);
-          setSelectedIds(new Set());
-        } else {
-          toast.error('删除失败');
-        }
-      } catch (err) {
-        console.error('Delete failed:', err);
-        toast.error('删除失败');
-      }
+    if (!confirmed) {
+      setShowDeleteConfirm(false);
+      return;
     }
-    setShowDeleteConfirm(false);
-  }, [selectedIds, loadImages]);
+
+    try {
+      const resultJson = await window.GalleryAndroid?.deleteImages(JSON.stringify([...selectedIds]));
+      if (!resultJson) {
+        toast.error('删除失败');
+        setShowDeleteConfirm(false);
+        return;
+      }
+
+      const result: DeleteImagesResult = JSON.parse(resultJson);
+      const { deleted, notFound, failed } = result;
+
+      const pathsToAnimate = new Set([...deleted, ...notFound]);
+      const failedPaths = new Set(failed);
+
+      if (pathsToAnimate.size === 0 && failedPaths.size > 0) {
+        toast.error('删除失败');
+        setShowDeleteConfirm(false);
+        return;
+      }
+
+      setDeletingIds(pathsToAnimate);
+      setShowDeleteConfirm(false);
+      setShowMenu(false);
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (pathsToAnimate.size > 0) {
+        await window.GalleryAndroid?.removeThumbnails(JSON.stringify([...pathsToAnimate]));
+      }
+
+      setImages(prev => prev.filter(img => !pathsToAnimate.has(img.path)));
+      setThumbnails(prev => {
+        const next = new Map(prev);
+        pathsToAnimate.forEach(path => next.delete(path));
+        return next;
+      });
+      setDeletingIds(new Set());
+
+      const remainingSelected = new Set([...selectedIds].filter(id => !pathsToAnimate.has(id)));
+      setSelectedIds(remainingSelected);
+      if (remainingSelected.size === 0) {
+        setIsSelectionMode(false);
+      }
+
+      if (failedPaths.size > 0) {
+        toast.success(`已删除 ${pathsToAnimate.size} 张图片，${failedPaths.size} 张删除失败`);
+      } else {
+        toast.success(`已删除 ${pathsToAnimate.size} 张图片`);
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+      toast.error('删除失败');
+      setShowDeleteConfirm(false);
+    }
+  }, [selectedIds]);
 
   const handleShare = useCallback(async () => {
     if (selectedIds.size === 0) return;
@@ -460,6 +504,7 @@ export const GalleryCard = memo(function GalleryCard() {
         {images.map((image) => {
           const thumbnail = thumbnails.get(image.path);
           const isLoadingThumb = loadingThumbnails.has(image.path);
+          const isDeleting = deletingIds.has(image.path);
 
           return (
             <div
@@ -472,9 +517,9 @@ export const GalleryCard = memo(function GalleryCard() {
               onTouchMove={handleTouchEnd}
               onTouchCancel={handleTouchEnd}
               onContextMenu={(e) => e.preventDefault()}
-              className={`aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative select-none ${
+              className={`aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-all duration-300 relative select-none ${
                 isSelectionMode && selectedIds.has(image.path) ? 'ring-2 ring-blue-500' : ''
-              }`}
+              } ${isDeleting ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
             >
               {thumbnail ? (
                 <img
