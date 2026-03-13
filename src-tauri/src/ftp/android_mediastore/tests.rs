@@ -7,7 +7,7 @@
 //! These tests verify the core functionality of the backend components
 //! without requiring an actual Android device.
 
-use super::backend::{AndroidMediaStoreBackend, MediaStoreMetadata, MediaStoreUser};
+use super::backend::{AndroidMediaStoreBackend, MediaStoreMetadata};
 use super::limiter::UploadLimiter;
 use super::retry::{retry_with_backoff, RetryConfig};
 use super::types::{
@@ -17,6 +17,7 @@ use super::types::{
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use unftp_core::auth::DefaultUser;
 // Import the traits to call trait methods
 use unftp_core::storage::{Metadata, StorageBackend};
 
@@ -417,7 +418,7 @@ fn create_test_backend() -> (AndroidMediaStoreBackend, TempDir) {
 #[tokio::test]
 async fn test_backend_list_empty_directory() {
     let (backend, _temp_dir) = create_test_backend();
-    let user = MediaStoreUser;
+    let user = DefaultUser;
     
     let result = backend.list(&user, Path::new("/")).await;
     // Empty directory should return empty list
@@ -430,7 +431,7 @@ async fn test_backend_list_empty_directory() {
 #[tokio::test]
 async fn test_backend_metadata_nonexistent() {
     let (backend, _temp_dir) = create_test_backend();
-    let user = MediaStoreUser;
+    let user = DefaultUser;
     
     let result = backend.metadata(&user, Path::new("nonexistent.jpg")).await;
     assert!(result.is_err());
@@ -440,7 +441,7 @@ async fn test_backend_metadata_nonexistent() {
 #[tokio::test]
 async fn test_backend_mkd_and_list() {
     let (backend, _temp_dir) = create_test_backend();
-    let user = MediaStoreUser;
+    let user = DefaultUser;
     
     // Create a directory
     let result = backend.mkd(&user, Path::new("testdir")).await;
@@ -451,7 +452,7 @@ async fn test_backend_mkd_and_list() {
 #[tokio::test]
 async fn test_backend_del_nonexistent() {
     let (backend, _temp_dir) = create_test_backend();
-    let user = MediaStoreUser;
+    let user = DefaultUser;
     
     // Deleting nonexistent file should fail
     let result = backend.del(&user, Path::new("nonexistent.jpg")).await;
@@ -462,7 +463,7 @@ async fn test_backend_del_nonexistent() {
 #[tokio::test]
 async fn test_backend_rename_not_supported() {
     let (backend, _temp_dir) = create_test_backend();
-    let user = MediaStoreUser;
+    let user = DefaultUser;
     
     // Rename should return unsupported error
     let result = backend.rename(&user, Path::new("old.jpg"), Path::new("new.jpg")).await;

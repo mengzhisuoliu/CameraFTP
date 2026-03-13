@@ -14,6 +14,7 @@ use super::types::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::debug;
 
 /// JNI-based MediaStore bridge for Android.
 ///

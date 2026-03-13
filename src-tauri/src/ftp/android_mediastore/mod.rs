@@ -49,7 +49,7 @@ pub mod types;
 mod tests;
 
 // Re-export main types for convenience
-pub use backend::{AndroidMediaStoreBackend, MediaStoreMetadata, MediaStoreUser};
+pub use backend::{AndroidMediaStoreBackend, MediaStoreMetadata};
 pub use bridge::{create_bridge, PlatformBridge};
 pub use limiter::UploadLimiter;
 pub use retry::{retry_with_backoff, RetryConfig};

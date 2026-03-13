@@ -23,6 +23,13 @@ pub mod server_factory;
 pub mod stats;
 pub mod types;
 
+// 平台特定的存储后端类型别名
+#[cfg(target_os = "android")]
+pub type FtpStorageBackend = crate::ftp::android_mediastore::AndroidMediaStoreBackend;
+
+#[cfg(not(target_os = "android"))]
+pub type FtpStorageBackend = unftp_sbe_fs::Filesystem;
+
 // 重新导出主要类型
 pub use events::{EventBus, EventProcessor, StatsEventHandler, TrayUpdateHandler};
 pub use server::{create_ftp_server, FtpServerActor, FtpServerHandle};

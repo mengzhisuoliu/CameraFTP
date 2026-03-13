@@ -19,8 +19,9 @@ use std::fmt::{self, Debug};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio::io::AsyncRead;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tracing::{debug, error, info, warn};
+use unftp_core::auth::DefaultUser;
 use unftp_core::storage::{Fileinfo, Metadata, StorageBackend, Error as StorageError};
 
 /// Metadata implementation for MediaStore files.
@@ -319,28 +320,11 @@ impl Default for AndroidMediaStoreBackend {
     }
 }
 
-/// User detail type for MediaStore backend.
-/// We don't need any user-specific data, so this is a unit struct.
-#[derive(Debug, Clone)]
-pub struct MediaStoreUser;
-
-impl fmt::Display for MediaStoreUser {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MediaStoreUser")
-    }
-}
-
-impl unftp_core::auth::UserDetail for MediaStoreUser {
-    fn account_enabled(&self) -> bool {
-        true
-    }
-}
-
 #[async_trait]
-impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
+impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     type Metadata = MediaStoreMetadata;
 
-    async fn metadata<P>(&self, _user: &MediaStoreUser, path: P) -> Result<Self::Metadata, StorageError>
+    async fn metadata<P>(&self, _user: &DefaultUser, path: P) -> Result<Self::Metadata, StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
@@ -374,7 +358,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         Ok(MediaStoreMetadata::from(result))
     }
 
-    async fn list<P>(&self, _user: &MediaStoreUser, path: P) -> Result<Vec<Fileinfo<PathBuf, Self::Metadata>>, StorageError>
+    async fn list<P>(&self, _user: &DefaultUser, path: P) -> Result<Vec<Fileinfo<PathBuf, Self::Metadata>>, StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
@@ -413,7 +397,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         Ok(files)
     }
 
-    async fn get<P>(&self, _user: &MediaStoreUser, path: P, start_pos: u64) -> Result<Box<dyn AsyncRead + Send + Sync + Unpin>, StorageError>
+    async fn get<P>(&self, _user: &DefaultUser, path: P, start_pos: u64) -> Result<Box<dyn AsyncRead + Send + Sync + Unpin>, StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
@@ -431,7 +415,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         )))
     }
 
-    async fn put<P, R>(&self, _user: &MediaStoreUser, reader: R, path: P, start_pos: u64) -> Result<u64, StorageError>
+    async fn put<P, R>(&self, _user: &DefaultUser, reader: R, path: P, start_pos: u64) -> Result<u64, StorageError>
     where
         P: AsRef<Path> + Send + Debug,
         R: AsyncRead + Send + Sync + Unpin + 'static,
@@ -506,7 +490,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         }
     }
 
-    async fn del<P>(&self, _user: &MediaStoreUser, path: P) -> Result<(), StorageError>
+    async fn del<P>(&self, _user: &DefaultUser, path: P) -> Result<(), StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
@@ -541,7 +525,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         Ok(())
     }
 
-    async fn mkd<P>(&self, _user: &MediaStoreUser, path: P) -> Result<(), StorageError>
+    async fn mkd<P>(&self, _user: &DefaultUser, path: P) -> Result<(), StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
@@ -572,7 +556,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         Ok(())
     }
 
-    async fn rename<P>(&self, _user: &MediaStoreUser, from: P, to: P) -> Result<(), StorageError>
+    async fn rename<P>(&self, _user: &DefaultUser, from: P, to: P) -> Result<(), StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
@@ -595,7 +579,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         )))
     }
 
-    async fn rmd<P>(&self, _user: &MediaStoreUser, path: P) -> Result<(), StorageError>
+    async fn rmd<P>(&self, _user: &DefaultUser, path: P) -> Result<(), StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
@@ -624,7 +608,7 @@ impl StorageBackend<MediaStoreUser> for AndroidMediaStoreBackend {
         Ok(())
     }
 
-    async fn cwd<P>(&self, _user: &MediaStoreUser, path: P) -> Result<(), StorageError>
+    async fn cwd<P>(&self, _user: &DefaultUser, path: P) -> Result<(), StorageError>
     where
         P: AsRef<Path> + Send + Debug,
     {
