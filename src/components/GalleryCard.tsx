@@ -17,6 +17,11 @@ interface FileIndexChangedEvent {
   latestFilename: string | null;
 }
 
+interface FileUploadedEvent {
+  path: string;
+  size: number;
+}
+
 export const GalleryCard = memo(function GalleryCard() {
   const { activeTab } = useConfigStore();
   const [images, setImages] = useState<GalleryImage[]>([]);
@@ -163,6 +168,22 @@ export const GalleryCard = memo(function GalleryCard() {
     const unlistenPromise = listen<FileIndexChangedEvent>('file-index-changed', () => {
       // Refresh the gallery when files change
       loadImages();
+    });
+
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
+    };
+  }, [loadImages]);
+
+  // Also listen for file-uploaded event as a backup mechanism
+  // On Android, file-index-changed event may not always reach the frontend reliably
+  useEffect(() => {
+    const unlistenPromise = listen<FileUploadedEvent>('file-uploaded', () => {
+      // Refresh the gallery when a new file is uploaded
+      // Small delay to ensure the file is fully written and indexed
+      setTimeout(() => {
+        loadImages();
+      }, 500);
     });
 
     return () => {
