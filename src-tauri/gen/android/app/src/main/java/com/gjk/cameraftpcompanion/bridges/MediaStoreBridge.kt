@@ -18,7 +18,7 @@ import com.gjk.cameraftpcompanion.MainActivity
 import org.json.JSONObject
 import java.io.FileNotFoundException
 
-class MediaStoreBridge(private val activity: MainActivity) : BaseJsBridge(activity) {
+class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
 
     companion object {
         private const val TAG = "MediaStoreBridge"
@@ -37,7 +37,7 @@ class MediaStoreBridge(private val activity: MainActivity) : BaseJsBridge(activi
             }
 
             // Fall back to extension-based detection
-            return when (filename.substringAfterLast('.', '').lowercase()) {
+            return when (filename.substringAfterLast('.', "").lowercase()) {
                 "jpg", "jpeg" -> "image/jpeg"
                 "png" -> "image/png"
                 "gif" -> "image/gif"
@@ -494,7 +494,7 @@ class MediaStoreBridge(private val activity: MainActivity) : BaseJsBridge(activi
                     val timestamp = it.getLong(2) * 1000 // Convert to milliseconds
 
                     val payload = buildReadyPayload(uri, relativePath, displayName, size, timestamp)
-                    activity.emitTauriEvent("media-store-ready", payload)
+                    (activity as? MainActivity)?.emitTauriEvent("media-store-ready", payload)
                 }
             }
         } catch (e: Exception) {

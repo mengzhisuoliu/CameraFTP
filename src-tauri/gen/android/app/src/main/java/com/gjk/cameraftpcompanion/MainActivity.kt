@@ -17,6 +17,7 @@ import com.gjk.cameraftpcompanion.bridges.FileUploadBridge
 import com.gjk.cameraftpcompanion.bridges.ServerStateBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridge
 import com.gjk.cameraftpcompanion.bridges.MediaStoreBridge
+import com.gjk.cameraftpcompanion.cache.ThumbnailCacheProvider
 
 class MainActivity : TauriActivity() {
 
@@ -56,6 +57,13 @@ class MainActivity : TauriActivity() {
         permissionBridge = PermissionBridge(this)
         galleryBridge = GalleryBridge(this)
         mediaStoreBridge = MediaStoreBridge(this)
+
+        // Initialize thumbnail cache
+        ThumbnailCacheProvider.initialize(this)
+        
+        // Cleanup stale pending entries (older than 24 hours)
+        val cutoffMillis = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
+        MediaStoreBridge.cleanupStalePendingEntries(contentResolver, cutoffMillis)
     }
 
     /**

@@ -18,21 +18,13 @@ import android.util.Base64
 import android.util.Log
 import android.widget.Toast
 import com.gjk.cameraftpcompanion.MainActivity
+import com.gjk.cameraftpcompanion.cache.ThumbnailCacheProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 
 class GalleryBridge(private val context: Context) : BaseJsBridge(context as android.app.Activity) {
-
-    companion object {
-        private const val TAG = "GalleryBridge"
-        private const val THUMBNAIL_QUALITY = 85
-        private const val THUMBNAIL_WIDTH = 400  // 增大尺寸以获得更好的显示效果
-        private const val THUMBNAIL_HEIGHT = 400
-        private const val THUMBNAIL_SUBDIR = "thumbnails"
-        private const val URI_WINDOW_SIZE = 25  // Number of URIs to include on each side of target
-    }
 
     /**
      * Media entry from MediaStore query
@@ -45,100 +37,109 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         val size: Long
     )
 
-    /**
-     * Pick the freshest/newest entry based on dateModified, then dateAdded, then size
-     */
-    @JvmStatic
-    fun pick_newest(a: MediaEntry, b: MediaEntry): MediaEntry {
-        // Compare by dateModified first (higher is newer)
-        if (a.dateModified != b.dateModified) {
-            return if (a.dateModified > b.dateModified) a else b
-        }
-        
-        // If dateModified is equal, compare by dateAdded
-        if (a.dateAdded != b.dateAdded) {
-            return if (a.dateAdded > b.dateAdded) a else b
-        }
-        
-        // If both are equal, prefer larger size (likely higher quality)
-        return if (a.size >= b.size) a else b
-    }
+    companion object {
+        private const val TAG = "GalleryBridge"
+        private const val THUMBNAIL_QUALITY = 85
+        private const val THUMBNAIL_WIDTH = 400  // 增大尺寸以获得更好的显示效果
+        private const val THUMBNAIL_HEIGHT = 400
+        private const val THUMBNAIL_SUBDIR = "thumbnails"
+        private const val URI_WINDOW_SIZE = 25  // Number of URIs to include on each side of target
 
-    /**
-     * Build a window of URIs around the target index for swipe browsing
-     * Returns up to 51 URIs (target + 25 on each side)
-     */
-    @JvmStatic
-    fun build_uri_window(all: List<String>, target_index: Int): List<String> {
-        if (all.isEmpty()) return emptyList()
-        
-        val start = (target_index - URI_WINDOW_SIZE).coerceAtLeast(0)
-        val end = (target_index + URI_WINDOW_SIZE).coerceAtMost(all.lastIndex)
-        
-        return all.subList(start, end + 1)
-    }
-
-    /**
-     * Build MediaStore query selection for CameraFTP directory
-     */
-    @JvmStatic
-    fun build_query_selection(): String {
-        return "${MediaStore.Images.Media.RELATIVE_PATH} LIKE '%DCIM/CameraFTP/%' AND ${MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE '%DCIM/CameraFTP/%/%'"
-    }
-
-    /**
-     * Sort entries by dateModified DESC, then dateAdded DESC, then size DESC
-     */
-    @JvmStatic
-    fun sort_entries(entries: List<MediaEntry>): List<MediaEntry> {
-        return entries.sortedWith(
-            compareByDescending<MediaEntry> { it.dateModified }
-                .thenByDescending { it.dateAdded }
-                .thenByDescending { it.size }
-        )
-    }
-
-    /**
-     * Determine if toast should be shown when no handler is available
-     */
-    @JvmStatic
-    fun should_show_no_handler_toast(has_handler: Boolean): Boolean = !has_handler
-
-    /**
-     * Should grant read permission when opening external gallery
-     */
-    @JvmStatic
-    fun should_grant_read_permission(): Boolean = true
-
-    /**
-     * Build share intent using MediaStore URIs
-     */
-    @JvmStatic
-    fun build_share_intent(uris: List<String>): Intent {
-        return if (uris.size == 1) {
-            Intent(Intent.ACTION_SEND).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_STREAM, Uri.parse(uris[0]))
+        /**
+         * Pick the freshest/newest entry based on dateModified, then dateAdded, then size
+         */
+        @JvmStatic
+        fun pick_newest(a: MediaEntry, b: MediaEntry): MediaEntry {
+            // Compare by dateModified first (higher is newer)
+            if (a.dateModified != b.dateModified) {
+                return if (a.dateModified > b.dateModified) a else b
             }
-        } else {
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "image/*"
-                putParcelableArrayListExtra(
-                    Intent.EXTRA_STREAM,
-                    ArrayList(uris.map { Uri.parse(it) })
-                )
+            
+            // If dateModified is equal, compare by dateAdded
+            if (a.dateAdded != b.dateAdded) {
+                return if (a.dateAdded > b.dateAdded) a else b
+            }
+            
+            // If both are equal, prefer larger size (likely higher quality)
+            return if (a.size >= b.size) a else b
+        }
+
+        /**
+         * Build a window of URIs around the target index for swipe browsing
+         * Returns up to 51 URIs (target + 25 on each side)
+         */
+        @JvmStatic
+        fun build_uri_window(all: List<String>, target_index: Int): List<String> {
+            if (all.isEmpty()) return emptyList()
+            
+            val start = (target_index - URI_WINDOW_SIZE).coerceAtLeast(0)
+            val end = (target_index + URI_WINDOW_SIZE).coerceAtMost(all.lastIndex)
+            
+            return all.subList(start, end + 1)
+        }
+
+        /**
+         * Build MediaStore query selection for CameraFTP directory
+         */
+        @JvmStatic
+        fun build_query_selection(): String {
+            return "${MediaStore.Images.Media.RELATIVE_PATH} LIKE '%DCIM/CameraFTP/%' AND ${MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE '%DCIM/CameraFTP/%/%'"
+        }
+
+        /**
+         * Sort entries by dateModified DESC, then dateAdded DESC, then size DESC
+         */
+        @JvmStatic
+        fun sort_entries(entries: List<MediaEntry>): List<MediaEntry> {
+            return entries.sortedWith(
+                compareByDescending<MediaEntry> { it.dateModified }
+                    .thenByDescending { it.dateAdded }
+                    .thenByDescending { it.size }
+            )
+        }
+
+        /**
+         * Determine if toast should be shown when no handler is available
+         */
+        @JvmStatic
+        fun should_show_no_handler_toast(has_handler: Boolean): Boolean = !has_handler
+
+        /**
+         * Should grant read permission when opening external gallery
+         */
+        @JvmStatic
+        fun should_grant_read_permission(): Boolean = true
+
+        /**
+         * Build share intent using MediaStore URIs
+         */
+        @JvmStatic
+        fun build_share_intent(uris: List<String>): Intent {
+            return if (uris.size == 1) {
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "image/*"
+                    putExtra(Intent.EXTRA_STREAM, Uri.parse(uris[0]))
+                }
+            } else {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "image/*"
+                    putParcelableArrayListExtra(
+                        Intent.EXTRA_STREAM,
+                        ArrayList(uris.map { Uri.parse(it) })
+                    )
+                }
             }
         }
-    }
 
-    /**
-     * Build delete selection for MediaStore URI
-     */
-    @JvmStatic
-    fun build_delete_selection(uri: String): String {
-        // Extract ID from content URI
-        val id = Uri.parse(uri).lastPathSegment ?: return ""
-        return "${MediaStore.Images.Media._ID}=?"
+        /**
+         * Build delete selection for MediaStore URI
+         */
+        @JvmStatic
+        fun build_delete_selection(uri: String): String {
+            // Extract ID from content URI
+            val id = Uri.parse(uri).lastPathSegment ?: return ""
+            return "${MediaStore.Images.Media._ID}=?"
+        }
     }
 
     /**
@@ -160,14 +161,19 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
 
     /**
      * 获取缩略图缓存文件路径
+     * Uses ThumbnailCache for key generation with dateModified
      */
     private fun getThumbnailCacheFile(imagePath: String): File {
-        val md5 = imagePath.toByteArray().md5()
-        return File(getThumbnailCacheDir(), "thumb_$md5.jpg")
+        val file = File(imagePath)
+        val uri = Uri.fromFile(file)
+        val dateModified = file.lastModified()
+        val cache = ThumbnailCacheProvider.instance
+        val key = cache.keyFor(uri, dateModified)
+        return File(getThumbnailCacheDir(), "thumb_$key.jpg")
     }
 
     /**
-     * MD5 哈希
+     * MD5 哈希 (kept for backward compatibility with existing cleanup logic)
      */
     private fun ByteArray.md5(): String {
         val md = java.security.MessageDigest.getInstance("MD5")
@@ -194,14 +200,23 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     /**
      * 获取缩略图并缓存到文件系统
      * 返回缓存文件的绝对路径，前端通过 convertFileSrc() 转换为 asset:// URL 加载
+     * Uses ThumbnailCache for LRU eviction and dateModified-based invalidation
      */
     private fun getThumbnailWithCache(imagePath: String): String {
-        val cacheFile = getThumbnailCacheFile(imagePath)
+        val file = File(imagePath)
+        if (!file.exists()) return ""
 
-        // 检查缓存是否已存在
-        if (cacheFile.exists() && cacheFile.length() > 0) {
-            Log.d(TAG, "Using cached thumbnail: ${cacheFile.absolutePath}")
-            return cacheFile.absolutePath
+        val uri = Uri.fromFile(file)
+        val dateModified = file.lastModified()
+        val cache = ThumbnailCacheProvider.instance
+
+        // Check if cached with current dateModified
+        if (cache.contains(uri, dateModified)) {
+            val cacheFile = cache.getCacheFile(uri, dateModified)
+            if (cacheFile != null && cacheFile.exists() && cacheFile.length() > 0) {
+                Log.d(TAG, "Using cached thumbnail: ${cacheFile.absolutePath}")
+                return cacheFile.absolutePath
+            }
         }
 
         // 生成缩略图
@@ -209,9 +224,14 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
 
         // 保存到缓存
         try {
+            val cacheFile = File(getThumbnailCacheDir(), "thumb_${cache.keyFor(uri, dateModified)}.jpg")
             cacheFile.outputStream().use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, out)
             }
+
+            // Track in cache for LRU eviction
+            val bytes = cacheFile.length().toInt()
+            cache.put(uri, dateModified, bytes)
 
             Log.d(TAG, "Saved thumbnail to cache: ${cacheFile.absolutePath}")
             return cacheFile.absolutePath
@@ -309,6 +329,7 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     /**
      * Remove thumbnail cache files for deleted images
      * Called by frontend after delete animation completes
+     * Uses ThumbnailCache.evictIfPresent for proper cache management
      */
     @android.webkit.JavascriptInterface
     fun removeThumbnails(pathsJson: String): Boolean {
@@ -320,11 +341,21 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
             }
 
             var removedCount = 0
+            val cache = ThumbnailCacheProvider.instance
             paths.forEach { path ->
-                val cacheFile = getThumbnailCacheFile(path)
-                if (cacheFile.exists() && cacheFile.delete()) {
+                val file = File(path)
+                if (file.exists()) {
+                    val uri = Uri.fromFile(file)
+                    cache.evictIfPresent(uri)
                     removedCount++
                     Log.d(TAG, "Removed thumbnail cache for path=$path")
+                } else {
+                    // File doesn't exist, try to delete any orphaned cache files
+                    val oldCacheFile = File(getThumbnailCacheDir(), "thumb_${path.toByteArray().md5()}.jpg")
+                    if (oldCacheFile.exists() && oldCacheFile.delete()) {
+                        removedCount++
+                        Log.d(TAG, "Removed orphaned thumbnail cache for path=$path")
+                    }
                 }
             }
 
@@ -339,13 +370,15 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     /**
      * 删除单个图片的缩略图缓存
      * @param imagePath 原始图片路径
+     * Uses ThumbnailCache.evictIfPresent for proper cache management
      */
     private fun removeThumbnailForPath(imagePath: String) {
         try {
-            val cacheFile = getThumbnailCacheFile(imagePath)
-            if (cacheFile.exists() && cacheFile.delete()) {
-                Log.d(TAG, "Removed thumbnail cache for path=$imagePath")
-            }
+            val file = File(imagePath)
+            val uri = Uri.fromFile(file)
+            val cache = ThumbnailCacheProvider.instance
+            cache.evictIfPresent(uri)
+            Log.d(TAG, "Removed thumbnail cache for path=$imagePath")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to remove thumbnail for path=$imagePath", e)
         }

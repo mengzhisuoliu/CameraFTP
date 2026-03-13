@@ -121,4 +121,12 @@ class MediaStoreBridgeTest {
         val selection = MediaStoreBridge.buildCleanupSelection(1234)
         assertTrue(selection.contains("IS_PENDING"))
     }
+
+    @Test
+    fun cleanup_removes_pending_older_than_24h() {
+        val nowMinus25h = System.currentTimeMillis() - 25 * 60 * 60 * 1000L
+        val selection = MediaStoreBridge.buildCleanupSelection(nowMinus25h)
+        assertTrue(selection.contains("IS_PENDING"))
+        assertTrue(selection.contains("DATE_ADDED"))
+    }
 }
