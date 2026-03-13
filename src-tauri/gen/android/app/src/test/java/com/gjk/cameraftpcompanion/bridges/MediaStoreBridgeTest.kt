@@ -19,21 +19,28 @@ import android.provider.MediaStore
 class MediaStoreBridgeTest {
 
     @Test
-    fun parseEntryResult_readsFdAndUri() {
+    fun parse_entry_result_reads_fd_and_uri() {
         val result = MediaStoreBridge.parseEntryResult("{\"fd\":123,\"uri\":\"content://media/1\"}")
-        assertEquals(123, result.fd)
+        assertNotNull(result)
+        assertEquals(123, result!!.fd)
         assertEquals("content://media/1", result.uri)
     }
 
     @Test
-    fun retryWithBackoff_usesCorrectDelays() {
+    fun parse_entry_result_returns_null_for_missing_fields() {
+        val result = MediaStoreBridge.parseEntryResult("{\"fd\":123}")
+        assertNull(result)
+    }
+
+    @Test
+    fun retry_with_backoff_uses_correct_delays() {
         val delays = mutableListOf<Long>()
         MediaStoreBridge.retryWithBackoff(3, sleep = { delays.add(it) }) { throw RuntimeException("fail") }
         assertEquals(listOf(100L, 200L, 400L), delays)
     }
 
     @Test
-    fun retryWithBackoff_succeedsOnSecondAttempt() {
+    fun retry_with_backoff_succeeds_on_second_attempt() {
         var attempt = 0
         val result = MediaStoreBridge.retryWithBackoff(3) {
             attempt++
@@ -44,37 +51,43 @@ class MediaStoreBridgeTest {
     }
 
     @Test
-    fun resolveExistingUri_returnsFirstWhenPresent() {
+    fun resolve_existing_uri_returns_first_when_present() {
         val result = MediaStoreBridge.resolveExistingUri(listOf("content://media/1", "content://media/2"))
         assertEquals("content://media/1", result)
     }
 
     @Test
-    fun fatalWriteError_detectsEnospcAndIo() {
+    fun resolve_existing_uri_returns_null_for_empty_list() {
+        val result = MediaStoreBridge.resolveExistingUri(emptyList())
+        assertNull(result)
+    }
+
+    @Test
+    fun fatal_write_error_detects_enospc_and_io() {
         assertTrue(MediaStoreBridge.isFatalWriteError("ENOSPC"))
         assertTrue(MediaStoreBridge.isFatalWriteError("EIO"))
     }
 
     @Test
-    fun mimeDetection_ftpTypeTakesPrecedence() {
+    fun mime_detection_ftp_type_takes_precedence() {
         val mime = MediaStoreBridge.determineMime("IMG_1.JPG", "image/png")
         assertEquals("image/png", mime)
     }
 
     @Test
-    fun mimeDetection_fallsBackToExtension() {
+    fun mime_detection_falls_back_to_extension() {
         val mime = MediaStoreBridge.determineMime("IMG_1.JPG", null)
         assertEquals("image/jpeg", mime)
     }
 
     @Test
-    fun mimeDetection_defaultsToOctetStream() {
+    fun mime_detection_defaults_to_octet_stream() {
         val mime = MediaStoreBridge.determineMime("FILE", null)
         assertEquals("application/octet-stream", mime)
     }
 
     @Test
-    fun readyPayload_containsRequiredFields() {
+    fun ready_payload_contains_required_fields() {
         val payload = MediaStoreBridge.buildReadyPayload("content://media/1", "DCIM/CameraFTP/", "IMG_1.JPG", 123, 1000)
         val json = JSONObject(payload)
         assertTrue(json.has("uri"))
@@ -85,26 +98,26 @@ class MediaStoreBridgeTest {
     }
 
     @Test
-    fun pendingValues_setsIsPendingAndSize() {
+    fun pending_values_sets_is_pending_and_size() {
         val values = MediaStoreBridge.buildPendingValues("IMG_1.JPG", 123)
         assertEquals(1, values.getAsInteger(MediaStore.MediaColumns.IS_PENDING))
         assertEquals(123L, values.getAsLong(MediaStore.MediaColumns.SIZE))
     }
 
     @Test
-    fun finalizeValues_clearsIsPending() {
+    fun finalize_values_clears_is_pending() {
         val values = MediaStoreBridge.buildFinalizeValues()
         assertEquals(0, values.getAsInteger(MediaStore.MediaColumns.IS_PENDING))
     }
 
     @Test
-    fun validateSize_handlesMismatch() {
+    fun validate_size_handles_mismatch() {
         assertFalse(MediaStoreBridge.validateSize(1000, 500))
         assertTrue(MediaStoreBridge.validateSize(1000, 1000))
     }
 
     @Test
-    fun cleanupSelection_targetsPendingRows() {
+    fun cleanup_selection_targets_pending_rows() {
         val selection = MediaStoreBridge.buildCleanupSelection(1234)
         assertTrue(selection.contains("IS_PENDING"))
     }

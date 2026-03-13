@@ -79,14 +79,24 @@ class MediaStoreBridge(private val activity: MainActivity) : BaseJsBridge(activi
 
         /**
          * Parse entry result JSON into EntryResult
+         * Returns null if required fields are missing or malformed
          */
         @JvmStatic
-        fun parseEntryResult(json: String): EntryResult {
-            val obj = JSONObject(json)
-            return EntryResult(
-                fd = obj.getInt("fd"),
-                uri = obj.getString("uri")
-            )
+        fun parseEntryResult(json: String): EntryResult? {
+            return try {
+                val obj = JSONObject(json)
+                if (!obj.has("fd") || !obj.has("uri")) {
+                    Log.w(TAG, "parseEntryResult: missing required fields in JSON: $json")
+                    return null
+                }
+                EntryResult(
+                    fd = obj.getInt("fd"),
+                    uri = obj.getString("uri")
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "parseEntryResult: failed to parse JSON: $json", e)
+                null
+            }
         }
 
         /**
