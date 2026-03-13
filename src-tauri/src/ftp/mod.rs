@@ -9,7 +9,13 @@
 //! - 统计信息Actor（StatsActor）
 //! - 服务器Actor（FtpServerActor）
 //! - 监听器（Listeners）
+//!
+//! ## 存储后端
+//!
+//! - Windows: 使用 `unftp_sbe_fs::Filesystem` 存储到本地文件系统
+//! - Android: 使用 `android_mediastore::AndroidMediaStoreBackend` 存储到 MediaStore
 
+pub mod android_mediastore;
 pub mod events;
 pub mod listeners;
 pub mod server;
