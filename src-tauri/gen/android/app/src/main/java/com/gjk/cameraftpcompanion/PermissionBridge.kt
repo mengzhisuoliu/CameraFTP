@@ -276,13 +276,18 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         runOnUiThread {
             try {
                 // Query MediaStore for images in the same directory
-                val mediaStoreUris = queryImagesFromMediaStore(imageFile.parentFile?.absolutePath ?: "")
-                
-                if (mediaStoreUris.containsKey(imageFile.absolutePath)) {
-                    // MediaStore has the target file - use content URIs
-                    openWithMediaStore(imageFile, mediaStoreUris)
+                val mediaStoreEntries = queryImagesFromMediaStore(imageFile.parentFile?.absolutePath ?: "")
+                val targetEntry = mediaStoreEntries[imageFile.absolutePath]
+
+                if (targetEntry != null && isMediaStoreEntryFresh(targetEntry, imageFile)) {
+                    // MediaStore has the target file and is up-to-date - use content URIs
+                    openWithMediaStore(imageFile, mediaStoreEntries)
                 } else {
-                    // MediaStore doesn't have the file - fallback to FileProvider
+                    // MediaStore is missing or stale - rescan and fallback to FileProvider
+                    if (targetEntry != null) {
+                        Log.w(TAG, "MediaStore entry is stale, using FileProvider: ${imageFile.absolutePath}")
+                    }
+                    MediaScannerHelper.scanFile(activity, imageFile.absolutePath)
                     openWithFileProvider(imageFile)
                 }
 
@@ -300,14 +305,22 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
      * Query images from MediaStore in the specified directory
      * Returns a map of file path to content URI
      */
-    private fun queryImagesFromMediaStore(directoryPath: String): Map<String, Uri> {
-        val uriMap = mutableMapOf<String, Uri>()
+    private data class MediaStoreEntry(
+        val uri: Uri,
+        val dateModifiedSeconds: Long,
+        val sizeBytes: Long,
+    )
+
+    private fun queryImagesFromMediaStore(directoryPath: String): Map<String, MediaStoreEntry> {
+        val uriMap = mutableMapOf<String, MediaStoreEntry>()
         
         if (directoryPath.isEmpty()) return uriMap
 
         val projection = arrayOf(
             MediaStore.Images.Media._ID,
-            MediaStore.Images.Media.DATA
+            MediaStore.Images.Media.DATA,
+            MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.SIZE
         )
 
         // Query images in the directory (excluding subdirectories)
@@ -328,15 +341,19 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         cursor?.use {
             val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
             val dataColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+            val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+            val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
 
             while (it.moveToNext()) {
                 val id = it.getLong(idColumn)
                 val filePath = it.getString(dataColumn)
+                val dateModified = it.getLong(modifiedColumn)
+                val sizeBytes = it.getLong(sizeColumn)
                 val contentUri = Uri.withAppendedPath(
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                     id.toString()
                 )
-                uriMap[filePath] = contentUri
+                uriMap[filePath] = MediaStoreEntry(contentUri, dateModified, sizeBytes)
             }
         }
 
@@ -344,15 +361,30 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         return uriMap
     }
 
+    private fun isMediaStoreEntryFresh(entry: MediaStoreEntry, file: File): Boolean {
+        val fileSize = file.length()
+        val fileModifiedSeconds = file.lastModified() / 1000
+
+        if (entry.sizeBytes <= 0L || entry.dateModifiedSeconds <= 0L) {
+            return false
+        }
+
+        if (entry.sizeBytes != fileSize) {
+            return false
+        }
+
+        return entry.dateModifiedSeconds >= fileModifiedSeconds
+    }
+
     /**
      * Open image using MediaStore content URIs (preferred method)
      */
-    private fun openWithMediaStore(targetFile: File, uriMap: Map<String, Uri>) {
+    private fun openWithMediaStore(targetFile: File, uriMap: Map<String, MediaStoreEntry>) {
         val targetPath = targetFile.absolutePath
-        val targetUri = uriMap[targetPath]!!
+        val targetUri = uriMap[targetPath]!!.uri
 
         // Build ClipData with all URIs for browsing support
-        val allUris = uriMap.values.toList()
+        val allUris = uriMap.values.map { it.uri }
         val clipData = ClipData.newRawUri(null, targetUri)
         
         // Limit to prevent Intent size issues
