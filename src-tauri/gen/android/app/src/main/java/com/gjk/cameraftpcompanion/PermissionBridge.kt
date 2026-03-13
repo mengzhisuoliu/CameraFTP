@@ -41,6 +41,15 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         const val REQUEST_POST_NOTIFICATIONS = 1001
         private const val MEDIASTORE_WAIT_TIMEOUT_MS = 2000L
         private const val MEDIASTORE_WAIT_POLL_MS = 150L
+
+        /**
+         * Get required permissions for MediaStore-based operations
+         * Uses READ_MEDIA_IMAGES instead of MANAGE_EXTERNAL_STORAGE
+         */
+        @JvmStatic
+        fun get_required_permissions(): List<String> {
+            return listOf(Manifest.permission.READ_MEDIA_IMAGES)
+        }
     }
 
     /**
@@ -65,13 +74,17 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
     }
 
     /**
-     * Check storage permission (MANAGE_EXTERNAL_STORAGE for Android 11+)
+     * Check storage permission (READ_MEDIA_IMAGES for Android 13+)
      * Internal helper - not exposed to JavaScript
      */
     fun checkStoragePermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                activity,
+                Manifest.permission.READ_MEDIA_IMAGES
+            ) == PackageManager.PERMISSION_GRANTED
         } else {
+            // For Android 11-12, still need WRITE_EXTERNAL_STORAGE
             ContextCompat.checkSelfPermission(
                 activity,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -108,13 +121,16 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
     }
 
     /**
-     * Request storage permission - opens the manage storage settings page
+     * Request storage permission - requests READ_MEDIA_IMAGES
      */
     @JavascriptInterface
     fun requestStoragePermission() {
-        Log.d(TAG, "requestStoragePermission: opening storage settings")
-        // Delegate to StorageHelper to avoid code duplication
-        StorageHelper.openManageStorageSettings(activity)
+        Log.d(TAG, "requestStoragePermission: requesting READ_MEDIA_IMAGES permission")
+        ActivityCompat.requestPermissions(
+            activity,
+            get_required_permissions().toTypedArray(),
+            REQUEST_POST_NOTIFICATIONS
+        )
     }
 
     /**
@@ -204,13 +220,13 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         
         // Check storage permission first
         if (!checkStoragePermission()) {
-            Log.d(TAG, "saveImageToGallery: no storage permission, opening settings")
-            // Show Android Toast before opening settings (won't be covered by new activity)
+            Log.d(TAG, "saveImageToGallery: no storage permission, requesting permission")
+            // Show Android Toast before requesting permission
             runOnUiThread {
                 Toast.makeText(activity, "需要存储权限才能保存图片，请授予权限", Toast.LENGTH_LONG).show()
             }
-            // Open storage permission settings
-            StorageHelper.openManageStorageSettings(activity)
+            // Request storage permission
+            requestStoragePermission()
             result.put("success", false)
             result.put("reason", "permission_denied")
             result.put("message", "Storage permission required")
