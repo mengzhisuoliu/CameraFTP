@@ -7,10 +7,11 @@
 import { memo, useCallback, useEffect, useState, useRef } from 'react';
 import { RefreshCw, ImageOff, Loader2, Check, X, Trash2, Share2, MoreVertical } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { useConfigStore } from '../stores/configStore';
 import { permissionBridge } from '../types';
-import type { GalleryImage, FileInfo, DeleteImagesResult } from '../types';
+import { toGalleryImage, type MediaStoreEntry } from '../utils/media-store-events';
+import type { GalleryImage, DeleteImagesResult } from '../types';
 
 interface FileIndexChangedEvent {
   count: number;
@@ -92,18 +93,12 @@ export const GalleryCard = memo(function GalleryCard() {
 
     setIsLoading(true);
     setError(null);
-    // Don't clear thumbnails here - let the useEffect handle it when images change
-    // This prevents race conditions between clear and load
 
     try {
-      // Use Rust command to scan gallery images
-      const files = await invoke<FileInfo[]>('scan_gallery_images');
-      // Convert FileInfo to GalleryImage format
-      const galleryImages: GalleryImage[] = files.map(file => ({
-        path: file.path,
-        filename: file.filename,
-        sortTime: Number(file.sortTime), // bigint to number
-      }));
+      // Use MediaStore to list images via Android bridge
+      const listJson = await window.GalleryAndroid.listMediaStoreImages();
+      const entries = JSON.parse(listJson ?? '[]') as MediaStoreEntry[];
+      const galleryImages = entries.map(toGalleryImage);
       setImages(galleryImages);
       
       // Clean up orphaned thumbnails for files that no longer exist
@@ -124,9 +119,13 @@ export const GalleryCard = memo(function GalleryCard() {
     }
   }, []);
 
-  // Load images on mount
+  // Load images on mount and listen for refresh requests
   useEffect(() => {
     loadImages();
+    
+    const handler = () => void loadImages();
+    window.addEventListener('gallery-refresh-requested', handler);
+    return () => window.removeEventListener('gallery-refresh-requested', handler);
   }, [loadImages]);
 
   // Force thumbnail reload when images array changes (after refresh)
