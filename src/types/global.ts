@@ -194,6 +194,22 @@ interface GalleryAndroid {
   onBackPressed?(): void;
 }
 
+/**
+ * Android Gallery Bridge interface
+ * List media store images
+ */
+interface GalleryAndroidBridge {
+  listMediaStoreImages: () => Promise<string>;
+}
+
+/**
+ * Android MediaStore Bridge interface
+ * Optionally exposed for debug hooks
+ */
+interface MediaStoreAndroidBridge {
+  // optionally exposed for debug hooks
+}
+
 // ===== 全局窗口扩展 =====
 
 declare global {
@@ -223,6 +239,16 @@ declare global {
      * Android Gallery JS Bridge
      */
     GalleryAndroid?: GalleryAndroid;
+    
+    /**
+     * Android Gallery Bridge for listing media store images
+     */
+    GalleryAndroid?: GalleryAndroidBridge;
+    
+    /**
+     * Android MediaStore Bridge for debug hooks
+     */
+    MediaStoreAndroid?: MediaStoreAndroidBridge;
   }
 }
 

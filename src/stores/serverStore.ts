@@ -12,6 +12,7 @@ import { serverStateBridge, storageSettingsBridge } from '../types/global';
 import { createEventManager, type EventRegistration } from '../utils/events';
 import { retryAction, executeAsync } from '../utils/store';
 import { checkAndroidPermissions } from '../types';
+import type { MediaStoreReadyPayload } from '../types/events';
 
 // TypeScript declarations for window extensions
 declare global {
@@ -123,6 +124,12 @@ const createEventRegistrations = (
           // Silently ignore media scan errors
         }
       }
+    },
+  },
+  {
+    name: 'media-store-ready',
+    handler: (_event: Event<MediaStoreReadyPayload>) => {
+      window.dispatchEvent(new CustomEvent('gallery-refresh-requested'));
     },
   },
   {
