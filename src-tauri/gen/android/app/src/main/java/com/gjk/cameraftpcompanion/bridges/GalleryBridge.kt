@@ -143,10 +143,18 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
 
     /**
      * 获取缩略图缓存目录
+     * Creates the directory if needed and validates writability
      */
     private fun getThumbnailCacheDir(): File {
         return File(context.cacheDir, THUMBNAIL_SUBDIR).apply {
-            if (!exists()) mkdirs()
+            if (!exists()) {
+                if (!mkdirs()) {
+                    Log.e(TAG, "Failed to create thumbnail cache directory: $absolutePath")
+                }
+            }
+            if (!canWrite()) {
+                Log.e(TAG, "Thumbnail cache directory is not writable: $absolutePath")
+            }
         }
     }
 
@@ -257,21 +265,23 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
                     // Delete via MediaStore using URI
                     val rowsDeleted = context.contentResolver.delete(uri, null, null)
 
-                    if (rowsDeleted > 0) {
-                        deleted.add(uriString)
-                        Log.d(TAG, "Deleted image via MediaStore: uri=$uriString")
-                    } else {
-                        // Check if URI still exists
-                        val cursor = context.contentResolver.query(uri, null, null, null, null)
-                        val exists = cursor?.use { it.count > 0 } ?: false
-                        
-                        if (!exists) {
+                    // Verify deletion by checking if URI still exists
+                    val cursor = context.contentResolver.query(uri, null, null, null, null)
+                    val stillExists = cursor?.use { it.count > 0 } ?: false
+
+                    if (!stillExists) {
+                        if (rowsDeleted > 0) {
+                            deleted.add(uriString)
+                            Log.d(TAG, "Deleted image via MediaStore: uri=$uriString")
+                        } else {
+                            // Was already deleted or never existed
                             notFound.add(uriString)
                             Log.d(TAG, "Image not found in MediaStore: uri=$uriString")
-                        } else {
-                            failed.add(uriString)
-                            Log.w(TAG, "Failed to delete image: uri=$uriString")
                         }
+                    } else {
+                        // File still exists after delete attempt
+                        failed.add(uriString)
+                        Log.w(TAG, "Failed to delete image (still exists): uri=$uriString")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error deleting URI: $uriString", e)
@@ -281,29 +291,20 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
 
             Log.d(TAG, "deleteImages: deleted=${deleted.size}, notFound=${notFound.size}, failed=${failed.size}")
 
-            // Build JSON response
-            val deletedJson = deleted.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
-            val notFoundJson = notFound.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
-            val failedJson = failed.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
-            
-            "{\"deleted\":$deletedJson,\"notFound\":$notFoundJson,\"failed\":$failedJson}"
+            // Build JSON response using JSONObject
+            val response = JSONObject().apply {
+                put("deleted", JSONArray(deleted))
+                put("notFound", JSONArray(notFound))
+                put("failed", JSONArray(failed))
+            }
+            response.toString()
         } catch (e: Exception) {
             Log.e(TAG, "deleteImages error", e)
             """{"deleted":[],"notFound":[],"failed":[]}"""
         }
     }
 
-    /**
-     * Escape special characters in JSON string
-     */
-    private fun escapeJson(str: String): String {
-        return str
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-    }
+
 
     /**
      * Remove thumbnail cache files for deleted images

@@ -41,6 +41,9 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         const val REQUEST_POST_NOTIFICATIONS = 1001
         private const val MEDIASTORE_WAIT_TIMEOUT_MS = 2000L
         private const val MEDIASTORE_WAIT_POLL_MS = 150L
+        // Limits for ClipData to prevent Intent size issues
+        private const val MAX_URIS_IN_CLIP_DATA = 100
+        private const val MAX_FILES_IN_CLIP_DATA = 50
 
         /**
          * Get required permissions for MediaStore-based operations
@@ -462,10 +465,9 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         val clipData = ClipData.newRawUri(null, targetUri)
         
         // Limit to prevent Intent size issues
-        val maxUris = 100
         var addedCount = 0
         for (uri in allUris) {
-            if (uri != targetUri && addedCount < maxUris) {
+            if (uri != targetUri && addedCount < MAX_URIS_IN_CLIP_DATA) {
                 clipData.addItem(ClipData.Item(uri))
                 addedCount++
             }
@@ -499,8 +501,7 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         }
 
         // Limit to prevent Intent size issues
-        val maxFiles = 50
-        val limitedFiles = imageFiles.take(maxFiles)
+        val limitedFiles = imageFiles.take(MAX_FILES_IN_CLIP_DATA)
 
         val targetUri = getUriForFile(targetFile)
 
