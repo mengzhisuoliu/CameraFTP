@@ -16,6 +16,7 @@ import androidx.activity.enableEdgeToEdge
 import com.gjk.cameraftpcompanion.bridges.FileUploadBridge
 import com.gjk.cameraftpcompanion.bridges.ServerStateBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridge
+import com.gjk.cameraftpcompanion.bridges.MediaStoreBridge
 
 class MainActivity : TauriActivity() {
 
@@ -33,6 +34,7 @@ class MainActivity : TauriActivity() {
     private var serverStateBridge: ServerStateBridge? = null
     private var permissionBridge: PermissionBridge? = null
     private var galleryBridge: GalleryBridge? = null
+    private var mediaStoreBridge: MediaStoreBridge? = null
 
     /**
      * Helper to add a JavaScript bridge to WebView with logging
@@ -53,6 +55,7 @@ class MainActivity : TauriActivity() {
         serverStateBridge = ServerStateBridge(this)
         permissionBridge = PermissionBridge(this)
         galleryBridge = GalleryBridge(this)
+        mediaStoreBridge = MediaStoreBridge(this)
     }
 
     /**
@@ -70,6 +73,7 @@ class MainActivity : TauriActivity() {
         addJsBridge(webView, serverStateBridge, "ServerStateAndroid")
         addJsBridge(webView, permissionBridge, "PermissionAndroid")
         addJsBridge(webView, galleryBridge, "GalleryAndroid")
+        addJsBridge(webView, mediaStoreBridge, "MediaStoreAndroid")
 
         // 注册Tauri事件监听 - 监听file-uploaded事件
         registerFileUploadEventListener()
@@ -159,6 +163,7 @@ class MainActivity : TauriActivity() {
         serverStateBridge = null
         permissionBridge = null
         galleryBridge = null
+        mediaStoreBridge = null
     }
 
     /**
@@ -166,6 +171,19 @@ class MainActivity : TauriActivity() {
      */
     fun getWebView(): WebView? {
         return webViewRef
+    }
+
+    /**
+     * Emit a Tauri event to the WebView
+     * @param name Event name
+     * @param payloadJson JSON payload as string
+     */
+    fun emitTauriEvent(name: String, payloadJson: String) {
+        val webView = webViewRef ?: return
+        val script = "window.__TAURI__?.event?.emit('$name', $payloadJson)"
+        runOnUiThread {
+            webView.evaluateJavascript(script, null)
+        }
     }
     
     /**
