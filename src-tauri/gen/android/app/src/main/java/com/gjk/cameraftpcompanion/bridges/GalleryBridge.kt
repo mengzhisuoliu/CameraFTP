@@ -201,13 +201,21 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
      * 获取缩略图并缓存到文件系统
      * 返回缓存文件的绝对路径，前端通过 convertFileSrc() 转换为 asset:// URL 加载
      * Uses ThumbnailCache for LRU eviction and dateModified-based invalidation
+     * Supports MediaStore URIs (content://...)
      */
     private fun getThumbnailWithCache(imagePath: String): String {
-        val file = File(imagePath)
-        if (!file.exists()) return ""
+        // Handle MediaStore URI
+        val uri = if (imagePath.startsWith("content://")) {
+            Uri.parse(imagePath)
+        } else {
+            // Legacy file path support
+            val file = File(imagePath)
+            if (!file.exists()) return ""
+            Uri.fromFile(file)
+        }
 
-        val uri = Uri.fromFile(file)
-        val dateModified = file.lastModified()
+        // Query MediaStore for dateModified
+        val dateModified = queryDateModifiedFromMediaStore(uri) ?: System.currentTimeMillis()
         val cache = ThumbnailCacheProvider.instance
 
         // Check if cached with current dateModified
@@ -219,8 +227,8 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
             }
         }
 
-        // 生成缩略图
-        val bitmap = getThumbnailBitmap(imagePath) ?: return ""
+        // 生成缩略图 using MediaStore
+        val bitmap = load_thumbnail(uri) ?: return ""
 
         // 保存到缓存
         try {
@@ -243,12 +251,35 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     }
 
     /**
-     * 获取缩略图 Bitmap
+     * Query date modified from MediaStore for a URI
+     */
+    private fun queryDateModifiedFromMediaStore(uri: Uri): Long? {
+        return try {
+            val projection = arrayOf(MediaStore.Images.Media.DATE_MODIFIED)
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val seconds = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED))
+                    seconds * 1000 // Convert to milliseconds
+                } else null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to query dateModified for uri=$uri", e)
+            null
+        }
+    }
+
+    /**
+     * 获取缩略图 Bitmap - supports both file paths and MediaStore URIs
      */
     private fun getThumbnailBitmap(imagePath: String): Bitmap? {
-        val file = File(imagePath)
-        if (!file.exists()) return null
-        return createThumbnailFromFile(file)
+        val uri = if (imagePath.startsWith("content://")) {
+            Uri.parse(imagePath)
+        } else {
+            val file = File(imagePath)
+            if (!file.exists()) return null
+            Uri.fromFile(file)
+        }
+        return load_thumbnail(uri)
     }
 
     /**

@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.gjk.cameraftpcompanion.bridges.BaseJsBridge
 import org.json.JSONObject
 import android.content.ClipData
+import android.content.ContentUris
 import android.database.Cursor
 import android.provider.MediaStore
 import java.io.File
@@ -272,7 +273,8 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
      * Open image with external app, supporting browsing other images in the same directory
      * Uses MediaStore URIs for best compatibility with system galleries
      * Falls back to FileProvider URIs if MediaStore has no results
-     * @param path The absolute path to the image file
+     * Supports both MediaStore URIs (content://...) and file paths
+     * @param path The MediaStore URI or file path to the image
      * @return JSON string with success status
      */
     @JavascriptInterface
@@ -287,6 +289,26 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
             return result.toString()
         }
 
+        // Handle MediaStore URI directly
+        if (path.startsWith("content://")) {
+            val uri = Uri.parse(path)
+            thread(name = "open-image-uri") {
+                try {
+                    runOnUiThread {
+                        openWithMediaStoreUri(uri)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "openImageWithChooser: failed to open URI", e)
+                    runOnUiThread {
+                        Toast.makeText(activity, "无法打开图片: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            result.put("success", true)
+            return result.toString()
+        }
+
+        // Legacy file path support
         val imageFile = File(path)
         if (!imageFile.exists()) {
             Log.e(TAG, "openImageWithChooser: file does not exist: $path")
@@ -332,6 +354,72 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
 
         result.put("success", true)
         return result.toString()
+    }
+
+    /**
+     * Open a single image using MediaStore URI directly
+     * Used when the input is already a content:// URI
+     */
+    private fun openWithMediaStoreUri(uri: Uri) {
+        // Query for other images in the same directory for browsing support
+        val projection = arrayOf(MediaStore.Images.Media.RELATIVE_PATH)
+        var relativePath: String? = null
+
+        activity.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                relativePath = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH))
+            }
+        }
+
+        // Build list of URIs in the same directory for swipe browsing
+        val windowUris = mutableListOf<Uri>()
+        windowUris.add(uri) // Add target first
+
+        if (!relativePath.isNullOrEmpty()) {
+            // Query other images in same directory
+            val windowProjection = arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.DATE_MODIFIED
+            )
+            val selection = "${MediaStore.Images.Media.RELATIVE_PATH} = ?"
+            val selectionArgs = arrayOf(relativePath)
+
+            activity.contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                windowProjection,
+                selection,
+                selectionArgs,
+                "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                while (cursor.moveToNext() && windowUris.size < MAX_URIS_IN_CLIP_DATA) {
+                    val id = cursor.getLong(idColumn)
+                    val contentUri = ContentUris.withAppendedId(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        id
+                    )
+                    if (contentUri != uri) {
+                        windowUris.add(contentUri)
+                    }
+                }
+            }
+        }
+
+        // Build ClipData with all URIs for browsing support
+        val clipData = ClipData.newRawUri(null, windowUris.first())
+        for (i in 1 until windowUris.size) {
+            clipData.addItem(ClipData.Item(windowUris[i]))
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "image/*")
+            setClipData(clipData)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        activity.startActivity(intent)
+        Log.d(TAG, "openWithMediaStoreUri: opened with ${windowUris.size} URIs via MediaStore")
     }
 
     /**
