@@ -330,6 +330,15 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
+
+        if self.normalize_path(path).as_os_str().is_empty() {
+            return Ok(MediaStoreMetadata {
+                size: 0,
+                modified: SystemTime::now(),
+                is_dir: true,
+                mime_type: "inode/directory".to_string(),
+            });
+        }
         
         let full_path = self.resolve_path(path);
         debug!(path = %full_path, "Getting metadata");
@@ -533,7 +542,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
             retry_with_backoff(&self.retry_config, "finalize_entry", || {
                 let bridge = bridge.clone();
                 let content_uri = content_uri.clone();
-                async move { bridge.finalize_entry(&content_uri, Some(bytes_written)).await }
+                async move { bridge.finalize_entry(&content_uri, None).await }
             })
             .await
             .map_err(|e| {
@@ -695,6 +704,11 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
+
+        if self.normalize_path(path).as_os_str().is_empty() {
+            debug!("Changing directory to FTP root");
+            return Ok(());
+        }
         
         let full_path = self.resolve_path(path);
         debug!(path = %full_path, "Changing directory");
@@ -731,6 +745,8 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::bridge::MockMediaStoreBridge;
+    use tempfile::TempDir;
 
     #[test]
     fn test_normalize_path() {
@@ -780,5 +796,20 @@ mod tests {
         assert_eq!(metadata.size, 1024);
         assert!(!metadata.is_dir);
         assert_eq!(metadata.mime_type, "image/jpeg");
+    }
+
+    #[cfg(not(target_os = "android"))]
+    #[tokio::test]
+    async fn test_cwd_root_should_succeed_when_base_directory_exists() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let base_path = temp_dir.path().to_path_buf();
+        let base_directory = base_path.join("DCIM/CameraFTP");
+        std::fs::create_dir_all(&base_directory).expect("create base directory");
+
+        let bridge = Arc::new(MockMediaStoreBridge::new(base_path));
+        let backend = AndroidMediaStoreBackend::with_bridge(bridge);
+
+        let result = backend.cwd(&DefaultUser {}, Path::new("/")).await;
+        assert!(result.is_ok(), "cwd / should succeed when base directory exists");
     }
 }
