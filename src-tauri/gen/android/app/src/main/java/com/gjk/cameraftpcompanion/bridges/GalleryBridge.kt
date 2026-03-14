@@ -6,20 +6,36 @@
 
 package com.gjk.cameraftpcompanion.bridges
 
+import android.content.ClipData
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import com.gjk.cameraftpcompanion.MainActivity
+import com.gjk.cameraftpcompanion.cache.ThumbnailCacheProvider
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 
 class GalleryBridge(private val context: Context) : BaseJsBridge(context as android.app.Activity) {
+
+    /**
+     * Media entry from MediaStore query
+     */
+    data class MediaEntry(
+        val uri: String,
+        val dateModified: Long,  // seconds
+        val dateAdded: Long,     // seconds
+        val id: Long,
+        val size: Long
+    )
 
     companion object {
         private const val TAG = "GalleryBridge"
@@ -27,27 +43,137 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         private const val THUMBNAIL_WIDTH = 400  // 增大尺寸以获得更好的显示效果
         private const val THUMBNAIL_HEIGHT = 400
         private const val THUMBNAIL_SUBDIR = "thumbnails"
+        private const val URI_WINDOW_SIZE = 25  // Number of URIs to include on each side of target
+
+        /**
+         * Pick the freshest/newest entry based on dateModified, then dateAdded, then size
+         */
+        @JvmStatic
+        fun pick_newest(a: MediaEntry, b: MediaEntry): MediaEntry {
+            // Compare by dateModified first (higher is newer)
+            if (a.dateModified != b.dateModified) {
+                return if (a.dateModified > b.dateModified) a else b
+            }
+            
+            // If dateModified is equal, compare by dateAdded
+            if (a.dateAdded != b.dateAdded) {
+                return if (a.dateAdded > b.dateAdded) a else b
+            }
+            
+            // If both are equal, prefer larger size (likely higher quality)
+            return if (a.size >= b.size) a else b
+        }
+
+        /**
+         * Build a window of URIs around the target index for swipe browsing
+         * Returns up to 51 URIs (target + 25 on each side)
+         */
+        @JvmStatic
+        fun build_uri_window(all: List<String>, target_index: Int): List<String> {
+            if (all.isEmpty()) return emptyList()
+            
+            val start = (target_index - URI_WINDOW_SIZE).coerceAtLeast(0)
+            val end = (target_index + URI_WINDOW_SIZE).coerceAtMost(all.lastIndex)
+            
+            return all.subList(start, end + 1)
+        }
+
+        /**
+         * Build MediaStore query selection for CameraFTP directory
+         */
+        @JvmStatic
+        fun build_query_selection(): String {
+            return "${MediaStore.Images.Media.RELATIVE_PATH} LIKE '%DCIM/CameraFTP/%' AND ${MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE '%DCIM/CameraFTP/%/%'"
+        }
+
+        /**
+         * Sort entries by dateModified DESC, then dateAdded DESC, then size DESC
+         */
+        @JvmStatic
+        fun sort_entries(entries: List<MediaEntry>): List<MediaEntry> {
+            return entries.sortedWith(
+                compareByDescending<MediaEntry> { it.dateModified }
+                    .thenByDescending { it.dateAdded }
+                    .thenByDescending { it.size }
+            )
+        }
+
+        /**
+         * Determine if toast should be shown when no handler is available
+         */
+        @JvmStatic
+        fun should_show_no_handler_toast(has_handler: Boolean): Boolean = !has_handler
+
+        /**
+         * Should grant read permission when opening external gallery
+         */
+        @JvmStatic
+        fun should_grant_read_permission(): Boolean = true
+
+        /**
+         * Build share intent using MediaStore URIs
+         */
+        @JvmStatic
+        fun build_share_intent(uris: List<String>): Intent {
+            return if (uris.size == 1) {
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "image/*"
+                    putExtra(Intent.EXTRA_STREAM, Uri.parse(uris[0]))
+                }
+            } else {
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "image/*"
+                    putParcelableArrayListExtra(
+                        Intent.EXTRA_STREAM,
+                        ArrayList(uris.map { Uri.parse(it) })
+                    )
+                }
+            }
+        }
+
+        /**
+         * Build delete selection for MediaStore URI
+         */
+        @JvmStatic
+        fun build_delete_selection(uri: String): String {
+            // Extract ID from content URI
+            val id = Uri.parse(uri).lastPathSegment ?: return ""
+            return "${MediaStore.Images.Media._ID}=?"
+        }
     }
 
     /**
      * 获取缩略图缓存目录
+     * Creates the directory if needed and validates writability
      */
     private fun getThumbnailCacheDir(): File {
         return File(context.cacheDir, THUMBNAIL_SUBDIR).apply {
-            if (!exists()) mkdirs()
+            if (!exists()) {
+                if (!mkdirs()) {
+                    Log.e(TAG, "Failed to create thumbnail cache directory: $absolutePath")
+                }
+            }
+            if (!canWrite()) {
+                Log.e(TAG, "Thumbnail cache directory is not writable: $absolutePath")
+            }
         }
     }
 
     /**
      * 获取缩略图缓存文件路径
+     * Uses ThumbnailCache for key generation with dateModified
      */
     private fun getThumbnailCacheFile(imagePath: String): File {
-        val md5 = imagePath.toByteArray().md5()
-        return File(getThumbnailCacheDir(), "thumb_$md5.jpg")
+        val file = File(imagePath)
+        val uri = Uri.fromFile(file)
+        val dateModified = file.lastModified()
+        val cache = ThumbnailCacheProvider.instance
+        val key = cache.keyFor(uri, dateModified)
+        return File(getThumbnailCacheDir(), "thumb_$key.jpg")
     }
 
     /**
-     * MD5 哈希
+     * MD5 哈希 (kept for backward compatibility with existing cleanup logic)
      */
     private fun ByteArray.md5(): String {
         val md = java.security.MessageDigest.getInstance("MD5")
@@ -74,14 +200,23 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     /**
      * 获取缩略图并缓存到文件系统
      * 返回缓存文件的绝对路径，前端通过 convertFileSrc() 转换为 asset:// URL 加载
+     * Uses ThumbnailCache for LRU eviction and dateModified-based invalidation
      */
     private fun getThumbnailWithCache(imagePath: String): String {
-        val cacheFile = getThumbnailCacheFile(imagePath)
+        val file = File(imagePath)
+        if (!file.exists()) return ""
 
-        // 检查缓存是否已存在
-        if (cacheFile.exists() && cacheFile.length() > 0) {
-            Log.d(TAG, "Using cached thumbnail: ${cacheFile.absolutePath}")
-            return cacheFile.absolutePath
+        val uri = Uri.fromFile(file)
+        val dateModified = file.lastModified()
+        val cache = ThumbnailCacheProvider.instance
+
+        // Check if cached with current dateModified
+        if (cache.contains(uri, dateModified)) {
+            val cacheFile = cache.getCacheFile(uri, dateModified)
+            if (cacheFile != null && cacheFile.exists() && cacheFile.length() > 0) {
+                Log.d(TAG, "Using cached thumbnail: ${cacheFile.absolutePath}")
+                return cacheFile.absolutePath
+            }
         }
 
         // 生成缩略图
@@ -89,9 +224,14 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
 
         // 保存到缓存
         try {
+            val cacheFile = File(getThumbnailCacheDir(), "thumb_${cache.keyFor(uri, dateModified)}.jpg")
             cacheFile.outputStream().use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, out)
             }
+
+            // Track in cache for LRU eviction
+            val bytes = cacheFile.length().toInt()
+            cache.put(uri, dateModified, bytes)
 
             Log.d(TAG, "Saved thumbnail to cache: ${cacheFile.absolutePath}")
             return cacheFile.absolutePath
@@ -121,16 +261,16 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     )
 
     @android.webkit.JavascriptInterface
-    fun deleteImages(pathsJson: String): String {
-        Log.d(TAG, "deleteImages: pathsJson=$pathsJson")
+    fun deleteImages(urisJson: String): String {
+        Log.d(TAG, "deleteImages: urisJson=$urisJson")
 
         return try {
-            val paths = JSONArray(pathsJson).let { json ->
+            val uris = JSONArray(urisJson).let { json ->
                 (0 until json.length()).map { json.getString(it) }
             }
 
-            if (paths.isEmpty()) {
-                Log.w(TAG, "deleteImages: no paths provided")
+            if (uris.isEmpty()) {
+                Log.w(TAG, "deleteImages: no URIs provided")
                 return """{"deleted":[],"notFound":[],"failed":[]}"""
             }
 
@@ -138,67 +278,58 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
             val notFound = mutableListOf<String>()
             val failed = mutableListOf<String>()
 
-            paths.forEach { path ->
-                val file = File(path)
-                val existed = file.exists()
+            uris.forEach { uriString ->
+                try {
+                    val uri = Uri.parse(uriString)
+                    
+                    // Delete via MediaStore using URI
+                    val rowsDeleted = context.contentResolver.delete(uri, null, null)
 
-                if (existed) {
-                    // Try to delete via MediaStore first (for proper media index update)
-                    val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                    val rowsDeleted = context.contentResolver.delete(
-                        uri,
-                        "${MediaStore.Images.Media.DATA}=?",
-                        arrayOf(path)
-                    )
+                    // Verify deletion by checking if URI still exists
+                    val cursor = context.contentResolver.query(uri, null, null, null, null)
+                    val stillExists = cursor?.use { it.count > 0 } ?: false
 
-                    // Also delete the actual file if it still exists
-                    val fileDeleted = file.exists() && file.delete()
-
-                    if (fileDeleted || rowsDeleted > 0) {
-                        deleted.add(path)
-                        // 删除对应缩略图缓存
-                        removeThumbnailForPath(path)
-                        Log.d(TAG, "Deleted image and thumbnail cache path=$path")
+                    if (!stillExists) {
+                        if (rowsDeleted > 0) {
+                            deleted.add(uriString)
+                            Log.d(TAG, "Deleted image via MediaStore: uri=$uriString")
+                        } else {
+                            // Was already deleted or never existed
+                            notFound.add(uriString)
+                            Log.d(TAG, "Image not found in MediaStore: uri=$uriString")
+                        }
                     } else {
-                        failed.add(path)
-                        Log.w(TAG, "Failed to delete image path=$path")
+                        // File still exists after delete attempt
+                        failed.add(uriString)
+                        Log.w(TAG, "Failed to delete image (still exists): uri=$uriString")
                     }
-                } else {
-                    // File doesn't exist, treat as "deleted" for animation purposes
-                    notFound.add(path)
-                    Log.d(TAG, "File not found, will remove from UI path=$path")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error deleting URI: $uriString", e)
+                    failed.add(uriString)
                 }
             }
 
             Log.d(TAG, "deleteImages: deleted=${deleted.size}, notFound=${notFound.size}, failed=${failed.size}")
 
-            // Build JSON response
-            val deletedJson = deleted.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
-            val notFoundJson = notFound.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
-            val failedJson = failed.joinToString(",", "[", "]") { "\"${escapeJson(it)}\"" }
-            
-            "{\"deleted\":$deletedJson,\"notFound\":$notFoundJson,\"failed\":$failedJson}"
+            // Build JSON response using JSONObject
+            val response = JSONObject().apply {
+                put("deleted", JSONArray(deleted))
+                put("notFound", JSONArray(notFound))
+                put("failed", JSONArray(failed))
+            }
+            response.toString()
         } catch (e: Exception) {
             Log.e(TAG, "deleteImages error", e)
             """{"deleted":[],"notFound":[],"failed":[]}"""
         }
     }
 
-    /**
-     * Escape special characters in JSON string
-     */
-    private fun escapeJson(str: String): String {
-        return str
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-    }
+
 
     /**
      * Remove thumbnail cache files for deleted images
      * Called by frontend after delete animation completes
+     * Uses ThumbnailCache.evictIfPresent for proper cache management
      */
     @android.webkit.JavascriptInterface
     fun removeThumbnails(pathsJson: String): Boolean {
@@ -210,11 +341,21 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
             }
 
             var removedCount = 0
+            val cache = ThumbnailCacheProvider.instance
             paths.forEach { path ->
-                val cacheFile = getThumbnailCacheFile(path)
-                if (cacheFile.exists() && cacheFile.delete()) {
+                val file = File(path)
+                if (file.exists()) {
+                    val uri = Uri.fromFile(file)
+                    cache.evictIfPresent(uri)
                     removedCount++
                     Log.d(TAG, "Removed thumbnail cache for path=$path")
+                } else {
+                    // File doesn't exist, try to delete any orphaned cache files
+                    val oldCacheFile = File(getThumbnailCacheDir(), "thumb_${path.toByteArray().md5()}.jpg")
+                    if (oldCacheFile.exists() && oldCacheFile.delete()) {
+                        removedCount++
+                        Log.d(TAG, "Removed orphaned thumbnail cache for path=$path")
+                    }
                 }
             }
 
@@ -229,13 +370,15 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     /**
      * 删除单个图片的缩略图缓存
      * @param imagePath 原始图片路径
+     * Uses ThumbnailCache.evictIfPresent for proper cache management
      */
     private fun removeThumbnailForPath(imagePath: String) {
         try {
-            val cacheFile = getThumbnailCacheFile(imagePath)
-            if (cacheFile.exists() && cacheFile.delete()) {
-                Log.d(TAG, "Removed thumbnail cache for path=$imagePath")
-            }
+            val file = File(imagePath)
+            val uri = Uri.fromFile(file)
+            val cache = ThumbnailCacheProvider.instance
+            cache.evictIfPresent(uri)
+            Log.d(TAG, "Removed thumbnail cache for path=$imagePath")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to remove thumbnail for path=$imagePath", e)
         }
@@ -284,41 +427,24 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
     }
 
     @android.webkit.JavascriptInterface
-    fun shareImages(pathsJson: String): Boolean {
-        Log.d(TAG, "shareImages: pathsJson=$pathsJson")
+    fun shareImages(urisJson: String): Boolean {
+        Log.d(TAG, "shareImages: urisJson=$urisJson")
 
         return try {
-            val paths = JSONArray(pathsJson).let { json ->
+            val uris = JSONArray(urisJson).let { json ->
                 (0 until json.length()).map { json.getString(it) }
             }
 
-            if (paths.isEmpty()) {
-                Log.w(TAG, "shareImages: no paths provided")
+            if (uris.isEmpty()) {
+                Log.w(TAG, "shareImages: no URIs provided")
                 return false
             }
 
-            // Convert file paths to content URIs via FileProvider
-            val uris = paths.map { path ->
-                val file = File(path)
-                androidx.core.content.FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-            }
+            // Parse URIs (already MediaStore content URIs)
+            val parsedUris = uris.map { Uri.parse(it) }
 
-            val intent = if (uris.size == 1) {
-                Intent(Intent.ACTION_SEND).apply {
-                    type = "image/*"
-                    putExtra(Intent.EXTRA_STREAM, uris[0])
-                }
-            } else {
-                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                    type = "image/*"
-                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-                }
-            }
-
+            val intent = build_share_intent(uris)
+            
             val chooser = Intent.createChooser(intent, "分享图片").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
@@ -401,6 +527,188 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         } catch (e: Exception) {
             Log.e(TAG, "unregisterBackPressCallback: exception", e)
             false
+        }
+    }
+
+    /**
+     * List images from MediaStore in DCIM/CameraFTP/ directory
+     * Returns JSON array of image metadata
+     */
+    @android.webkit.JavascriptInterface
+    fun list_media_store_images(): String {
+        Log.d(TAG, "list_media_store_images: querying MediaStore")
+        
+        return try {
+            val projection = arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.DATE_MODIFIED,
+                MediaStore.Images.Media.DATE_ADDED,
+                MediaStore.Images.Media.SIZE,
+                MediaStore.Images.Media.RELATIVE_PATH
+            )
+
+            val selection = build_query_selection()
+            
+            val cursor = context.contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                null,
+                "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+            )
+
+            val entries = mutableListOf<MediaEntry>()
+            val uriMap = mutableMapOf<String, MediaEntry>()
+
+            cursor?.use {
+                val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val nameColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+                val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+                val addedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
+
+                while (it.moveToNext()) {
+                    val id = it.getLong(idColumn)
+                    val displayName = it.getString(nameColumn)
+                    val dateModified = it.getLong(modifiedColumn)
+                    val dateAdded = it.getLong(addedColumn)
+                    val size = it.getLong(sizeColumn)
+                    
+                    val contentUri = ContentUris.withAppendedId(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        id
+                    ).toString()
+
+                    val entry = MediaEntry(contentUri, dateModified, dateAdded, id, size)
+                    
+                    // Deduplicate by display name, keeping the newest
+                    val existing = uriMap[displayName]
+                    uriMap[displayName] = if (existing != null) {
+                        pick_newest(existing, entry)
+                    } else {
+                        entry
+                    }
+                }
+            }
+
+            // Sort all entries
+            val sortedEntries = sort_entries(uriMap.values.toList())
+            
+            // Build JSON response
+            val jsonArray = JSONArray()
+            sortedEntries.forEach { entry ->
+                val json = JSONObject().apply {
+                    put("uri", entry.uri)
+                    put("displayName", uriMap.entries.find { it.value == entry }?.key ?: "")
+                    put("dateModified", entry.dateModified)
+                    put("size", entry.size)
+                }
+                jsonArray.put(json)
+            }
+
+            Log.d(TAG, "list_media_store_images: found ${sortedEntries.size} images")
+            jsonArray.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "list_media_store_images error", e)
+            "[]"
+        }
+    }
+
+    /**
+     * Open image with external gallery app, supporting swipe browsing
+     * Uses MediaStore URIs for best compatibility
+     */
+    @android.webkit.JavascriptInterface
+    fun open_external_gallery(target_uri: String, all_uris_json: String): Boolean {
+        Log.d(TAG, "open_external_gallery: target_uri=$target_uri")
+        
+        return try {
+            val allUris = JSONArray(all_uris_json).let { json ->
+                (0 until json.length()).map { json.getString(it) }
+            }
+
+            val targetIndex = allUris.indexOf(target_uri)
+            if (targetIndex == -1) {
+                Log.e(TAG, "open_external_gallery: target URI not found in list")
+                return false
+            }
+
+            // Build URI window for swipe browsing
+            val windowUris = build_uri_window(allUris, targetIndex)
+            
+            val targetUriParsed = Uri.parse(target_uri)
+            
+            // Build ClipData with all URIs in the window
+            val clipData = ClipData.newRawUri(null, targetUriParsed)
+            windowUris.forEach { uri ->
+                if (uri != target_uri) {
+                    clipData.addItem(ClipData.Item(Uri.parse(uri)))
+                }
+            }
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(targetUriParsed, "image/*")
+                setClipData(clipData)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            // Check if there's a handler for this intent
+            val resolveInfo = context.packageManager.resolveActivity(intent, 0)
+            val hasHandler = resolveInfo != null
+
+            if (should_show_no_handler_toast(hasHandler)) {
+                runOnUiThread {
+                    Toast.makeText(context, "No gallery app found", Toast.LENGTH_SHORT).show()
+                }
+                return false
+            }
+
+            if (should_grant_read_permission()) {
+                // Grant read permission to all URIs in the clip
+                windowUris.forEach { uri ->
+                    context.grantUriPermission(
+                        context.packageName,
+                        Uri.parse(uri),
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
+            }
+
+            context.startActivity(intent)
+            Log.d(TAG, "open_external_gallery: opened with ${windowUris.size} URIs")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "open_external_gallery error", e)
+            false
+        }
+    }
+
+    /**
+     * Load thumbnail from MediaStore using ContentResolver
+     */
+    private fun load_thumbnail(uri: Uri): Bitmap? {
+        return try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                context.contentResolver.loadThumbnail(
+                    uri,
+                    android.util.Size(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT),
+                    null
+                )
+            } else {
+                // Fallback for older versions
+                @Suppress("DEPRECATION")
+                MediaStore.Images.Thumbnails.getThumbnail(
+                    context.contentResolver,
+                    ContentUris.parseId(uri),
+                    MediaStore.Images.Thumbnails.MINI_KIND,
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "load_thumbnail error for uri=$uri", e)
+            null
         }
     }
 }

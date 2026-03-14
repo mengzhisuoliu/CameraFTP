@@ -192,6 +192,20 @@ interface GalleryAndroid {
    * Callback for back button press (set by JS, called by Android)
    */
   onBackPressed?(): void;
+
+  /**
+   * List images from MediaStore
+   * @returns JSON array of MediaStore entries
+   */
+  listMediaStoreImages(): Promise<string>;
+}
+
+/**
+ * Android MediaStore Bridge interface
+ * Optionally exposed for debug hooks
+ */
+interface MediaStoreAndroidBridge {
+  // optionally exposed for debug hooks
 }
 
 // ===== 全局窗口扩展 =====
@@ -223,6 +237,11 @@ declare global {
      * Android Gallery JS Bridge
      */
     GalleryAndroid?: GalleryAndroid;
+    
+    /**
+     * Android MediaStore Bridge for debug hooks
+     */
+    MediaStoreAndroid?: MediaStoreAndroidBridge;
   }
 }
 
