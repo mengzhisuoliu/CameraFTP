@@ -47,7 +47,23 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
          */
         @JvmStatic
         fun get_required_permissions(): List<String> {
-            return listOf(Manifest.permission.READ_MEDIA_IMAGES)
+            return listOf(
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+            )
+        }
+
+        @JvmStatic
+        fun build_app_permission_settings_intent(packageName: String): Intent {
+            return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+
+        @JvmStatic
+        fun should_open_settings_for_storage_request(hasFullAccess: Boolean, hasPartialAccess: Boolean): Boolean {
+            return !hasFullAccess && hasPartialAccess
         }
     }
 
@@ -77,7 +93,25 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
      * Internal helper - not exposed to JavaScript
      */
     fun checkStoragePermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val hasFullImageAccess = ContextCompat.checkSelfPermission(
+                activity,
+                Manifest.permission.READ_MEDIA_IMAGES
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (hasFullImageAccess) {
+                true
+            } else {
+                val hasSelectedPhotoAccess = ContextCompat.checkSelfPermission(
+                    activity,
+                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+                ) == PackageManager.PERMISSION_GRANTED
+                if (hasSelectedPhotoAccess) {
+                    Log.d(TAG, "checkStoragePermission: partial photo access only")
+                }
+                false
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
                 activity,
                 Manifest.permission.READ_MEDIA_IMAGES
@@ -89,6 +123,22 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
                 Manifest.permission.WRITE_EXTERNAL_STORAGE
             ) == PackageManager.PERMISSION_GRANTED
         }
+    }
+
+    private fun hasPartialStoragePermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return false
+        }
+
+        val hasFullImageAccess = ContextCompat.checkSelfPermission(
+            activity,
+            Manifest.permission.READ_MEDIA_IMAGES
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasSelectedPhotoAccess = ContextCompat.checkSelfPermission(
+            activity,
+            Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+        ) == PackageManager.PERMISSION_GRANTED
+        return should_open_settings_for_storage_request(hasFullImageAccess, hasSelectedPhotoAccess)
     }
 
     /**
@@ -120,14 +170,41 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
     }
 
     /**
-     * Request storage permission - requests READ_MEDIA_IMAGES
+     * Request storage permission.
+     *
+     * Partial access opens app settings directly, while denied access
+     * still triggers runtime permission request.
      */
     @JavascriptInterface
     fun requestStoragePermission() {
-        Log.d(TAG, "requestStoragePermission: requesting READ_MEDIA_IMAGES permission")
+        val hasFullAccess = checkStoragePermission()
+        if (hasFullAccess) {
+            Log.d(TAG, "requestStoragePermission: full storage permission already granted")
+            return
+        }
+
+        if (hasPartialStoragePermission()) {
+            Log.d(TAG, "requestStoragePermission: partial access, opening app permission settings")
+            try {
+                activity.startActivity(build_app_permission_settings_intent(activity.packageName))
+            } catch (e: Exception) {
+                Log.e(TAG, "requestStoragePermission: failed to open app permission settings", e)
+            }
+            return
+        }
+
+        Log.d(TAG, "requestStoragePermission: denied access, requesting runtime permissions")
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            get_required_permissions().toTypedArray()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+        } else {
+            arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+
         ActivityCompat.requestPermissions(
             activity,
-            get_required_permissions().toTypedArray(),
+            permissions,
             REQUEST_POST_NOTIFICATIONS
         )
     }
