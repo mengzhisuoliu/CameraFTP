@@ -10,7 +10,7 @@
 use super::limiter::UploadLimiter;
 use super::retry::{retry_with_backoff, RetryConfig};
 use super::types::{
-    default_relative_path, display_name_from_path, mime_type_from_filename,
+    collection_from_filename, default_relative_path, display_name_from_path, mime_type_from_filename,
     relative_path_from_full_path, MediaStoreBridgeClient,
     MediaStoreError, QueryResult,
 };
@@ -261,6 +261,24 @@ impl AndroidMediaStoreBackend {
         Ok(())
     }
 
+    fn ensure_single_mount_path(&self, path: &Path) -> Result<(), StorageError> {
+        let normalized = self.normalize_path(path);
+        let normalized_str = normalized.to_string_lossy();
+
+        if normalized_str.is_empty() {
+            return Ok(());
+        }
+
+        if normalized_str.contains('/') {
+            return Err(StorageError::from(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "Subdirectories are not supported in current Android MediaStore backend",
+            )));
+        }
+
+        Ok(())
+    }
+
     /// Writes data from a reader to a file descriptor.
     #[cfg(unix)]
     async fn write_to_fd<R>(&self, fd: i32, mut reader: R, start_pos: u64) -> Result<u64, MediaStoreError>
@@ -330,6 +348,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
+        self.ensure_single_mount_path(path)?;
 
         if self.normalize_path(path).as_os_str().is_empty() {
             return Ok(MediaStoreMetadata {
@@ -373,6 +392,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
+        self.ensure_single_mount_path(path)?;
         
         let full_path = self.resolve_path(path);
         debug!(path = %full_path, "Listing directory");
@@ -412,6 +432,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
+        self.ensure_single_mount_path(path)?;
         
         let full_path = self.resolve_path(path);
         debug!(path = %full_path, start_pos, "Getting file");
@@ -474,17 +495,20 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
+        self.ensure_single_mount_path(path)?;
         
         let display_name = display_name_from_path(&path.to_string_lossy());
         let relative_path = self.resolve_path(path);
         let parent_path = relative_path_from_full_path(&relative_path);
         let mime_type = mime_type_from_filename(&display_name);
+        let collection = collection_from_filename(&display_name);
 
         debug!(
             path = %path.display(),
             display_name = %display_name,
             relative_path = %parent_path,
             mime_type = %mime_type,
+            collection = %collection.as_str(),
             start_pos,
             "Uploading file"
         );
@@ -506,8 +530,11 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
             let display_name = display_name.clone();
             let parent_path = parent_path.clone();
             let mime_type = mime_type.to_string();
+            let collection = collection;
             async move {
-                bridge.open_fd_for_write(&display_name, &mime_type, &parent_path).await
+                bridge
+                    .open_fd_for_write(&display_name, &mime_type, &parent_path, collection)
+                    .await
             }
         })
         .await
@@ -542,7 +569,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
             retry_with_backoff(&self.retry_config, "finalize_entry", || {
                 let bridge = bridge.clone();
                 let content_uri = content_uri.clone();
-                async move { bridge.finalize_entry(&content_uri, None).await }
+                async move { bridge.finalize_entry(&content_uri, Some(bytes_written)).await }
             })
             .await
             .map_err(|e| {
@@ -586,6 +613,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
+        self.ensure_single_mount_path(path)?;
         
         let full_path = self.resolve_path(path);
         debug!(path = %full_path, "Deleting file");
@@ -621,29 +649,11 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
-        
-        let full_path = self.resolve_path(path);
-        debug!(path = %full_path, "Creating directory");
 
-        // MediaStore doesn't have explicit directories, but we can create
-        // a placeholder to track the directory structure
-        let bridge = self.bridge.clone();
-        retry_with_backoff(&self.retry_config, "mkd", || {
-            let bridge = bridge.clone();
-            let path = full_path.clone();
-            async move { bridge.create_directory(&path).await }
-        })
-        .await
-        .map_err(|e| {
-            error!(error = ?e, "Failed to create directory");
-            StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e.to_string(),
-            ))
-        })?;
-
-        info!(path = %full_path, "Directory created successfully");
-        Ok(())
+        Err(StorageError::from(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            format!("MKD is currently unsupported: {}", path.display()),
+        )))
     }
 
     async fn rename<P>(&self, _user: &DefaultUser, from: P, to: P) -> Result<(), StorageError>
@@ -675,27 +685,11 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
-        
-        let full_path = self.resolve_path(path);
-        debug!(path = %full_path, "Removing directory");
 
-        let bridge = self.bridge.clone();
-        retry_with_backoff(&self.retry_config, "rmd", || {
-            let bridge = bridge.clone();
-            let path = full_path.clone();
-            async move { bridge.delete_file(&path).await }
-        })
-        .await
-        .map_err(|e| {
-            error!(error = ?e, "Failed to remove directory");
-            StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e.to_string(),
-            ))
-        })?;
-
-        info!(path = %full_path, "Directory removed successfully");
-        Ok(())
+        Err(StorageError::from(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            format!("RMD is currently unsupported: {}", path.display()),
+        )))
     }
 
     async fn cwd<P>(&self, _user: &DefaultUser, path: P) -> Result<(), StorageError>
@@ -709,27 +703,11 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
             debug!("Changing directory to FTP root");
             return Ok(());
         }
-        
-        let full_path = self.resolve_path(path);
-        debug!(path = %full_path, "Changing directory");
 
-        // Verify the directory exists
-        let bridge = self.bridge.clone();
-        let _ = retry_with_backoff(&self.retry_config, "cwd", || {
-            let bridge = bridge.clone();
-            let path = full_path.clone();
-            async move { bridge.query_file(&path).await }
-        })
-        .await
-        .map_err(|e| {
-            error!(error = ?e, "Failed to change directory");
-            StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Directory not found: {}", e),
-            ))
-        })?;
-
-        Ok(())
+        Err(StorageError::from(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            format!("CWD subdirectories are unsupported: {}", path.display()),
+        )))
     }
 
     fn name(&self) -> &str {
@@ -811,5 +789,26 @@ mod tests {
 
         let result = backend.cwd(&DefaultUser {}, Path::new("/")).await;
         assert!(result.is_ok(), "cwd / should succeed when base directory exists");
+    }
+
+    #[cfg(not(target_os = "android"))]
+    #[tokio::test]
+    async fn test_cwd_subdirectory_should_be_unsupported() {
+        let backend = AndroidMediaStoreBackend::with_bridge(Arc::new(MockMediaStoreBridge::temp()));
+
+        let result = backend.cwd(&DefaultUser {}, Path::new("/subdir")).await;
+        assert!(result.is_err(), "cwd subdirectory should fail");
+    }
+
+    #[cfg(not(target_os = "android"))]
+    #[tokio::test]
+    async fn test_mkd_and_rmd_should_be_unsupported() {
+        let backend = AndroidMediaStoreBackend::with_bridge(Arc::new(MockMediaStoreBridge::temp()));
+
+        let mkd_result = backend.mkd(&DefaultUser {}, Path::new("/newdir")).await;
+        assert!(mkd_result.is_err(), "mkd should fail as unsupported");
+
+        let rmd_result = backend.rmd(&DefaultUser {}, Path::new("/newdir")).await;
+        assert!(rmd_result.is_err(), "rmd should fail as unsupported");
     }
 }

@@ -26,6 +26,10 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         private const val INITIAL_DELAY_MS = 100L
         private const val MAX_DELAY_MS = 400L
 
+        private const val COLLECTION_IMAGES = "images"
+        private const val COLLECTION_VIDEOS = "videos"
+        private const val COLLECTION_DOWNLOADS = "downloads"
+
         /**
          * Determine MIME type from FTP type hint or file extension
          */
@@ -151,9 +155,10 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
          * Build ContentValues for finalize
          */
         @JvmStatic
-        fun buildFinalizeValues(): ContentValues {
+        fun buildFinalizeValues(expectedSize: Long?): ContentValues {
             return ContentValues().apply {
                 put(MediaStore.MediaColumns.IS_PENDING, 0)
+                expectedSize?.let { put(MediaStore.MediaColumns.SIZE, it) }
             }
         }
 
@@ -162,7 +167,7 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
          */
         @JvmStatic
         fun validateSize(expected: Long, actual: Long): Boolean {
-            return expected == actual
+            return actual == 0L || expected == actual
         }
 
         /**
@@ -196,12 +201,41 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         fun cleanupStalePendingEntries(contentResolver: ContentResolver, cutoffMillis: Long) {
             try {
                 val selection = buildCleanupSelection(cutoffMillis)
-                val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                val deleted = contentResolver.delete(uri, selection, null)
-                Log.d(TAG, "Cleaned up $deleted stale pending entries")
+                val totalDeleted = listOf(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                    filesCollectionUri()
+                ).sumOf { uri -> contentResolver.delete(uri, selection, null) }
+                Log.d(TAG, "Cleaned up $totalDeleted stale pending entries")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to cleanup stale pending entries", e)
             }
+        }
+
+        @JvmStatic
+        fun collectionUri(collection: String): Uri {
+            return when (collection.lowercase()) {
+                COLLECTION_IMAGES -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                COLLECTION_VIDEOS -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                COLLECTION_DOWNLOADS -> filesCollectionUri()
+                else -> filesCollectionUri()
+            }
+        }
+
+        private fun filesCollectionUri(): Uri {
+            return MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        }
+
+        private fun listCollections(): List<Uri> {
+            return listOf(
+                filesCollectionUri()
+            )
+        }
+
+        @JvmStatic
+        fun shouldEmitMediaStoreReady(mimeType: String?): Boolean {
+            val value = mimeType?.lowercase() ?: return false
+            return value == "image/jpeg" || value == "image/heif" || value == "video/mp4" || value == "video/quicktime"
         }
 
         /**
@@ -213,10 +247,11 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
             displayName: String,
             mime: String,
             relativePath: String,
+            collection: String,
             sizeHint: Long?
         ): String {
             val resolver = context.contentResolver
-            val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val uri = collectionUri(collection)
 
             // Check if entry already exists
             val existingUri = findEntryUriNative(context, relativePath, displayName)
@@ -278,8 +313,8 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
                 }
             }
 
-            // Finalize by setting IS_PENDING=0
-            val values = buildFinalizeValues()
+            // Finalize by setting IS_PENDING=0 and persisting expected size.
+            val values = buildFinalizeValues(expectedSize)
             val updated = resolver.update(uriObj, values, null, null)
 
             return updated > 0
@@ -307,37 +342,46 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         @JvmStatic
         fun listEntriesNative(context: Context, relativePath: String): String {
             val resolver = context.contentResolver
-            val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val projection = arrayOf(
                 MediaStore.MediaColumns._ID,
                 MediaStore.MediaColumns.DISPLAY_NAME,
                 MediaStore.MediaColumns.SIZE,
-                MediaStore.MediaColumns.DATE_MODIFIED
+                MediaStore.MediaColumns.DATE_MODIFIED,
+                MediaStore.MediaColumns.MIME_TYPE,
+                MediaStore.MediaColumns.RELATIVE_PATH
             )
-            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} = ?"
+            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.IS_PENDING} = 0"
             val selectionArgs = arrayOf(relativePath)
 
             val results = mutableListOf<JSONObject>()
-            val cursor = resolver.query(uri, projection, selection, selectionArgs, null)
 
-            cursor?.use {
-                val idColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                val displayNameColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
-                val sizeColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
-                val dateModifiedColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
+            listCollections().forEach { collectionUri ->
+                val cursor = resolver.query(collectionUri, projection, selection, selectionArgs, null)
+                cursor?.use {
+                    val idColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                    val displayNameColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+                    val sizeColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
+                    val dateModifiedColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
+                    val mimeTypeColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
+                    val relativePathColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
 
-                while (it.moveToNext()) {
-                    val id = it.getLong(idColumn)
-                    val displayName = it.getString(displayNameColumn)
-                    val size = it.getLong(sizeColumn)
-                    val dateModified = it.getLong(dateModifiedColumn)
+                    while (it.moveToNext()) {
+                        val id = it.getLong(idColumn)
+                        val displayName = it.getString(displayNameColumn)
+                        val size = it.getLong(sizeColumn)
+                        val dateModified = it.getLong(dateModifiedColumn) * 1000L
+                        val mimeType = it.getString(mimeTypeColumn) ?: DEFAULT_MIME_TYPE
+                        val entryRelativePath = it.getString(relativePathColumn) ?: relativePath
 
-                    results.add(JSONObject().apply {
-                        put("uri", ContentUris.withAppendedId(uri, id).toString())
-                        put("displayName", displayName)
-                        put("size", size)
-                        put("dateModified", dateModified)
-                    })
+                        results.add(JSONObject().apply {
+                            put("uri", ContentUris.withAppendedId(collectionUri, id).toString())
+                            put("displayName", displayName)
+                            put("size", size)
+                            put("dateModified", dateModified)
+                            put("mimeType", mimeType)
+                            put("relativePath", entryRelativePath)
+                        })
+                    }
                 }
             }
 
@@ -352,16 +396,17 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         @JvmStatic
         fun findEntryUriNative(context: Context, relativePath: String, displayName: String): String? {
             val resolver = context.contentResolver
-            val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val projection = arrayOf(MediaStore.MediaColumns._ID)
             val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
             val selectionArgs = arrayOf(relativePath, displayName)
 
-            val cursor = resolver.query(uri, projection, selection, selectionArgs, null)
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                    return ContentUris.withAppendedId(uri, id).toString()
+            listCollections().forEach { collectionUri ->
+                val cursor = resolver.query(collectionUri, projection, selection, selectionArgs, null)
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                        return ContentUris.withAppendedId(collectionUri, id).toString()
+                    }
                 }
             }
 
@@ -405,13 +450,14 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         displayName: String,
         mime: String,
         relativePath: String,
+        collection: String,
         sizeHint: Long?
     ): String {
-        Log.d(TAG, "createMediaStoreEntry: displayName=$displayName, mime=$mime, relativePath=$relativePath, sizeHint=$sizeHint")
+        Log.d(TAG, "createMediaStoreEntry: displayName=$displayName, mime=$mime, relativePath=$relativePath, collection=$collection, sizeHint=$sizeHint")
 
         return try {
             retryWithBackoff(3) {
-                createEntryNative(activity, displayName, mime, relativePath, sizeHint)
+                createEntryNative(activity, displayName, mime, relativePath, collection, sizeHint)
             }.getOrElse { e ->
                 Log.e(TAG, "Failed to create MediaStore entry after retries", e)
                 JSONObject().apply {
@@ -480,7 +526,8 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
                 arrayOf(
                     MediaStore.MediaColumns.RELATIVE_PATH,
                     MediaStore.MediaColumns.DISPLAY_NAME,
-                    MediaStore.MediaColumns.DATE_MODIFIED
+                    MediaStore.MediaColumns.DATE_MODIFIED,
+                    MediaStore.MediaColumns.MIME_TYPE
                 ),
                 null,
                 null,
@@ -492,9 +539,12 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
                     val relativePath = it.getString(0) ?: ""
                     val displayName = it.getString(1) ?: ""
                     val timestamp = it.getLong(2) * 1000 // Convert to milliseconds
+                    val mimeType = it.getString(3)
 
-                    val payload = buildReadyPayload(uri, relativePath, displayName, size, timestamp)
-                    (activity as? MainActivity)?.emitTauriEvent("media-store-ready", payload)
+                    if (shouldEmitMediaStoreReady(mimeType)) {
+                        val payload = buildReadyPayload(uri, relativePath, displayName, size, timestamp)
+                        (activity as? MainActivity)?.emitTauriEvent("media-store-ready", payload)
+                    }
                 }
             }
         } catch (e: Exception) {

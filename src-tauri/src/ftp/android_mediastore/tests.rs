@@ -12,8 +12,8 @@ use super::limiter::UploadLimiter;
 use super::retry::{retry_with_backoff, RetryConfig};
 use super::types::{
     default_relative_path, display_name_from_path, mime_type_from_filename,
-    relative_path_from_full_path, MediaStoreError, QueryResult,
-    MIME_TYPE_DEFAULT, MIME_TYPE_JPEG, MIME_TYPE_PNG,
+    relative_path_from_full_path, MediaStoreCollection, MediaStoreError, QueryResult,
+    MIME_TYPE_DEFAULT, MIME_TYPE_HEIF, MIME_TYPE_JPEG, MIME_TYPE_MP4,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -105,9 +105,10 @@ fn test_mime_type_jpeg() {
 }
 
 #[test]
-fn test_mime_type_png() {
-    assert_eq!(mime_type_from_filename("photo.png"), MIME_TYPE_PNG);
-    assert_eq!(mime_type_from_filename("PHOTO.PNG"), MIME_TYPE_PNG);
+fn test_mime_type_video_and_heif() {
+    assert_eq!(mime_type_from_filename("video.mp4"), MIME_TYPE_MP4);
+    assert_eq!(mime_type_from_filename("video.MP4"), MIME_TYPE_MP4);
+    assert_eq!(mime_type_from_filename("image.heif"), MIME_TYPE_HEIF);
 }
 
 #[test]
@@ -247,7 +248,9 @@ async fn test_mock_bridge_create_and_query() {
     let bridge = MockMediaStoreBridge::new(temp_dir.path().to_path_buf());
     
     // Create a file
-    let fd = bridge.open_fd_for_write("test.jpg", "image/jpeg", "DCIM/").await;
+    let fd = bridge
+        .open_fd_for_write("test.jpg", "image/jpeg", "DCIM/", MediaStoreCollection::Images)
+        .await;
     #[cfg(unix)]
     assert!(fd.is_ok());
     #[cfg(not(unix))]
@@ -279,7 +282,9 @@ async fn test_mock_bridge_delete_file() {
     let bridge = MockMediaStoreBridge::new(temp_dir.path().to_path_buf());
     
     // Create a file
-    let _ = bridge.open_fd_for_write("test.jpg", "image/jpeg", "DCIM/").await;
+    let _ = bridge
+        .open_fd_for_write("test.jpg", "image/jpeg", "DCIM/", MediaStoreCollection::Images)
+        .await;
     
     // Delete it
     let result = bridge.delete_file("DCIM/test.jpg").await;
@@ -443,9 +448,9 @@ async fn test_backend_mkd_and_list() {
     let (backend, _temp_dir) = create_test_backend();
     let user = DefaultUser;
     
-    // Create a directory
+    // MKD is intentionally unsupported in current single-mount mode.
     let result = backend.mkd(&user, Path::new("testdir")).await;
-    assert!(result.is_ok());
+    assert!(result.is_err());
 }
 
 #[cfg(not(target_os = "android"))]

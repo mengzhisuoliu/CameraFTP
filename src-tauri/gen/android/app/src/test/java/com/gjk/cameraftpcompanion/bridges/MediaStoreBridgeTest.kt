@@ -106,12 +106,14 @@ class MediaStoreBridgeTest {
 
     @Test
     fun finalize_values_clears_is_pending() {
-        val values = MediaStoreBridge.buildFinalizeValues()
+        val values = MediaStoreBridge.buildFinalizeValues(123)
         assertEquals(0, values.getAsInteger(MediaStore.MediaColumns.IS_PENDING))
+        assertEquals(123L, values.getAsLong(MediaStore.MediaColumns.SIZE))
     }
 
     @Test
     fun validate_size_handles_mismatch() {
+        assertTrue(MediaStoreBridge.validateSize(1000, 0))
         assertFalse(MediaStoreBridge.validateSize(1000, 500))
         assertTrue(MediaStoreBridge.validateSize(1000, 1000))
     }

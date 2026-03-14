@@ -4,7 +4,9 @@
 
 //! JNI bridge implementation for Android MediaStore operations.
 
-use super::types::{FileDescriptorInfo, MediaStoreBridgeClient, MediaStoreError, QueryResult};
+use super::types::{
+    FileDescriptorInfo, MediaStoreBridgeClient, MediaStoreCollection, MediaStoreError, QueryResult,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -134,7 +136,7 @@ impl JniMediaStoreBridge {
         }
     }
 
-    fn parse_list_entries(json: &str, relative_path: &str) -> Result<Vec<QueryResult>, MediaStoreError> {
+    fn parse_list_entries(json: &str) -> Result<Vec<QueryResult>, MediaStoreError> {
         #[derive(Debug, Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct ListEntry {
@@ -142,6 +144,8 @@ impl JniMediaStoreBridge {
             display_name: String,
             size: u64,
             date_modified: u64,
+            mime_type: Option<String>,
+            relative_path: Option<String>,
         }
 
         #[derive(Debug, Deserialize)]
@@ -161,8 +165,10 @@ impl JniMediaStoreBridge {
                 display_name: e.display_name.clone(),
                 size: e.size,
                 date_modified: e.date_modified,
-                mime_type: mime_type_from_filename(&e.display_name).to_string(),
-                relative_path: relative_path.to_string(),
+                mime_type: e
+                    .mime_type
+                    .unwrap_or_else(|| mime_type_from_filename(&e.display_name).to_string()),
+                relative_path: e.relative_path.unwrap_or_default(),
             })
             .collect();
 
@@ -313,25 +319,28 @@ impl MediaStoreBridgeClient for JniMediaStoreBridge {
         display_name: &str,
         mime_type: &str,
         relative_path: &str,
+        collection: MediaStoreCollection,
     ) -> Result<FileDescriptorInfo, MediaStoreError> {
-        debug!(display_name, mime_type, relative_path, "Opening file descriptor for write");
+        debug!(display_name, mime_type, relative_path, collection = %collection.as_str(), "Opening file descriptor for write");
 
         Self::with_env(|env| {
             let context = Self::get_context(env)?;
             let j_display_name = Self::new_jstring(env, display_name)?;
             let j_mime = Self::new_jstring(env, mime_type)?;
             let j_relative_path = Self::new_jstring(env, relative_path)?;
+            let j_collection = Self::new_jstring(env, collection.as_str())?;
             let j_size = JObject::null();
 
             let json = Self::call_static_string(
                 env,
                 "createEntryNative",
-                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)Ljava/lang/String;",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Long;)Ljava/lang/String;",
                 &[
                     JValue::Object(&context),
                     JValue::Object(&j_display_name),
                     JValue::Object(&j_mime),
                     JValue::Object(&j_relative_path),
+                    JValue::Object(&j_collection),
                     JValue::Object(&j_size),
                 ],
             )?;
@@ -400,10 +409,14 @@ impl MediaStoreBridgeClient for JniMediaStoreBridge {
     async fn query_files(&self, path: &str) -> Result<Vec<QueryResult>, MediaStoreError> {
         debug!(path, "Querying files");
 
-        let mut relative_path = relative_path_from_full_path(path);
-        if relative_path.is_empty() {
-            relative_path = path.trim_start_matches('/').to_string();
-        }
+        let trimmed = path.trim_start_matches('/');
+        let relative_path = if trimmed.is_empty() {
+            String::new()
+        } else if trimmed.ends_with('/') {
+            trimmed.to_string()
+        } else {
+            relative_path_from_full_path(trimmed)
+        };
 
         let json = Self::with_env(|env| {
             let context = Self::get_context(env)?;
@@ -417,7 +430,7 @@ impl MediaStoreBridgeClient for JniMediaStoreBridge {
             )
         })?;
 
-        Self::parse_list_entries(&json, &relative_path)
+        Self::parse_list_entries(&json)
     }
 
     async fn query_file(&self, path: &str) -> Result<QueryResult, MediaStoreError> {
@@ -540,6 +553,7 @@ impl MediaStoreBridgeClient for MockMediaStoreBridge {
         display_name: &str,
         _mime_type: &str,
         relative_path: &str,
+        _collection: MediaStoreCollection,
     ) -> Result<FileDescriptorInfo, MediaStoreError> {
         let dir_path = self.base_path.join(relative_path.trim_start_matches('/'));
         let full_path = dir_path.join(display_name);
@@ -712,7 +726,7 @@ mod tests {
         let bridge = MockMediaStoreBridge::new(temp_dir.path().to_path_buf());
 
         let fd_info = bridge
-            .open_fd_for_write("test.jpg", "image/jpeg", "DCIM/")
+            .open_fd_for_write("test.jpg", "image/jpeg", "DCIM/", MediaStoreCollection::Images)
             .await
             .expect("open fd for write");
         assert!(fd_info.path.exists());

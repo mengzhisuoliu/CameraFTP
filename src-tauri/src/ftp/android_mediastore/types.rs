@@ -12,12 +12,30 @@ use thiserror::Error;
 
 /// MIME types supported by MediaStore for image files.
 pub const MIME_TYPE_JPEG: &str = "image/jpeg";
-pub const MIME_TYPE_PNG: &str = "image/png";
 pub const MIME_TYPE_HEIF: &str = "image/heif";
-pub const MIME_TYPE_RAW: &str = "image/x-adobe-dng";
+pub const MIME_TYPE_MP4: &str = "video/mp4";
+pub const MIME_TYPE_MOV: &str = "video/quicktime";
 
 /// Default MIME type for unknown files.
 pub const MIME_TYPE_DEFAULT: &str = "application/octet-stream";
+
+/// Target MediaStore collection for an upload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaStoreCollection {
+    Images,
+    Videos,
+    Downloads,
+}
+
+impl MediaStoreCollection {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MediaStoreCollection::Images => "images",
+            MediaStoreCollection::Videos => "videos",
+            MediaStoreCollection::Downloads => "downloads",
+        }
+    }
+}
 
 /// Result of a MediaStore insert operation.
 #[derive(Debug, Clone)]
@@ -116,6 +134,7 @@ pub trait MediaStoreBridgeClient: Send + Sync + std::fmt::Debug {
         display_name: &str,
         mime_type: &str,
         relative_path: &str,
+        collection: MediaStoreCollection,
     ) -> Result<FileDescriptorInfo, MediaStoreError>;
 
     /// Finalizes a MediaStore entry after write completion.
@@ -182,14 +201,29 @@ pub fn mime_type_from_filename(filename: &str) -> &'static str {
     let lower = filename.to_lowercase();
     if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
         MIME_TYPE_JPEG
-    } else if lower.ends_with(".png") {
-        MIME_TYPE_PNG
     } else if lower.ends_with(".heif") || lower.ends_with(".heic") {
         MIME_TYPE_HEIF
-    } else if lower.ends_with(".dng") || lower.ends_with(".cr2") || lower.ends_with(".nef") || lower.ends_with(".arw") {
-        MIME_TYPE_RAW
+    } else if lower.ends_with(".mp4") {
+        MIME_TYPE_MP4
+    } else if lower.ends_with(".mov") {
+        MIME_TYPE_MOV
     } else {
         MIME_TYPE_DEFAULT
+    }
+}
+
+/// Routes a filename to a MediaStore collection.
+///
+/// Media files that need gallery refresh go to images/videos collections,
+/// while all other files (including RAW formats) go to downloads.
+pub fn collection_from_filename(filename: &str) -> MediaStoreCollection {
+    let lower = filename.to_lowercase();
+    if lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".heif") || lower.ends_with(".heic") {
+        MediaStoreCollection::Images
+    } else if lower.ends_with(".mp4") || lower.ends_with(".mov") {
+        MediaStoreCollection::Videos
+    } else {
+        MediaStoreCollection::Downloads
     }
 }
 
@@ -223,11 +257,24 @@ mod tests {
     fn test_mime_type_from_filename() {
         assert_eq!(mime_type_from_filename("photo.jpg"), MIME_TYPE_JPEG);
         assert_eq!(mime_type_from_filename("photo.JPEG"), MIME_TYPE_JPEG);
-        assert_eq!(mime_type_from_filename("photo.png"), MIME_TYPE_PNG);
         assert_eq!(mime_type_from_filename("photo.heif"), MIME_TYPE_HEIF);
-        assert_eq!(mime_type_from_filename("photo.dng"), MIME_TYPE_RAW);
-        assert_eq!(mime_type_from_filename("photo.cr2"), MIME_TYPE_RAW);
+        assert_eq!(mime_type_from_filename("video.mp4"), MIME_TYPE_MP4);
+        assert_eq!(mime_type_from_filename("video.mov"), MIME_TYPE_MOV);
+        assert_eq!(mime_type_from_filename("photo.dng"), MIME_TYPE_DEFAULT);
+        assert_eq!(mime_type_from_filename("photo.cr2"), MIME_TYPE_DEFAULT);
         assert_eq!(mime_type_from_filename("photo.unknown"), MIME_TYPE_DEFAULT);
+    }
+
+    #[test]
+    fn test_collection_from_filename() {
+        assert_eq!(collection_from_filename("a.jpg"), MediaStoreCollection::Images);
+        assert_eq!(collection_from_filename("a.heif"), MediaStoreCollection::Images);
+        assert_eq!(collection_from_filename("a.mp4"), MediaStoreCollection::Videos);
+        assert_eq!(collection_from_filename("a.mov"), MediaStoreCollection::Videos);
+        assert_eq!(collection_from_filename("a.dng"), MediaStoreCollection::Downloads);
+        assert_eq!(collection_from_filename("a.nef"), MediaStoreCollection::Downloads);
+        assert_eq!(collection_from_filename("a.r3d"), MediaStoreCollection::Downloads);
+        assert_eq!(collection_from_filename("a.bin"), MediaStoreCollection::Downloads);
     }
 
     #[test]
