@@ -46,20 +46,20 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         private const val URI_WINDOW_SIZE = 25  // Number of URIs to include on each side of target
 
         /**
-         * Pick the freshest/newest entry based on dateModified, then dateAdded, then size
+         * Pick the freshest/newest entry based on dateAdded (to match system gallery), then dateModified, then size
          */
         @JvmStatic
         fun pick_newest(a: MediaEntry, b: MediaEntry): MediaEntry {
-            // Compare by dateModified first (higher is newer)
-            if (a.dateModified != b.dateModified) {
-                return if (a.dateModified > b.dateModified) a else b
-            }
-            
-            // If dateModified is equal, compare by dateAdded
+            // Compare by dateAdded first (higher is newer) to match system gallery order
             if (a.dateAdded != b.dateAdded) {
                 return if (a.dateAdded > b.dateAdded) a else b
             }
-            
+
+            // If dateAdded is equal, compare by dateModified
+            if (a.dateModified != b.dateModified) {
+                return if (a.dateModified > b.dateModified) a else b
+            }
+
             // If both are equal, prefer larger size (likely higher quality)
             return if (a.size >= b.size) a else b
         }
@@ -87,13 +87,13 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
         }
 
         /**
-         * Sort entries by dateModified DESC, then dateAdded DESC, then size DESC
+         * Sort entries by dateAdded DESC (to match system gallery order), then dateModified DESC, then size DESC
          */
         @JvmStatic
         fun sort_entries(entries: List<MediaEntry>): List<MediaEntry> {
             return entries.sortedWith(
-                compareByDescending<MediaEntry> { it.dateModified }
-                    .thenByDescending { it.dateAdded }
+                compareByDescending<MediaEntry> { it.dateAdded }
+                    .thenByDescending { it.dateModified }
                     .thenByDescending { it.size }
             )
         }
@@ -581,12 +581,13 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
 
             val selection = build_query_selection()
             
+            // Query with DATE_ADDED DESC to match system gallery order
             val cursor = context.contentResolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 projection,
                 selection,
                 null,
-                "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+                "${MediaStore.Images.Media.DATE_ADDED} DESC"
             )
 
             val entries = mutableListOf<MediaEntry>()
