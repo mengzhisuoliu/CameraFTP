@@ -58,4 +58,23 @@ describe('gallery-refresh', () => {
     vi.advanceTimersByTime(1);
     expect(galleryHandler).toHaveBeenCalledTimes(2);
   });
+
+  it('dispatches explicit delete refresh events to gallery and latest-photo listeners', () => {
+    const galleryHandler = vi.fn();
+    const latestHandler = vi.fn();
+
+    window.addEventListener(GALLERY_REFRESH_REQUESTED_EVENT, galleryHandler);
+    window.addEventListener(LATEST_PHOTO_REFRESH_REQUESTED_EVENT, latestHandler);
+
+    requestMediaLibraryRefresh({ reason: 'delete', timestamp: 123 });
+
+    expect(galleryHandler).toHaveBeenCalledTimes(1);
+    expect(latestHandler).toHaveBeenCalledTimes(1);
+    expect(galleryHandler.mock.calls[0]?.[0]).toMatchObject({
+      detail: { reason: 'delete', timestamp: 123 },
+    });
+    expect(latestHandler.mock.calls[0]?.[0]).toMatchObject({
+      detail: { reason: 'delete', timestamp: 123 },
+    });
+  });
 });

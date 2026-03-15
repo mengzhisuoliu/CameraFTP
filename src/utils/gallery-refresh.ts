@@ -10,6 +10,7 @@ export const LATEST_PHOTO_REFRESH_REQUESTED_EVENT = 'latest-photo-refresh-reques
 export type MediaLibraryRefreshReason =
   | 'manual'
   | 'upload'
+  | 'delete'
   | 'permission-granted'
   | 'media-store-ready';
 

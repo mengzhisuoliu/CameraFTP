@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use unftp_core::auth::DefaultUser;
 // Import the traits to call trait methods
-use unftp_core::storage::{Metadata, StorageBackend};
+use unftp_core::storage::{ErrorKind, Metadata, StorageBackend};
 
 #[cfg(not(target_os = "android"))]
 use super::bridge::MockMediaStoreBridge;
@@ -451,6 +451,75 @@ async fn test_backend_mkd_and_list() {
     // MKD is intentionally unsupported in current single-mount mode.
     let result = backend.mkd(&user, Path::new("testdir")).await;
     assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::CommandNotImplemented);
+}
+
+#[cfg(not(target_os = "android"))]
+#[tokio::test]
+async fn test_backend_put_rejects_non_media_files_with_explicit_kind() {
+    let (backend, _temp_dir) = create_test_backend();
+    let user = DefaultUser;
+
+    let result = backend
+        .put(&user, tokio::io::empty(), Path::new("notes.txt"), 0)
+        .await;
+
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::FileNameNotAllowedError);
+}
+
+#[cfg(not(target_os = "android"))]
+#[tokio::test]
+async fn test_backend_cwd_existing_virtual_directory_succeeds() {
+    let (backend, temp_dir) = create_test_backend();
+    let user = DefaultUser;
+    let nested_dir = temp_dir.path().join("DCIM/CameraFTP/album");
+    std::fs::create_dir_all(&nested_dir).expect("create nested dir");
+    std::fs::write(nested_dir.join("photo.jpg"), b"jpeg").expect("write nested file");
+
+    let result = backend.cwd(&user, Path::new("/album")).await;
+
+    assert!(result.is_ok());
+}
+
+#[cfg(not(target_os = "android"))]
+#[tokio::test]
+async fn test_backend_cwd_missing_virtual_directory_returns_directory_not_available() {
+    let (backend, _temp_dir) = create_test_backend();
+    let user = DefaultUser;
+
+    let result = backend.cwd(&user, Path::new("/missing")).await;
+
+    assert!(result.is_ok());
+}
+
+#[cfg(not(target_os = "android"))]
+#[tokio::test]
+async fn test_backend_list_nested_virtual_directory_returns_files() {
+    let (backend, temp_dir) = create_test_backend();
+    let user = DefaultUser;
+    let nested_dir = temp_dir.path().join("DCIM/CameraFTP/album");
+    std::fs::create_dir_all(&nested_dir).expect("create nested dir");
+    std::fs::write(nested_dir.join("photo.jpg"), b"jpeg").expect("write nested file");
+
+    let result = backend.list(&user, Path::new("/album")).await;
+
+    assert!(result.is_ok());
+    let files = result.unwrap();
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].path, PathBuf::from("photo.jpg"));
+}
+
+#[cfg(not(target_os = "android"))]
+#[tokio::test]
+async fn test_backend_list_missing_virtual_directory_returns_empty_listing() {
+    let (backend, _temp_dir) = create_test_backend();
+    let user = DefaultUser;
+
+    let result = backend.list(&user, Path::new("/missing")).await;
+
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_empty());
 }
 
 #[cfg(not(target_os = "android"))]

@@ -141,6 +141,19 @@ class MediaStoreBridgeTest {
     }
 
     @Test
+    fun normalize_directory_prefix_appends_trailing_slash_for_nested_paths() {
+        assertEquals("DCIM/CameraFTP/album/", MediaStoreBridge.normalizeDirectoryPrefix("DCIM/CameraFTP/album"))
+    }
+
+    @Test
+    fun build_list_selection_targets_exact_and_nested_relative_paths() {
+        assertEquals(
+            "relative_path = ? OR relative_path LIKE ?",
+            MediaStoreBridge.buildListSelection("relative_path")
+        )
+    }
+
+    @Test
     fun finalize_native_bridge_exposes_emit_ready_entrypoint() {
         val methodRef: (Context, String, Long?) -> Boolean = MediaStoreBridge::finalizeEntryAndEmitReadyNative
         assertNotNull(methodRef)

@@ -125,6 +125,15 @@ const createEventRegistrations = (
     },
   },
   {
+    name: 'media-library-refresh-requested',
+    handler: () => {
+      scheduleMediaLibraryRefresh({
+        reason: 'delete',
+        timestamp: Date.now(),
+      });
+    },
+  },
+  {
     name: 'tray-start-server',
     handler: async () => {
       try {

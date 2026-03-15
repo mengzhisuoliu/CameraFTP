@@ -238,6 +238,21 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         }
 
         @JvmStatic
+        fun normalizeDirectoryPrefix(relativePath: String): String {
+            val normalized = relativePath.trimStart('/').trim()
+            if (normalized.isEmpty()) {
+                return normalized
+            }
+
+            return if (normalized.endsWith('/')) normalized else "$normalized/"
+        }
+
+        @JvmStatic
+        fun buildListSelection(relativePathColumn: String): String {
+            return "$relativePathColumn = ? OR $relativePathColumn LIKE ?"
+        }
+
+        @JvmStatic
         fun shouldEmitMediaStoreReady(mimeType: String?): Boolean {
             val value = mimeType?.lowercase() ?: return false
             return value.startsWith("image/") || value.startsWith("video/")
@@ -366,6 +381,7 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         @JvmStatic
         fun listEntriesNative(context: Context, relativePath: String): String {
             val resolver = context.contentResolver
+            val directoryPrefix = normalizeDirectoryPrefix(relativePath)
             val projection = arrayOf(
                 MediaStore.MediaColumns._ID,
                 MediaStore.MediaColumns.DISPLAY_NAME,
@@ -374,8 +390,16 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
                 MediaStore.MediaColumns.MIME_TYPE,
                 MediaStore.MediaColumns.RELATIVE_PATH
             )
-            val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.IS_PENDING} = 0"
-            val selectionArgs = arrayOf(relativePath)
+            val selection = if (directoryPrefix.isEmpty()) {
+                "${MediaStore.MediaColumns.IS_PENDING} = 0"
+            } else {
+                "(${buildListSelection(MediaStore.MediaColumns.RELATIVE_PATH)}) AND ${MediaStore.MediaColumns.IS_PENDING} = 0"
+            }
+            val selectionArgs = if (directoryPrefix.isEmpty()) {
+                null
+            } else {
+                arrayOf(directoryPrefix, "$directoryPrefix%")
+            }
 
             val results = mutableListOf<JSONObject>()
 

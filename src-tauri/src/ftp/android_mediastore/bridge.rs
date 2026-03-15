@@ -427,10 +427,8 @@ impl MediaStoreBridgeClient for JniMediaStoreBridge {
         let trimmed = path.trim_start_matches('/');
         let relative_path = if trimmed.is_empty() {
             String::new()
-        } else if trimmed.ends_with('/') {
-            trimmed.to_string()
         } else {
-            relative_path_from_full_path(trimmed)
+            format!("{}/", trimmed.trim_end_matches('/'))
         };
 
         let json = Self::with_env(|env| {
@@ -630,30 +628,48 @@ impl MediaStoreBridgeClient for MockMediaStoreBridge {
         }
 
         let mut results = Vec::new();
-        let mut entries = tokio::fs::read_dir(&full_path)
-            .await
-            .map_err(MediaStoreError::IoError)?;
+        let mut stack = vec![full_path.clone()];
 
-        while let Some(entry) = entries.next_entry().await.map_err(MediaStoreError::IoError)? {
-            let name = entry.file_name().to_string_lossy().to_string();
-            let metadata = entry.metadata().await.map_err(MediaStoreError::IoError)?;
-            let is_dir = metadata.is_dir();
+        while let Some(current_dir) = stack.pop() {
+            let mut entries = tokio::fs::read_dir(&current_dir)
+                .await
+                .map_err(MediaStoreError::IoError)?;
 
-            results.push(QueryResult {
-                content_uri: format!("content://mock/media/{}", name),
-                display_name: name.clone(),
-                size: metadata.len(),
-                date_modified: metadata
-                    .modified()
-                    .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64)
-                    .unwrap_or(0),
-                mime_type: if is_dir {
-                    "inode/directory".to_string()
-                } else {
-                    mime_type_from_filename(&name).to_string()
-                },
-                relative_path: path.trim_start_matches('/').to_string(),
-            });
+            while let Some(entry) = entries.next_entry().await.map_err(MediaStoreError::IoError)? {
+                let metadata = entry.metadata().await.map_err(MediaStoreError::IoError)?;
+
+                if metadata.is_dir() {
+                    stack.push(entry.path());
+                    continue;
+                }
+
+                let name = entry.file_name().to_string_lossy().to_string();
+                let relative_dir = entry
+                    .path()
+                    .parent()
+                    .and_then(|parent| parent.strip_prefix(&self.base_path).ok())
+                    .map(|parent| {
+                        let value = parent.to_string_lossy().replace('\\', "/");
+                        if value.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{}/", value.trim_end_matches('/'))
+                        }
+                    })
+                    .unwrap_or_default();
+
+                results.push(QueryResult {
+                    content_uri: format!("content://mock/media/{}{}", relative_dir, name),
+                    display_name: name.clone(),
+                    size: metadata.len(),
+                    date_modified: metadata
+                        .modified()
+                        .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64)
+                        .unwrap_or(0),
+                    mime_type: mime_type_from_filename(&name).to_string(),
+                    relative_path: relative_dir,
+                });
+            }
         }
 
         Ok(results)

@@ -15,6 +15,7 @@ use super::types::{
     MediaStoreError, QueryResult,
 };
 use async_trait::async_trait;
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -24,7 +25,9 @@ use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 use tracing::{debug, error, info, warn};
 use unftp_core::auth::DefaultUser;
-use unftp_core::storage::{Fileinfo, Metadata, StorageBackend, Error as StorageError};
+use unftp_core::storage::{
+    Error as StorageError, ErrorKind as StorageErrorKind, Fileinfo, Metadata, StorageBackend,
+};
 
 /// Metadata implementation for MediaStore files.
 #[derive(Debug, Clone)]
@@ -261,22 +264,112 @@ impl AndroidMediaStoreBackend {
         Ok(())
     }
 
-    fn ensure_single_mount_path(&self, path: &Path) -> Result<(), StorageError> {
-        let normalized = self.normalize_path(path);
-        let normalized_str = normalized.to_string_lossy();
+    fn is_root_path(&self, path: &Path) -> bool {
+        self.normalize_path(path).as_os_str().is_empty()
+    }
 
-        if normalized_str.is_empty() {
-            return Ok(());
+    fn resolve_directory_path(&self, path: &Path) -> String {
+        let resolved = self.resolve_path(path);
+        if resolved.is_empty() || resolved.ends_with('/') {
+            resolved
+        } else {
+            format!("{resolved}/")
+        }
+    }
+
+    fn storage_error(kind: StorageErrorKind, message: impl Into<String>) -> StorageError {
+        StorageError::new(kind, std::io::Error::other(message.into()))
+    }
+
+    fn unsupported_command(message: impl Into<String>) -> StorageError {
+        Self::storage_error(StorageErrorKind::CommandNotImplemented, message)
+    }
+
+    fn file_name_not_allowed(message: impl Into<String>) -> StorageError {
+        Self::storage_error(StorageErrorKind::FileNameNotAllowedError, message)
+    }
+
+    fn file_not_available(message: impl Into<String>) -> StorageError {
+        Self::storage_error(StorageErrorKind::PermanentFileNotAvailable, message)
+    }
+
+    fn direct_child_name(directory_prefix: &str, entry: &QueryResult) -> Option<(String, bool)> {
+        let entry_relative_path = entry.relative_path.trim_start_matches('/');
+        let directory_prefix = directory_prefix.trim_start_matches('/');
+        let remainder = entry_relative_path.strip_prefix(directory_prefix)?;
+
+        if remainder.is_empty() {
+            return Some((entry.display_name.clone(), false));
         }
 
-        if normalized_str.contains('/') {
-            return Err(StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "Subdirectories are not supported in current Android MediaStore backend",
-            )));
+        let child_name = remainder.split('/').next()?.trim();
+        if child_name.is_empty() {
+            None
+        } else {
+            Some((child_name.to_string(), true))
+        }
+    }
+
+    fn synthesize_directory_info(name: String, modified: u64) -> Fileinfo<PathBuf, MediaStoreMetadata> {
+        Fileinfo {
+            path: PathBuf::from(name),
+            metadata: MediaStoreMetadata {
+                size: 0,
+                modified: SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(modified),
+                is_dir: true,
+                mime_type: "inode/directory".to_string(),
+            },
+        }
+    }
+
+    fn build_directory_listing(
+        &self,
+        directory_prefix: &str,
+        results: Vec<QueryResult>,
+    ) -> Vec<Fileinfo<PathBuf, MediaStoreMetadata>> {
+        let mut directories = BTreeMap::<String, u64>::new();
+        let mut files = Vec::new();
+
+        for entry in results {
+            if let Some((child_name, is_directory)) = Self::direct_child_name(directory_prefix, &entry) {
+                if is_directory {
+                    directories
+                        .entry(child_name)
+                        .and_modify(|modified| *modified = (*modified).max(entry.date_modified))
+                        .or_insert(entry.date_modified);
+                } else {
+                    files.push(Fileinfo {
+                        path: PathBuf::from(child_name),
+                        metadata: MediaStoreMetadata::from(entry),
+                    });
+                }
+            }
         }
 
-        Ok(())
+        let mut listing = directories
+            .into_iter()
+            .map(|(name, modified)| Self::synthesize_directory_info(name, modified))
+            .collect::<Vec<_>>();
+        listing.extend(files);
+        listing
+    }
+
+    async fn directory_exists(&self, path: &Path) -> Result<bool, StorageError> {
+        if self.is_root_path(path) {
+            return Ok(true);
+        }
+
+        let directory_prefix = self.resolve_directory_path(path);
+        let bridge = self.bridge.clone();
+        let results = retry_with_backoff(&self.retry_config, "query_directory", || {
+            let bridge = bridge.clone();
+            let directory_prefix = directory_prefix.clone();
+            async move { bridge.query_files(&directory_prefix).await }
+        })
+        .await
+        .map_err(|e| Self::file_not_available(e.to_string()))?;
+
+        Ok(!results.is_empty())
     }
 
     /// Writes data from a reader to a file descriptor.
@@ -348,9 +441,8 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
-        self.ensure_single_mount_path(path)?;
 
-        if self.normalize_path(path).as_os_str().is_empty() {
+        if self.is_root_path(path) {
             return Ok(MediaStoreMetadata {
                 size: 0,
                 modified: SystemTime::now(),
@@ -368,22 +460,26 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
             let path = full_path.clone();
             async move { bridge.query_file(&path).await }
         })
-        .await
-        .map_err(|e| {
-            error!(error = ?e, "Failed to get metadata");
-            match e {
-                MediaStoreError::NotFound(_) => StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    e.to_string(),
-                )),
-                _ => StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                )),
-            }
-        })?;
+        .await;
 
-        Ok(MediaStoreMetadata::from(result))
+        match result {
+            Ok(result) => Ok(MediaStoreMetadata::from(result)),
+            Err(MediaStoreError::NotFound(_)) => {
+                if self.directory_exists(path).await? {
+                    Ok(Self::synthesize_directory_info(
+                        display_name_from_path(&self.normalize_path(path).to_string_lossy()),
+                        0,
+                    )
+                    .metadata)
+                } else {
+                    Err(Self::file_not_available(format!("Metadata not found: {}", path.display())))
+                }
+            }
+            Err(e) => {
+                error!(error = ?e, "Failed to get metadata");
+                Err(Self::file_not_available(e.to_string()))
+            }
+        }
     }
 
     async fn list<P>(&self, _user: &DefaultUser, path: P) -> Result<Vec<Fileinfo<PathBuf, Self::Metadata>>, StorageError>
@@ -392,36 +488,23 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
-        self.ensure_single_mount_path(path)?;
         
-        let full_path = self.resolve_path(path);
-        debug!(path = %full_path, "Listing directory");
+        let directory_prefix = self.resolve_directory_path(path);
+        debug!(path = %directory_prefix, "Listing directory");
 
         let bridge = self.bridge.clone();
         let results = retry_with_backoff(&self.retry_config, "list", || {
             let bridge = bridge.clone();
-            let path = full_path.clone();
+            let path = directory_prefix.clone();
             async move { bridge.query_files(&path).await }
         })
         .await
         .map_err(|e| {
             error!(error = ?e, "Failed to list directory");
-            StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e.to_string(),
-            ))
+            Self::file_not_available(e.to_string())
         })?;
 
-        let files: Vec<Fileinfo<PathBuf, Self::Metadata>> = results
-            .into_iter()
-            .map(|r| {
-                let path = PathBuf::from(&r.display_name);
-                Fileinfo {
-                    path,
-                    metadata: MediaStoreMetadata::from(r),
-                }
-            })
-            .collect();
+        let files = self.build_directory_listing(&directory_prefix, results);
 
         Ok(files)
     }
@@ -432,7 +515,6 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
-        self.ensure_single_mount_path(path)?;
         
         let full_path = self.resolve_path(path);
         debug!(path = %full_path, start_pos, "Getting file");
@@ -446,16 +528,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         .await
         .map_err(|e| {
             error!(error = ?e, "Failed to open file descriptor for read");
-            match e {
-                MediaStoreError::NotFound(_) => StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    e.to_string(),
-                )),
-                _ => StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                )),
-            }
+            Self::file_not_available(e.to_string())
         })?;
 
         #[cfg(unix)]
@@ -481,10 +554,9 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         #[cfg(not(unix))]
         {
             let _ = fd_info;
-            Err(StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
+            Err(Self::unsupported_command(
                 "File descriptor operations not supported on this platform",
-            )))
+            ))
         }
     }
 
@@ -495,7 +567,6 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
-        self.ensure_single_mount_path(path)?;
         
         let display_name = display_name_from_path(&path.to_string_lossy());
         let relative_path = self.resolve_path(path);
@@ -514,9 +585,15 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         );
 
         if start_pos > 0 {
-            return Err(StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
+            return Err(Self::unsupported_command(
                 "Resume upload is not supported for Android MediaStore backend",
+            ));
+        }
+
+        if !matches!(collection, super::types::MediaStoreCollection::Images | super::types::MediaStoreCollection::Videos) {
+            return Err(Self::file_name_not_allowed(format!(
+                "Only image and video uploads are supported by the Android MediaStore backend: {}",
+                display_name
             )));
         }
 
@@ -540,10 +617,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         .await
         .map_err(|e| {
             error!(error = ?e, "Failed to open file descriptor for write");
-            StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e.to_string(),
-            ))
+            Self::file_not_available(e.to_string())
         })?;
 
         // Write data to file descriptor
@@ -558,10 +632,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
                         error!(error = ?abort_err, uri = %content_uri, "Failed to abort MediaStore entry after write error");
                     }
                 });
-                StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                ))
+                Self::file_not_available(e.to_string())
             })?;
 
             let bridge = self.bridge.clone();
@@ -581,10 +652,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
                         error!(error = ?abort_err, uri = %content_uri, "Failed to abort MediaStore entry after finalize error");
                     }
                 });
-                StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                ))
+                Self::file_not_available(e.to_string())
             })?;
 
             info!(
@@ -600,10 +668,9 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         #[cfg(not(unix))]
         {
             let _ = (fd_info, reader, start_pos);
-            Err(StorageError::from(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
+            Err(Self::unsupported_command(
                 "File descriptor operations not supported on this platform",
-            )))
+            ))
         }
     }
 
@@ -613,7 +680,6 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
     {
         let path = path.as_ref();
         self.validate_path(path)?;
-        self.ensure_single_mount_path(path)?;
         
         let full_path = self.resolve_path(path);
         debug!(path = %full_path, "Deleting file");
@@ -627,16 +693,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         .await
         .map_err(|e| {
             error!(error = ?e, "Failed to delete file");
-            match e {
-                MediaStoreError::NotFound(_) => StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    e.to_string(),
-                )),
-                _ => StorageError::from(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                )),
-            }
+            Self::file_not_available(e.to_string())
         })?;
 
         info!(path = %full_path, "File deleted successfully");
@@ -650,9 +707,9 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         let path = path.as_ref();
         self.validate_path(path)?;
 
-        Err(StorageError::from(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            format!("MKD is currently unsupported: {}", path.display()),
+        Err(Self::unsupported_command(format!(
+            "MKD is currently unsupported: {}",
+            path.display()
         )))
     }
 
@@ -673,10 +730,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
             "Rename operation not fully supported in MediaStore"
         );
 
-        Err(StorageError::from(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "Rename not supported in MediaStore backend",
-        )))
+        Err(Self::unsupported_command("Rename not supported in MediaStore backend"))
     }
 
     async fn rmd<P>(&self, _user: &DefaultUser, path: P) -> Result<(), StorageError>
@@ -686,9 +740,9 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         let path = path.as_ref();
         self.validate_path(path)?;
 
-        Err(StorageError::from(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            format!("RMD is currently unsupported: {}", path.display()),
+        Err(Self::unsupported_command(format!(
+            "RMD is currently unsupported: {}",
+            path.display()
         )))
     }
 
@@ -699,15 +753,13 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
         let path = path.as_ref();
         self.validate_path(path)?;
 
-        if self.normalize_path(path).as_os_str().is_empty() {
+        if self.is_root_path(path) {
             debug!("Changing directory to FTP root");
             return Ok(());
         }
 
-        Err(StorageError::from(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            format!("CWD subdirectories are unsupported: {}", path.display()),
-        )))
+        debug!(path = %path.display(), "Changing directory to virtual subdirectory");
+        Ok(())
     }
 
     fn name(&self) -> &str {
@@ -725,6 +777,7 @@ mod tests {
     use super::*;
     use super::super::bridge::MockMediaStoreBridge;
     use tempfile::TempDir;
+    use unftp_core::storage::ErrorKind as StorageErrorKind;
 
     #[test]
     fn test_normalize_path() {
@@ -793,22 +846,24 @@ mod tests {
 
     #[cfg(not(target_os = "android"))]
     #[tokio::test]
-    async fn test_cwd_subdirectory_should_be_unsupported() {
+    async fn test_cwd_missing_subdirectory_should_succeed() {
         let backend = AndroidMediaStoreBackend::with_bridge(Arc::new(MockMediaStoreBridge::temp()));
 
         let result = backend.cwd(&DefaultUser {}, Path::new("/subdir")).await;
-        assert!(result.is_err(), "cwd subdirectory should fail");
+        assert!(result.is_ok(), "cwd subdirectory should succeed for virtual directories");
     }
 
     #[cfg(not(target_os = "android"))]
     #[tokio::test]
-    async fn test_mkd_and_rmd_should_be_unsupported() {
+    async fn test_mkd_and_rmd_should_be_command_not_implemented() {
         let backend = AndroidMediaStoreBackend::with_bridge(Arc::new(MockMediaStoreBridge::temp()));
 
         let mkd_result = backend.mkd(&DefaultUser {}, Path::new("/newdir")).await;
         assert!(mkd_result.is_err(), "mkd should fail as unsupported");
+        assert_eq!(mkd_result.unwrap_err().kind(), StorageErrorKind::CommandNotImplemented);
 
         let rmd_result = backend.rmd(&DefaultUser {}, Path::new("/newdir")).await;
         assert!(rmd_result.is_err(), "rmd should fail as unsupported");
+        assert_eq!(rmd_result.unwrap_err().kind(), StorageErrorKind::CommandNotImplemented);
     }
 }
