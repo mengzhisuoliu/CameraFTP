@@ -123,7 +123,7 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
          */
         @JvmStatic
         fun build_query_selection(): String {
-            return "${MediaStore.Images.Media.RELATIVE_PATH} LIKE '%DCIM/CameraFTP/%' AND ${MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE '%DCIM/CameraFTP/%/%'"
+            return "${MediaStore.Images.Media.RELATIVE_PATH} LIKE '%DCIM/CameraFTP/%'"
         }
 
         /**

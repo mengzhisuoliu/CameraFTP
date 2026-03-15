@@ -48,6 +48,13 @@ class GalleryBridgeTest {
     }
 
     @Test
+    fun list_media_store_images_includes_nested_cameraftp_subdirectories() {
+        val selection = GalleryBridge.build_query_selection()
+        assertTrue(selection.contains("DCIM/CameraFTP/"))
+        assertFalse(selection.contains("NOT LIKE"))
+    }
+
+    @Test
     fun sort_order_uses_date_modified_desc_then_added_then_size() {
         val uri_a = "content://media/1"
         val uri_b = "content://media/2"
