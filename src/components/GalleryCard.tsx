@@ -6,13 +6,13 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RefreshCw, ImageOff, Loader2, Check, X, Trash2, Share2, MoreVertical } from 'lucide-react';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';
 import { usePermissionStore } from '../stores/permissionStore';
 import { permissionBridge } from '../types';
 import { toGalleryImage, type MediaStoreEntry } from '../utils/media-store-events';
-import type { GalleryImage, DeleteImagesResult } from '../types';
+import type { GalleryImage, DeleteImagesResult, ExifInfo } from '../types';
 import { buildDeleteFailureMessage } from '../utils/gallery-delete';
 import {
   GALLERY_REFRESH_REQUESTED_EVENT,
@@ -357,7 +357,12 @@ export const GalleryCard = memo(function GalleryCard() {
       });
     } else if (draft?.androidImageViewer?.openMethod === 'built-in-viewer' && window.ImageViewerAndroid?.openViewer) {
       const allUris = images.map(img => img.path);
-      window.ImageViewerAndroid.openViewer(image.path, JSON.stringify(allUris));
+      const viewer = window.ImageViewerAndroid;
+      viewer.openViewer(image.path, JSON.stringify(allUris));
+      const realPath = viewer.resolveFilePath?.(image.path) ?? image.path;
+      invoke<ExifInfo | null>('get_image_exif', { filePath: realPath })
+        .then(exif => viewer.onExifResult(exif ? JSON.stringify(exif) : null))
+        .catch(() => {});
     } else if (window.PermissionAndroid?.openImageWithChooser) {
       window.PermissionAndroid.openImageWithChooser(image.path);
     }

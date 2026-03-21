@@ -6,6 +6,8 @@
 
 package com.gjk.cameraftpcompanion.bridges
 
+import android.net.Uri
+import android.provider.MediaStore
 import android.util.Log
 import com.gjk.cameraftpcompanion.ImageViewerActivity
 import org.json.JSONArray
@@ -40,8 +42,7 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
     fun closeViewer(): Boolean {
         Log.d(TAG, "closeViewer")
         return try {
-            val viewerActivity = activity as? ImageViewerActivity
-            viewerActivity?.finish() ?: run {
+            ImageViewerActivity.instance?.finish() ?: run {
                 Log.w(TAG, "closeViewer: no active ImageViewerActivity")
             }
             true
@@ -56,7 +57,28 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
      */
     @android.webkit.JavascriptInterface
     fun onExifResult(exifJson: String?) {
-        val viewerActivity = activity as? ImageViewerActivity
-        viewerActivity?.onExifResult(exifJson)
+        ImageViewerActivity.instance?.onExifResult(exifJson)
+    }
+
+    /**
+     * Resolve a content:// URI to a real file system path.
+     * Returns null if the URI cannot be resolved.
+     */
+    @android.webkit.JavascriptInterface
+    fun resolveFilePath(uri: String): String? {
+        return try {
+            val contentUri = Uri.parse(uri)
+            if (contentUri.scheme != "content") return uri
+            val projection = arrayOf(MediaStore.Images.Media.DATA)
+            activity.contentResolver.query(contentUri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                    if (idx >= 0) cursor.getString(idx) else null
+                } else null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "resolveFilePath failed for $uri", e)
+            null
+        }
     }
 }

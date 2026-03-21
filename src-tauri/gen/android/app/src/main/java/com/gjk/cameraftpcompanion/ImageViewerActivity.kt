@@ -6,7 +6,6 @@
 
 package com.gjk.cameraftpcompanion
 
-import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -28,12 +27,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.exifinterface.media.ExifInterface
 import androidx.viewpager2.widget.ViewPager2
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class ImageViewerActivity : AppCompatActivity() {
 
@@ -41,6 +42,10 @@ class ImageViewerActivity : AppCompatActivity() {
         private const val TAG = "ImageViewerActivity"
         const val EXTRA_URIS = "uris"
         const val EXTRA_TARGET_INDEX = "target_index"
+
+        /** Active instance, set by onResume/cleared by onDestroy for bridge access */
+        var instance: ImageViewerActivity? = null
+            private set
 
         fun start(context: Context, uris: List<String>, targetIndex: Int) {
             val intent = Intent(context, ImageViewerActivity::class.java).apply {
@@ -57,7 +62,6 @@ class ImageViewerActivity : AppCompatActivity() {
     private lateinit var filenameView: TextView
     private lateinit var exifParams: TextView
     private lateinit var exifDatetime: TextView
-    private lateinit var navIndicator: TextView
     private lateinit var btnRotate: ImageButton
     private lateinit var btnDelete: ImageButton
     private var uris: MutableList<String> = mutableListOf()
@@ -81,7 +85,6 @@ class ImageViewerActivity : AppCompatActivity() {
         filenameView = findViewById(R.id.filename)
         exifParams = findViewById(R.id.exif_params)
         exifDatetime = findViewById(R.id.exif_datetime)
-        navIndicator = findViewById(R.id.nav_indicator)
         btnRotate = findViewById(R.id.btn_rotate)
         btnDelete = findViewById(R.id.btn_delete)
 
@@ -133,7 +136,6 @@ class ImageViewerActivity : AppCompatActivity() {
 
     private fun updateUI() {
         updateFilenameAndExif()
-        updateNavIndicator()
     }
 
     private fun updateFilenameAndExif() {
@@ -151,9 +153,7 @@ class ImageViewerActivity : AppCompatActivity() {
     private fun queryMediaStoreInfo(uri: Uri) {
         val projection = arrayOf(
             MediaStore.Images.Media.DISPLAY_NAME,
-            MediaStore.Images.Media.DATE_TAKEN,
-            MediaStore.Images.Media.WIDTH,
-            MediaStore.Images.Media.HEIGHT
+            MediaStore.Images.Media.DATE_TAKEN
         )
 
         try {
@@ -162,8 +162,6 @@ class ImageViewerActivity : AppCompatActivity() {
                 if (it.moveToFirst()) {
                     val displayName = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME))
                     val dateTaken = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN))
-                    val width = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH))
-                    val height = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT))
 
                     // Filename
                     filenameView.text = displayName ?: uri.lastPathSegment ?: ""
@@ -177,13 +175,8 @@ class ImageViewerActivity : AppCompatActivity() {
                         exifDatetime.visibility = View.GONE
                     }
 
-                    // Dimensions as EXIF params fallback
-                    if (width > 0 && height > 0) {
-                        exifParams.text = "${width} × ${height}"
-                        exifParams.visibility = View.VISIBLE
-                    } else {
-                        exifParams.visibility = View.GONE
-                    }
+                    // Read EXIF params natively
+                    readExifParams(uri)
 
                     return
                 }
@@ -198,6 +191,49 @@ class ImageViewerActivity : AppCompatActivity() {
         exifDatetime.visibility = View.GONE
     }
 
+    private fun readExifParams(uri: Uri) {
+        try {
+            contentResolver.openInputStream(uri)?.use { stream ->
+                val exif = ExifInterface(stream)
+                val parts = mutableListOf<String>()
+
+                exif.getAttributeInt(ExifInterface.TAG_ISO_SPEED_RATINGS, -1).takeIf { it >= 0 }?.let {
+                    parts.add("ISO$it")
+                }
+
+                exif.getAttributeDouble(ExifInterface.TAG_F_NUMBER, 0.0).takeIf { it > 0 }?.let {
+                    parts.add("f/${"%.1f".format(it)}")
+                }
+
+                exif.getAttributeDouble(ExifInterface.TAG_EXPOSURE_TIME, 0.0).takeIf { it > 0 }?.let {
+                    if (it < 1.0) {
+                        val denom = (1.0 / it).roundToInt()
+                        parts.add("1/${denom}s")
+                    } else {
+                        parts.add("%.1fs".format(it))
+                    }
+                }
+
+                // Prefer 35mm equivalent focal length; fall back to native focal length
+                val focalLength = exif.getAttributeInt(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM, 0).takeIf { it > 0 }
+                    ?: exif.getAttributeDouble(ExifInterface.TAG_FOCAL_LENGTH, 0.0).takeIf { it > 0 }?.roundToInt()
+                focalLength?.let {
+                    parts.add("${it}mm")
+                }
+
+                if (parts.isNotEmpty()) {
+                    exifParams.text = parts.joinToString(" | ")
+                    exifParams.visibility = View.VISIBLE
+                } else {
+                    exifParams.visibility = View.GONE
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read EXIF for $uri", e)
+            exifParams.visibility = View.GONE
+        }
+    }
+
     /**
      * Called from JS bridge when EXIF data is available (enriches existing info)
      */
@@ -210,7 +246,7 @@ class ImageViewerActivity : AppCompatActivity() {
                 val parts = mutableListOf<String>()
 
                 exif.optInt("iso", -1).takeIf { it >= 0 }?.let {
-                    parts.add("ISO $it")
+                    parts.add("ISO$it")
                 }
                 exif.optString("aperture").takeIf { !it.isNullOrEmpty() }?.let {
                     parts.add(it)
@@ -223,21 +259,12 @@ class ImageViewerActivity : AppCompatActivity() {
                 }
 
                 if (parts.isNotEmpty()) {
-                    exifParams.text = parts.joinToString("  ·  ")
+                    exifParams.text = parts.joinToString(" | ")
                     exifParams.visibility = View.VISIBLE
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse EXIF result", e)
             }
-        }
-    }
-
-    private fun updateNavIndicator() {
-        if (uris.size > 1) {
-            navIndicator.text = "${currentIndex + 1} / ${uris.size}"
-            navIndicator.visibility = View.VISIBLE
-        } else {
-            navIndicator.visibility = View.GONE
         }
     }
 
@@ -310,5 +337,15 @@ class ImageViewerActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         finish()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        instance = this
+    }
+
+    override fun onDestroy() {
+        if (instance == this) instance = null
+        super.onDestroy()
     }
 }

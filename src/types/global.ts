@@ -232,6 +232,13 @@ interface ImageViewerAndroid {
    * @param exifJson JSON string of ExifInfo, or null
    */
   onExifResult(exifJson: string | null): void;
+
+  /**
+   * Resolve a content:// URI to a real file system path
+   * @param uri Content URI or file path
+   * @returns real file path, or null if resolution fails
+   */
+  resolveFilePath(uri: string): string | null;
 }
 
 // ===== 全局窗口扩展 =====

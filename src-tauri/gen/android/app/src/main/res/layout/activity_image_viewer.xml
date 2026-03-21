@@ -43,7 +43,7 @@
                 android:ellipsize="middle" />
 
             <TextView
-                android:id="@+id/exif_datetime"
+                android:id="@+id/exif_params"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#9CA3AF"
@@ -53,21 +53,11 @@
                 android:visibility="gone" />
 
             <TextView
-                android:id="@+id/exif_params"
+                android:id="@+id/exif_datetime"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#9CA3AF"
                 android:textSize="12sp"
-                android:singleLine="true"
-                android:layout_marginTop="2dp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/nav_indicator"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#6B7280"
-                android:textSize="11sp"
                 android:singleLine="true"
                 android:layout_marginTop="2dp"
                 android:visibility="gone" />

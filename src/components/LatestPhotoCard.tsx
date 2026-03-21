@@ -11,7 +11,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useServerStore } from '../stores/serverStore';
 import { useDraftConfig } from '../stores/configStore';
 import { IconContainer } from './ui';
-import type { FileInfo } from '../types';
+import type { FileInfo, ExifInfo } from '../types';
 import { LATEST_PHOTO_REFRESH_REQUESTED_EVENT } from '../utils/gallery-refresh';
 import type { MediaStoreEntry } from '../utils/media-store-events';
 
@@ -113,7 +113,12 @@ export const LatestPhotoCard = memo(function LatestPhotoCard() {
             const entries = JSON.parse(listJson ?? '[]') as MediaStoreEntry[];
             allUris = entries.map(e => e.uri);
           }
-          window.ImageViewerAndroid.openViewer(latest.path, JSON.stringify(allUris));
+          const viewer = window.ImageViewerAndroid;
+          viewer.openViewer(latest.path, JSON.stringify(allUris));
+          const realPath = viewer.resolveFilePath?.(latest.path) ?? latest.path;
+          invoke<ExifInfo | null>('get_image_exif', { filePath: realPath })
+            .then(exif => viewer.onExifResult(exif ? JSON.stringify(exif) : null))
+            .catch(() => {});
         } else if (window.GalleryAndroid) {
           window.PermissionAndroid?.openImageWithChooser(latest.path);
         } else {
