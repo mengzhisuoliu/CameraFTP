@@ -74,12 +74,17 @@ pub async fn get_image_exif(file_path: String) -> Result<Option<ExifInfo>, AppEr
             }
         });
 
-    // 提取焦距 (24mm 格式)
-    let focal_length = exif.get(ExifTag::FocalLength)
-        .and_then(|v| v.as_urational())
-        .map(|ratio| {
-            let length = (ratio.0 as f64 / ratio.1 as f64).round() as u32;
-            format!("{}mm", length)
+    // 提取焦距，优先 35mm 等效焦距
+    let focal_length = exif.get(ExifTag::FocalLengthIn35mmFilm)
+        .and_then(|v| v.as_u16())
+        .map(|v| format!("{}mm", v))
+        .or_else(|| {
+            exif.get(ExifTag::FocalLength)
+                .and_then(|v| v.as_urational())
+                .map(|ratio| {
+                    let length = (ratio.0 as f64 / ratio.1 as f64).round() as u32;
+                    format!("{}mm", length)
+                })
         });
 
     // 提取拍摄时间
