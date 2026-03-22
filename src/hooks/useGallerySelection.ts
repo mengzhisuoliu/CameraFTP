@@ -20,15 +20,13 @@ type UseGallerySelectionResult = {
   isSelectionMode: boolean;
   selectedIds: Set<string>;
   showMenu: boolean;
-  showDeleteConfirm: boolean;
   deletingIds: Set<string>;
   menuRef: RefObject<HTMLDivElement>;
   handleTouchStart: (imagePath: string, event: TouchEvent) => void;
   handleTouchEnd: () => void;
   handleSelectionClick: (imagePath: string) => boolean;
   handleRefreshStart: () => void;
-  handleDelete: () => void;
-  handleDeleteConfirm: (confirmed: boolean) => Promise<void>;
+  handleDelete: () => Promise<void>;
   handleShare: () => Promise<void>;
   handleCancelSelection: () => void;
   toggleMenu: () => void;
@@ -38,7 +36,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showMenu, setShowMenu] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,7 +43,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
 
   const clearTransientSelectionUiState = useCallback(() => {
     setShowMenu(false);
-    setShowDeleteConfirm(false);
     setDeletingIds(new Set());
   }, []);
 
@@ -93,28 +89,18 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
     handleCancelSelection();
   }, [handleCancelSelection]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (selectedIds.size === 0) {
       return;
     }
 
-    setShowDeleteConfirm(true);
     setShowMenu(false);
-  }, [selectedIds.size]);
-
-  const handleDeleteConfirm = useCallback(async (confirmed: boolean) => {
-    if (!confirmed) {
-      setShowDeleteConfirm(false);
-      setShowMenu(false);
-      return;
-    }
 
     const selectedAtDeleteStart = new Set(selectedIds);
 
     try {
       const resultJson = await window.GalleryAndroid?.deleteImages(JSON.stringify([...selectedAtDeleteStart]));
       if (!resultJson) {
-        setShowDeleteConfirm(false);
         setShowMenu(false);
         return;
       }
@@ -130,7 +116,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
         if (failureMessage) {
           toast.error(failureMessage);
         }
-        setShowDeleteConfirm(false);
         return;
       }
 
@@ -139,7 +124,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
       }
 
       setDeletingIds(pathsToAnimate);
-      setShowDeleteConfirm(false);
       setShowMenu(false);
 
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -154,7 +138,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
       }
     } catch (err) {
       console.error('Delete failed:', err);
-      setShowDeleteConfirm(false);
     }
   }, [onDeleteApplied, selectedIds]);
 
@@ -239,7 +222,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
     isSelectionMode,
     selectedIds,
     showMenu,
-    showDeleteConfirm,
     deletingIds,
     menuRef,
     handleTouchStart,
@@ -247,7 +229,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
     handleSelectionClick,
     handleRefreshStart,
     handleDelete,
-    handleDeleteConfirm,
     handleShare,
     handleCancelSelection,
     toggleMenu,

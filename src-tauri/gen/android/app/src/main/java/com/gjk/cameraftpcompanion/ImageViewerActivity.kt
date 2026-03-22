@@ -28,7 +28,6 @@ import android.widget.Toast
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -163,7 +162,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
         btnDelete.setOnClickListener {
             if (uris.isNotEmpty()) {
-                confirmDelete()
+                deleteCurrentImage()
             }
         }
     }
@@ -300,15 +299,6 @@ class ImageViewerActivity : AppCompatActivity() {
                 Log.e(TAG, "Failed to parse EXIF result", e)
             }
         }
-    }
-
-    private fun confirmDelete() {
-        AlertDialog.Builder(this)
-            .setTitle("删除图片")
-            .setMessage("确定要删除这张图片吗？")
-            .setPositiveButton("删除") { _, _ -> deleteCurrentImage() }
-            .setNegativeButton("取消", null)
-            .show()
     }
 
     private fun deleteCurrentImage() {

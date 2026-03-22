@@ -29,14 +29,12 @@ function GallerySelectionHarness({ activeTab = 'gallery', onDeleteApplied }: Har
     isSelectionMode,
     selectedIds,
     showMenu,
-    showDeleteConfirm,
     deletingIds,
     menuRef,
     handleTouchStart,
     handleTouchEnd,
     handleSelectionClick,
     handleDelete,
-    handleDeleteConfirm,
     handleShare,
     handleCancelSelection,
     toggleMenu,
@@ -53,7 +51,6 @@ function GallerySelectionHarness({ activeTab = 'gallery', onDeleteApplied }: Har
       <span data-testid="selection-mode">{isSelectionMode ? 'yes' : 'no'}</span>
       <span data-testid="selected-count">{selectedIds.size}</span>
       <span data-testid="show-menu">{showMenu ? 'yes' : 'no'}</span>
-      <span data-testid="show-delete-confirm">{showDeleteConfirm ? 'yes' : 'no'}</span>
       <span data-testid="deleting-count">{deletingIds.size}</span>
       <button
         data-testid="start-selection"
@@ -69,9 +66,7 @@ function GallerySelectionHarness({ activeTab = 'gallery', onDeleteApplied }: Har
         select-toggle-2
       </button>
       <button data-testid="toggle-menu" onClick={toggleMenu}>toggle-menu</button>
-      <button data-testid="delete" onClick={handleDelete}>delete</button>
-      <button data-testid="delete-confirm" onClick={() => void handleDeleteConfirm(true)}>delete-confirm</button>
-      <button data-testid="delete-cancel" onClick={() => void handleDeleteConfirm(false)}>delete-cancel</button>
+      <button data-testid="delete" onClick={() => void handleDelete()}>delete</button>
       <button data-testid="share" onClick={() => void handleShare()}>share</button>
       <button data-testid="cancel-selection" onClick={handleCancelSelection}>cancel-selection</button>
     </div>
@@ -143,7 +138,7 @@ describe('useGallerySelection', () => {
     expect(window.GalleryAndroid?.unregisterBackPressCallback).toHaveBeenCalled();
   });
 
-  it('keeps remaining failed selection after partial delete', async () => {
+  it('deletes immediately and keeps remaining failed selection after partial delete', async () => {
     const onDeleteApplied = vi.fn();
     (window.GalleryAndroid?.deleteImages as ReturnType<typeof vi.fn>).mockResolvedValue(
       JSON.stringify({ deleted: ['content://1'], notFound: [], failed: ['content://2'] }),
@@ -169,13 +164,6 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="delete"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flush();
-    });
-
-    expect(container.querySelector('[data-testid="show-delete-confirm"]')?.textContent).toBe('yes');
-
-    await act(async () => {
-      container.querySelector('[data-testid="delete-confirm"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await flush();
     });
 
@@ -224,37 +212,7 @@ describe('useGallerySelection', () => {
     expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('no');
   });
 
-  it('closes delete confirmation when user cancels', async () => {
-    await act(async () => {
-      root.render(<GallerySelectionHarness />);
-      await flush();
-    });
-
-    await act(async () => {
-      container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      vi.advanceTimersByTime(500);
-      await flush();
-    });
-
-    expect(container.querySelector('[data-testid="selected-count"]')?.textContent).toBe('1');
-
-    await act(async () => {
-      container.querySelector('[data-testid="delete"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flush();
-    });
-
-    expect(container.querySelector('[data-testid="show-delete-confirm"]')?.textContent).toBe('yes');
-
-    await act(async () => {
-      container.querySelector('[data-testid="delete-cancel"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await flush();
-    });
-
-    expect(container.querySelector('[data-testid="show-delete-confirm"]')?.textContent).toBe('no');
-    expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('no');
-  });
-
-  it('resets menu and delete confirmation when canceling selection', async () => {
+  it('resets menu state when canceling selection', async () => {
     await act(async () => {
       root.render(<GallerySelectionHarness />);
       await flush();
@@ -268,11 +226,8 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="toggle-menu"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      container.querySelector('[data-testid="delete"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await flush();
     });
-
-    expect(container.querySelector('[data-testid="show-delete-confirm"]')?.textContent).toBe('yes');
 
     await act(async () => {
       container.querySelector('[data-testid="cancel-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -282,7 +237,6 @@ describe('useGallerySelection', () => {
     expect(container.querySelector('[data-testid="selection-mode"]')?.textContent).toBe('no');
     expect(container.querySelector('[data-testid="selected-count"]')?.textContent).toBe('0');
     expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('no');
-    expect(container.querySelector('[data-testid="show-delete-confirm"]')?.textContent).toBe('no');
   });
 
   it('clears transient selection ui state when last selected item is toggled off', async () => {
@@ -299,12 +253,10 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="toggle-menu"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      container.querySelector('[data-testid="delete"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await flush();
     });
 
-    expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('no');
-    expect(container.querySelector('[data-testid="show-delete-confirm"]')?.textContent).toBe('yes');
+    expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('yes');
 
     await act(async () => {
       container.querySelector('[data-testid="select-toggle"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -314,7 +266,30 @@ describe('useGallerySelection', () => {
     expect(container.querySelector('[data-testid="selection-mode"]')?.textContent).toBe('no');
     expect(container.querySelector('[data-testid="selected-count"]')?.textContent).toBe('0');
     expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('no');
-    expect(container.querySelector('[data-testid="show-delete-confirm"]')?.textContent).toBe('no');
     expect(container.querySelector('[data-testid="deleting-count"]')?.textContent).toBe('0');
+  });
+
+  it('closes menu and calls delete bridge immediately when delete is tapped', async () => {
+    await act(async () => {
+      root.render(<GallerySelectionHarness />);
+      await flush();
+    });
+
+    await act(async () => {
+      container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      vi.advanceTimersByTime(500);
+      container.querySelector('[data-testid="toggle-menu"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
+    });
+
+    expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('yes');
+
+    await act(async () => {
+      container.querySelector('[data-testid="delete"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
+    });
+
+    expect(window.GalleryAndroid?.deleteImages).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="show-menu"]')?.textContent).toBe('no');
   });
 });

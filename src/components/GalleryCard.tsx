@@ -30,7 +30,6 @@ export const GalleryCard = memo(function GalleryCard() {
     isSelectionMode,
     selectedIds,
     showMenu,
-    showDeleteConfirm,
     deletingIds,
     menuRef,
     handleTouchStart,
@@ -38,7 +37,6 @@ export const GalleryCard = memo(function GalleryCard() {
     handleSelectionClick,
     handleRefreshStart,
     handleDelete,
-    handleDeleteConfirm,
     handleShare,
     handleCancelSelection,
     toggleMenu,
@@ -193,7 +191,7 @@ export const GalleryCard = memo(function GalleryCard() {
           {showMenu && (
             <div className="absolute bottom-16 right-0 bg-white rounded-xl shadow-xl min-w-[140px] overflow-hidden mb-2 select-none">
               <button
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 disabled={selectedIds.size === 0}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -232,34 +230,6 @@ export const GalleryCard = memo(function GalleryCard() {
               {selectedIds.size > 99 ? '99+' : selectedIds.size}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Delete confirmation dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              确认删除
-            </h3>
-            <p className="text-gray-600 mb-6">
-              确定要删除选中的 {selectedIds.size} 张图片吗？此操作无法撤销。
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => handleDeleteConfirm(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => handleDeleteConfirm(true)}
-                className="px-4 py-2 text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
-              >
-                删除
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
