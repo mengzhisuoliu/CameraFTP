@@ -71,6 +71,7 @@ class MediaPageProvider(private val context: Context) {
     }
 
     fun listPage(cursor: String?, pageSize: Int): MediaPageResult {
+        require(pageSize > 0) { "pageSize must be positive" }
         Log.d(TAG, "listPage: cursor=$cursor, pageSize=$pageSize")
 
         val decodedCursor = cursor?.let { decodeCursor(it) }
@@ -78,12 +79,14 @@ class MediaPageProvider(private val context: Context) {
         val selectionArgs: Array<String>?
 
         if (decodedCursor != null) {
-            // Keyset pagination: (dateModifiedMs, mediaId) < (cursor.dateModifiedMs, cursor.mediaId)
+            // Keyset pagination: (dateModified, mediaId) < (cursor.dateModified, cursor.mediaId)
             // Equivalent to: dateModified < ? OR (dateModified = ? AND mediaId < ?)
+            // MediaStore.DATE_MODIFIED is in seconds, so convert cursor's ms back to seconds
+            val dateModifiedSec = decodedCursor.dateModifiedMs / 1000
             selection = "$SELECTION AND (${MediaStore.Images.Media.DATE_MODIFIED} < ? OR (${MediaStore.Images.Media.DATE_MODIFIED} = ? AND ${MediaStore.Images.Media._ID} < ?))"
             selectionArgs = arrayOf(
-                decodedCursor.dateModifiedMs.toString(),
-                decodedCursor.dateModifiedMs.toString(),
+                dateModifiedSec.toString(),
+                dateModifiedSec.toString(),
                 decodedCursor.mediaId.toString()
             )
         } else {
