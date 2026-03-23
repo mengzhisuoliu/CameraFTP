@@ -7,8 +7,10 @@
 import { memo, useCallback, useEffect } from 'react';
 import { RefreshCw, ImageOff, X, Trash2, Share2, MoreVertical } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
+import { usePermissionStore } from '../stores/permissionStore';
 import type { MediaItemDto } from '../types/gallery-v2';
 import { isGalleryMediaAvailable } from '../services/gallery-media';
+import { permissionBridge } from '../types';
 import { useGalleryPager } from '../hooks/useGalleryPager';
 import { useThumbnailScheduler } from '../hooks/useThumbnailScheduler';
 import { useGallerySelection } from '../hooks/useGallerySelection';
@@ -77,11 +79,24 @@ export const GalleryCard = memo(function GalleryCard() {
     [handleSelectionClick, openPreview, pager.items],
   );
 
+  const requestStoragePermission = usePermissionStore((state) => state.requestStoragePermission);
+  const startPermissionPolling = usePermissionStore((state) => state.startPolling);
+
   const handleRefresh = useCallback(async () => {
+    // Check permissions before loading — request if not granted
+    if (permissionBridge.isAvailable()) {
+      const permissions = await permissionBridge.checkAll();
+      if (permissions && !permissions.storage) {
+        requestStoragePermission();
+        startPermissionPolling('storage');
+        return;
+      }
+    }
+
     handleRefreshStart();
     scheduler.cleanup();
     await pager.reload();
-  }, [handleRefreshStart, pager, scheduler]);
+  }, [handleRefreshStart, pager, scheduler, requestStoragePermission, startPermissionPolling]);
 
   // Not on Android
   if (!isGalleryMediaAvailable()) {

@@ -145,8 +145,10 @@ export function dispatchThumbnailResult(listenerId: string, resultJson: string):
  * Returns empty response if bridge is unavailable.
  */
 export async function listMediaPageV2(req: MediaPageRequest): Promise<MediaPageResponse> {
-  const raw = await window.GalleryAndroidV2?.listMediaPage(JSON.stringify(req));
-  return JSON.parse(raw ?? '{"items":[],"nextCursor":null,"revisionToken":""}') as MediaPageResponse;
+  if (!isGalleryV2Available()) {
+    return { items: [], nextCursor: null, revisionToken: '' };
+  }
+  return listMediaPage(req);
 }
 
 // ===== V2 Adapter Functions =====

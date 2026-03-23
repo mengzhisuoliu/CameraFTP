@@ -117,6 +117,7 @@ export function VirtualGalleryGrid({
     <div
       ref={containerRef}
       className="w-full overflow-auto"
+      style={{ maxHeight: '70vh' }}
       data-testid="virtual-grid-container"
       onScroll={handleScroll}
     >
