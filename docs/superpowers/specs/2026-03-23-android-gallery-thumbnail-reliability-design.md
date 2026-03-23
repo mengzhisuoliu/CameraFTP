@@ -368,6 +368,15 @@ Android：
 - `thumb_result_ready/failed/cancelled`
 - `media_page_query_duration_ms`
 
+埋点有效性与 fail-closed 规则：
+
+- SLO 样本必须具备完整事件对，否则记为 `invalid_sample`。
+  - TTI：必须同时有 `gallery_open_start` 与 `gallery_first_interactive`
+  - 首屏到位率：必须同时有 `visible_thumbs_expected` 与 `visible_thumbs_ready`
+  - 停滚补齐：必须同时有 `scroll_stop` 与 `viewport_fully_filled` 或超时标记
+- `invalid_sample` 比例 > 2% 直接判定该轮测试失败（不进入 SLO 计算）。
+- 缺失事件一律按失败处理，不允许静默丢弃后继续计算达标率。
+
 ### 9.2 测试场景矩阵
 
 1. 大图库冷启动（5k / 10k / 20k）
@@ -391,6 +400,19 @@ Android：
 - 滚动脚本：固定轨迹（上/下 fling + 停顿），每轮 180s
 - 每机型每场景 5 轮，去除首次预热后统计
 - 冷/热缓存分别出报告
+
+样本量与判定规则：
+
+- 低/中/高端每个档位分别统计，禁止跨档位混合判定。
+- 每个档位有效样本 `N >= 200` 才允许出最终结论。
+- 若 5 轮不足 200，则自动补轮直到达到 `N >= 200` 或达到上限 12 轮。
+- 达到 12 轮仍不足 200，判定为测试设计失败（门禁失败）。
+
+最终通过条件（全部满足）：
+
+1. 三个档位都达到有效样本下限；
+2. 三个档位在冷/热缓存报告中均满足核心 SLO；
+3. `invalid_sample` 比例在每个档位都 <= 2%。
 
 ---
 
