@@ -5,27 +5,9 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { isGalleryMediaAvailable, listGalleryMedia } from '../gallery-media';
+import { isGalleryMediaAvailable } from '../gallery-media';
 
 describe('gallery-media service', () => {
-  it('maps MediaStore entries to gallery images', async () => {
-    const listMediaStoreImages = vi.fn().mockResolvedValue(JSON.stringify([
-      { uri: 'content://a', displayName: 'a.jpg', dateModified: 123 },
-    ]));
-
-    window.GalleryAndroid = {
-      listMediaStoreImages,
-    } as unknown as typeof window.GalleryAndroid;
-
-    await expect(listGalleryMedia()).resolves.toEqual([
-      {
-        path: 'content://a',
-        filename: 'a.jpg',
-        sortTime: 123,
-      },
-    ]);
-  });
-
   it('reports availability based on GalleryAndroid bridge', () => {
     window.GalleryAndroid = undefined;
     expect(isGalleryMediaAvailable()).toBe(false);

@@ -8,7 +8,6 @@
  * V2 Gallery Media Types
  *
  * DTOs for the async batched thumbnail pipeline.
- * Replaces the synchronous getThumbnail() approach in GalleryAndroid.
  */
 
 // ===== Paging =====

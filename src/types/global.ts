@@ -110,7 +110,6 @@ interface PermissionAndroid {
 /**
  * Gallery image data returned by Android file scanner
  * Uses file path as unique identifier (not MediaStore ID)
- * Thumbnail is loaded separately via getThumbnail() for lazy loading
  */
 export interface GalleryImage {
   path: string; // 完整文件路径（作为主键）
@@ -139,13 +138,6 @@ export interface DeleteImagesResult {
  */
 interface GalleryAndroid {
   /**
-   * Get thumbnail for a single image (for lazy loading)
-   * @param imagePath The image file path
-   * @returns base64 data URL string, or empty string on error
-   */
-  getThumbnail(imagePath: string): string | Promise<string>;
-
-  /**
    * Delete images by their paths
    * @param pathsJson JSON array of image paths to delete
    * @returns JSON string with deletion results containing deleted, notFound, and failed arrays
@@ -159,13 +151,6 @@ interface GalleryAndroid {
    * @returns true if any thumbnails were removed
    */
   removeThumbnails(pathsJson: string): boolean | Promise<boolean>;
-
-  /**
-   * Clean up thumbnail caches for images that no longer exist
-   * @param existingPathsJson JSON array of all existing image paths
-   * @returns number of orphaned thumbnails removed
-   */
-  cleanupThumbnailsNotInList(existingPathsJson: string): number | Promise<number>;
 
   /**
    * Share images by their paths
