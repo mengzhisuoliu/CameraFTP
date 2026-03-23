@@ -44,7 +44,7 @@ class MediaPageProvider(private val context: Context) {
         )
 
         private const val SELECTION = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE '%DCIM/CameraFTP/%'"
-        private const val SORT_ORDER = "${MediaStore.Images.Media.DATE_MODIFIED} DESC, ${MediaStore.Images.Media._ID} DESC"
+        internal const val SORT_ORDER = "${MediaStore.Images.Media.DATE_MODIFIED} DESC, ${MediaStore.Images.Media._ID} DESC"
 
         @JvmStatic
         fun encodeCursor(cursor: MediaPageCursor): String {

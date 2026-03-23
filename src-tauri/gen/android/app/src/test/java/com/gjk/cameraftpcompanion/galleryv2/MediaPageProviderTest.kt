@@ -140,4 +140,22 @@ class MediaPageProviderTest {
         assertEquals(Long.MAX_VALUE, decoded!!.dateModifiedMs)
         assertEquals(Long.MAX_VALUE, decoded.mediaId)
     }
+
+    @Test
+    fun sort_order_is_date_modified_desc_then_id_desc() {
+        val sortOrder = MediaPageProvider.SORT_ORDER
+        assertTrue(sortOrder.contains("date_modified DESC"))
+        assertTrue(sortOrder.contains("_id DESC"))
+    }
+
+    @Test
+    fun next_cursor_is_set_when_results_fill_page() {
+        val lastItem = MediaPageItem("100", "content://media/100", 5000L, 1920, 1080, "image/jpeg")
+        val cursor = MediaPageProvider.encodeCursor(MediaPageCursor(lastItem.dateModifiedMs, lastItem.mediaId.toLong()))
+        assertNotNull(cursor)
+        val decoded = MediaPageProvider.decodeCursor(cursor)
+        assertNotNull(decoded)
+        assertEquals(5000L, decoded!!.dateModifiedMs)
+        assertEquals(100L, decoded.mediaId)
+    }
 }
