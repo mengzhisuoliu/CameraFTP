@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+// TODO(Task 9): Refactor to use useGalleryPager for V2 cursor-based paging
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GalleryImage } from '../types';
 import { permissionBridge } from '../types';
