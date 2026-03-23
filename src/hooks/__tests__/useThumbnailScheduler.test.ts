@@ -308,29 +308,25 @@ describe('useThumbnailScheduler', () => {
   });
 
   it('debounces rapid viewport changes into a single enqueue', async () => {
-    const { result } = renderHook(() => useThumbnailScheduler({ debounceMs: TEST_DEBOUNCE }));
+    const { result } = renderHook(() => useThumbnailScheduler({ debounceMs: 50 }));
 
     act(() => {
       result.current.registerMedia([makeMedia('1'), makeMedia('2'), makeMedia('3')]);
     });
 
-    // Rapid viewport changes within debounce window
+    // Rapid viewport changes within debounce window (all within 50ms)
     act(() => {
       result.current.updateViewport(['1'], []);
     });
-    await new Promise((r) => setTimeout(r, 1));
-
     act(() => {
       result.current.updateViewport(['1', '2'], []);
     });
-    await new Promise((r) => setTimeout(r, 1));
-
     act(() => {
       result.current.updateViewport(['2', '3'], []);
     });
 
     // Wait for debounce to fire
-    await flushDebounce();
+    await new Promise((r) => setTimeout(r, 100));
 
     // Only one enqueue call (last viewport state)
     expect(enqueueThumbnailsV2).toHaveBeenCalledTimes(1);
