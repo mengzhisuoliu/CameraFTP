@@ -20,6 +20,7 @@ function makeItems(count: number): MediaItemDto[] {
     width: 100,
     height: 100,
     mimeType: 'image/jpeg',
+    displayName: null,
   }));
 }
 

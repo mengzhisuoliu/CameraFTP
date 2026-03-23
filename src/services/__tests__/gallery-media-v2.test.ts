@@ -65,6 +65,7 @@ describe('gallery-media-v2 service', () => {
             width: 1920,
             height: 1080,
             mimeType: 'image/jpeg',
+            displayName: null,
           },
         ],
         nextCursor: 'cursor-2',

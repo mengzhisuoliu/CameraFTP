@@ -30,6 +30,7 @@ export interface MediaItemDto {
   width: number | null;
   height: number | null;
   mimeType: string | null;
+  displayName: string | null;
 }
 
 /** Response from a media page query */

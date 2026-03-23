@@ -75,6 +75,7 @@ class GalleryBridgeV2(
                             put("width", item.width ?: JSONObject.NULL)
                             put("height", item.height ?: JSONObject.NULL)
                             put("mimeType", item.mimeType ?: JSONObject.NULL)
+                            put("displayName", item.displayName ?: JSONObject.NULL)
                         })
                     }
                 })

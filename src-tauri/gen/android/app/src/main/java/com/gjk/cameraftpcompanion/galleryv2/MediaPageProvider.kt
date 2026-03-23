@@ -21,7 +21,8 @@ data class MediaPageItem(
     val dateModifiedMs: Long,
     val width: Int?,
     val height: Int?,
-    val mimeType: String?
+    val mimeType: String?,
+    val displayName: String?
 )
 
 data class MediaPageResult(
@@ -40,7 +41,8 @@ class MediaPageProvider(private val context: Context) {
             MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.WIDTH,
             MediaStore.Images.Media.HEIGHT,
-            MediaStore.Images.Media.MIME_TYPE
+            MediaStore.Images.Media.MIME_TYPE,
+            MediaStore.Images.Media.DISPLAY_NAME
         )
 
         private const val SELECTION = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE '%DCIM/CameraFTP/%'"
@@ -111,6 +113,7 @@ class MediaPageProvider(private val context: Context) {
                 val widthColumn = mediaCursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
                 val heightColumn = mediaCursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
                 val mimeTypeColumn = mediaCursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
+                val displayNameColumn = mediaCursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
 
                 var count = 0
                 while (mediaCursor.moveToNext() && count < pageSize) {
@@ -120,6 +123,7 @@ class MediaPageProvider(private val context: Context) {
                     val width = mediaCursor.getInt(widthColumn).takeIf { it > 0 }
                     val height = mediaCursor.getInt(heightColumn).takeIf { it > 0 }
                     val mimeType = mediaCursor.getString(mimeTypeColumn)
+                    val displayName = mediaCursor.getString(displayNameColumn)
 
                     val contentUri = ContentUris.withAppendedId(
                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -133,7 +137,8 @@ class MediaPageProvider(private val context: Context) {
                             dateModifiedMs = dateModifiedMs,
                             width = width,
                             height = height,
-                            mimeType = mimeType
+                            mimeType = mimeType,
+                            displayName = displayName
                         )
                     )
 

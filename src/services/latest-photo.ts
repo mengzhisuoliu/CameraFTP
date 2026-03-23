@@ -16,7 +16,7 @@ export async function fetchLatestPhotoFile(): Promise<LatestPhotoFile | null> {
     const latest = page.items[0] ?? null;
     return latest
       ? {
-          filename: latest.uri.split('/').pop() ?? latest.mediaId,
+          filename: latest.displayName ?? latest.uri.split('/').pop() ?? latest.mediaId,
           path: latest.uri,
         }
       : null;
