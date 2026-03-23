@@ -20,6 +20,7 @@ import androidx.activity.enableEdgeToEdge
 import com.gjk.cameraftpcompanion.bridges.FileUploadBridge
 import com.gjk.cameraftpcompanion.bridges.ServerStateBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridge
+import com.gjk.cameraftpcompanion.bridges.GalleryBridgeV2
 import com.gjk.cameraftpcompanion.bridges.MediaStoreBridge
 import com.gjk.cameraftpcompanion.bridges.ImageViewerBridge
 import com.gjk.cameraftpcompanion.cache.ThumbnailCacheProvider
@@ -49,6 +50,7 @@ class MainActivity : TauriActivity() {
     private var serverStateBridge: ServerStateBridge? = null
     private var permissionBridge: PermissionBridge? = null
     private var galleryBridge: GalleryBridge? = null
+    private var galleryBridgeV2: GalleryBridgeV2? = null
     private var mediaStoreBridge: MediaStoreBridge? = null
     private var imageViewerBridge: ImageViewerBridge? = null
     private val pendingDeleteResult = AtomicReference<Pair<CountDownLatch, AtomicReference<Boolean>>?>(null)
@@ -81,6 +83,7 @@ class MainActivity : TauriActivity() {
         serverStateBridge = ServerStateBridge(this)
         permissionBridge = PermissionBridge(this)
         galleryBridge = GalleryBridge(this)
+        galleryBridgeV2 = GalleryBridgeV2(this)
         mediaStoreBridge = MediaStoreBridge(this)
         imageViewerBridge = ImageViewerBridge(this)
 
@@ -107,6 +110,7 @@ class MainActivity : TauriActivity() {
         addJsBridge(webView, serverStateBridge, "ServerStateAndroid")
         addJsBridge(webView, permissionBridge, "PermissionAndroid")
         addJsBridge(webView, galleryBridge, "GalleryAndroid")
+        addJsBridge(webView, galleryBridgeV2, "GalleryAndroidV2")
         addJsBridge(webView, mediaStoreBridge, "MediaStoreAndroid")
         addJsBridge(webView, imageViewerBridge, "ImageViewerAndroid")
 
@@ -195,6 +199,7 @@ class MainActivity : TauriActivity() {
         serverStateBridge = null
         permissionBridge = null
         galleryBridge = null
+        galleryBridgeV2 = null
         mediaStoreBridge = null
         imageViewerBridge = null
     }
