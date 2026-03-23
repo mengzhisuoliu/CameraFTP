@@ -47,7 +47,11 @@ function getBridge(): NonNullable<typeof window.GalleryAndroidV2> {
 export async function listMediaPage(req: MediaPageRequest): Promise<MediaPageResponse> {
   const bridge = getBridge();
   const json = await bridge.listMediaPage(JSON.stringify(req));
-  return JSON.parse(json) as MediaPageResponse;
+  try {
+    return JSON.parse(json) as MediaPageResponse;
+  } catch (e) {
+    throw new Error(`Failed to parse listMediaPage response: ${(e as Error).message}`);
+  }
 }
 
 /**
@@ -86,8 +90,8 @@ export async function registerThumbnailListener(
   listener: ThumbResultListener,
 ): Promise<void> {
   const bridge = getBridge();
-  listeners.set(listenerId, listener);
   await bridge.registerThumbnailListener(viewId, listenerId);
+  listeners.set(listenerId, listener);
 }
 
 /**
@@ -113,7 +117,11 @@ export async function invalidateMediaIds(mediaIds: string[]): Promise<void> {
 export async function getQueueStats(): Promise<QueueStats> {
   const bridge = getBridge();
   const json = await bridge.getQueueStats();
-  return JSON.parse(json) as QueueStats;
+  try {
+    return JSON.parse(json) as QueueStats;
+  } catch (e) {
+    throw new Error(`Failed to parse getQueueStats response: ${(e as Error).message}`);
+  }
 }
 
 /**
@@ -123,7 +131,11 @@ export async function getQueueStats(): Promise<QueueStats> {
 export function dispatchThumbnailResult(listenerId: string, resultJson: string): void {
   const listener = listeners.get(listenerId);
   if (listener) {
-    const result = JSON.parse(resultJson) as ThumbResult;
-    listener(result);
+    try {
+      const result = JSON.parse(resultJson) as ThumbResult;
+      listener(result);
+    } catch (e) {
+      throw new Error(`Failed to parse thumbnail result for listener "${listenerId}": ${(e as Error).message}`);
+    }
   }
 }
