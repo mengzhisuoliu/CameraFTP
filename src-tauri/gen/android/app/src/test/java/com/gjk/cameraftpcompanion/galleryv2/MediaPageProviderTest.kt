@@ -70,7 +70,8 @@ class MediaPageProviderTest {
             dateModifiedMs = 1700000000000L,
             width = 1920,
             height = 1080,
-            mimeType = "image/jpeg"
+            mimeType = "image/jpeg",
+            displayName = "test.jpg"
         )
         assertEquals("123", item.mediaId)
         assertEquals("content://media/external/images/media/123", item.uri)
@@ -78,6 +79,7 @@ class MediaPageProviderTest {
         assertEquals(1920, item.width)
         assertEquals(1080, item.height)
         assertEquals("image/jpeg", item.mimeType)
+        assertEquals("test.jpg", item.displayName)
     }
 
     @Test
@@ -88,11 +90,13 @@ class MediaPageProviderTest {
             dateModifiedMs = 1000L,
             width = null,
             height = null,
-            mimeType = null
+            mimeType = null,
+            displayName = null
         )
         assertNull(item.width)
         assertNull(item.height)
         assertNull(item.mimeType)
+        assertNull(item.displayName)
     }
 
     @Test
@@ -110,8 +114,8 @@ class MediaPageProviderTest {
     @Test
     fun media_page_result_with_items_and_cursor() {
         val items = listOf(
-            MediaPageItem("1", "content://media/1", 1000L, 800, 600, "image/png"),
-            MediaPageItem("2", "content://media/2", 900L, null, null, null)
+            MediaPageItem("1", "content://media/1", 1000L, 800, 600, "image/png", "img1.png"),
+            MediaPageItem("2", "content://media/2", 900L, null, null, null, null)
         )
         val cursor = MediaPageProvider.encodeCursor(MediaPageCursor(900L, 2))
         val result = MediaPageResult(items, cursor, "count:10")
@@ -150,7 +154,7 @@ class MediaPageProviderTest {
 
     @Test
     fun next_cursor_is_set_when_results_fill_page() {
-        val lastItem = MediaPageItem("100", "content://media/100", 5000L, 1920, 1080, "image/jpeg")
+        val lastItem = MediaPageItem("100", "content://media/100", 5000L, 1920, 1080, "image/jpeg", "photo.jpg")
         val cursor = MediaPageProvider.encodeCursor(MediaPageCursor(lastItem.dateModifiedMs, lastItem.mediaId.toLong()))
         assertNotNull(cursor)
         val decoded = MediaPageProvider.decodeCursor(cursor)
