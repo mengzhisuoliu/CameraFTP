@@ -299,6 +299,10 @@ class ThumbnailPipelineManager(poolSize: Int = 3) {
         val running = runningMap[requestId]
         if (running != null) {
             running.cancelled = true
+            // Clean up dedupMap immediately so the same item can be re-requested
+            val key = compositeKey(running.job.mediaId, running.job.dateModifiedMs, running.job.sizeBucket)
+            dedupMap.remove(key)
+            retryCount.remove(requestId)
             deliverResult(ThumbResult(requestId, running.job.mediaId, "cancelled", null, "cancelled"))
             return@withLock true
         }
@@ -334,6 +338,10 @@ class ThumbnailPipelineManager(poolSize: Int = 3) {
         for ((_, running) in runningMap) {
             if (running.job.viewId == viewId && !running.cancelled) {
                 running.cancelled = true
+                // Clean up dedupMap immediately so the same items can be re-requested
+                val key = compositeKey(running.job.mediaId, running.job.dateModifiedMs, running.job.sizeBucket)
+                dedupMap.remove(key)
+                retryCount.remove(running.job.requestId)
                 deliverResult(ThumbResult(running.job.requestId, running.job.mediaId, "cancelled", null, "cancelled"))
                 count++
             }
@@ -418,9 +426,10 @@ class ThumbnailPipelineManager(poolSize: Int = 3) {
             }
             runningMap.remove(job.requestId)
 
+            // If already cancelled via cancel()/cancelByView(), result was already delivered.
+            // Just clean up runningMap (done above) and return without duplicate result.
             if (wasCancelled || status == "cancelled") {
-                retryCount.remove(job.requestId)
-                deliverResult(ThumbResult(job.requestId, job.mediaId, "cancelled", null, "cancelled"))
+                // retryCount and dedupMap were already cleaned in cancel()/cancelByView()
                 return@withLock
             }
 
