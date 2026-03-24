@@ -20,7 +20,9 @@ import androidx.activity.enableEdgeToEdge
 import com.gjk.cameraftpcompanion.bridges.FileUploadBridge
 import com.gjk.cameraftpcompanion.bridges.ServerStateBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridge
+import com.gjk.cameraftpcompanion.bridges.GalleryBridgeV2
 import com.gjk.cameraftpcompanion.bridges.MediaStoreBridge
+import com.gjk.cameraftpcompanion.bridges.ImageViewerBridge
 import com.gjk.cameraftpcompanion.cache.ThumbnailCacheProvider
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -35,6 +37,12 @@ class MainActivity : TauriActivity() {
         // Rust 侧: TAURI_LISTENER_RETRY_DELAY_MS = 50L
         private const val TAURI_LISTENER_MAX_RETRIES = 50
         private const val TAURI_LISTENER_RETRY_DELAY_MS = 50L
+
+        /**
+         * Static WebView reference for cross-Activity Tauri IPC access
+         */
+        var instance: MainActivity? = null
+            private set
     }
 
     private var webViewRef: WebView? = null
@@ -42,7 +50,9 @@ class MainActivity : TauriActivity() {
     private var serverStateBridge: ServerStateBridge? = null
     private var permissionBridge: PermissionBridge? = null
     private var galleryBridge: GalleryBridge? = null
+    private var galleryBridgeV2: GalleryBridgeV2? = null
     private var mediaStoreBridge: MediaStoreBridge? = null
+    private var imageViewerBridge: ImageViewerBridge? = null
     private val pendingDeleteResult = AtomicReference<Pair<CountDownLatch, AtomicReference<Boolean>>?>(null)
     private val deleteRequestLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -66,13 +76,16 @@ class MainActivity : TauriActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        instance = this
         
         Log.d(TAG, "onCreate: initializing bridges")
         fileUploadBridge = FileUploadBridge(this)
         serverStateBridge = ServerStateBridge(this)
         permissionBridge = PermissionBridge(this)
         galleryBridge = GalleryBridge(this)
+        galleryBridgeV2 = GalleryBridgeV2(this)
         mediaStoreBridge = MediaStoreBridge(this)
+        imageViewerBridge = ImageViewerBridge(this)
 
         // Initialize thumbnail cache
         ThumbnailCacheProvider.initialize(this)
@@ -97,7 +110,9 @@ class MainActivity : TauriActivity() {
         addJsBridge(webView, serverStateBridge, "ServerStateAndroid")
         addJsBridge(webView, permissionBridge, "PermissionAndroid")
         addJsBridge(webView, galleryBridge, "GalleryAndroid")
+        addJsBridge(webView, galleryBridgeV2, "GalleryAndroidV2")
         addJsBridge(webView, mediaStoreBridge, "MediaStoreAndroid")
+        addJsBridge(webView, imageViewerBridge, "ImageViewerAndroid")
 
         // 注册Tauri事件监听
         registerTauriEventListeners()
@@ -177,13 +192,16 @@ class MainActivity : TauriActivity() {
     override fun onDestroy() {
         Log.d(TAG, "onDestroy: cleaning up bridge references")
         super.onDestroy()
+        instance = null
         // Clear all bridge references to prevent memory leaks
         webViewRef = null
         fileUploadBridge = null
         serverStateBridge = null
         permissionBridge = null
         galleryBridge = null
+        galleryBridgeV2 = null
         mediaStoreBridge = null
+        imageViewerBridge = null
     }
 
     /**
@@ -201,6 +219,19 @@ class MainActivity : TauriActivity() {
     fun emitTauriEvent(name: String, payloadJson: String) {
         val webView = webViewRef ?: return
         val script = "window.__TAURI__?.event?.emit('$name', $payloadJson)"
+        runOnUiThread {
+            webView.evaluateJavascript(script, null)
+        }
+    }
+
+    /**
+     * Dispatch a browser CustomEvent to the main window WebView.
+     * @param name Event name
+     * @param detailJson JSON detail object as string
+     */
+    fun emitWindowEvent(name: String, detailJson: String) {
+        val webView = webViewRef ?: return
+        val script = "window.dispatchEvent(new CustomEvent('$name', { detail: $detailJson }))"
         runOnUiThread {
             webView.evaluateJavascript(script, null)
         }
