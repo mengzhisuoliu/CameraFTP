@@ -251,7 +251,7 @@ class GalleryBridgeV2(
     }
 
     private fun dispatchThumbBatch(listenerId: String, payload: String) {
-        val script = "window.__galleryThumbDispatch('$listenerId', $payload)"
+        val script = "window.__galleryThumbDispatch('$listenerId', '${payload.replace("'", "\\'")}')"
         runOnUiThread {
             (activity as? MainActivity)?.getWebView()?.evaluateJavascript(script, null)
         }
