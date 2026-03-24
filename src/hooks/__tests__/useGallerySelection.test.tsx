@@ -54,7 +54,7 @@ function GallerySelectionHarness({ activeTab = 'gallery', onDeleteApplied }: Har
       <span data-testid="deleting-count">{deletingIds.size}</span>
       <button
         data-testid="start-selection"
-        onClick={() => handleTouchStart('content://1', { preventDefault: () => {} } as React.TouchEvent)}
+        onClick={() => handleTouchStart('content://1', { preventDefault: () => {} } as React.TouchEvent, false)}
       >
         start-selection
       </button>
@@ -118,7 +118,7 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(400);
       await flush();
     });
 
@@ -151,7 +151,7 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(400);
       await flush();
     });
 
@@ -188,7 +188,7 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(400);
       container.querySelector('[data-testid="toggle-menu"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await flush();
     });
@@ -220,7 +220,7 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(400);
       await flush();
     });
 
@@ -247,7 +247,7 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(400);
       await flush();
     });
 
@@ -277,7 +277,7 @@ describe('useGallerySelection', () => {
 
     await act(async () => {
       container.querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(400);
       container.querySelector('[data-testid="toggle-menu"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await flush();
     });

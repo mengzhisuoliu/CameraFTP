@@ -11,6 +11,7 @@ import type { MediaItemDto } from '../types/gallery-v2';
 const COLUMNS = 3;
 const DEFAULT_ROW_HEIGHT = 120;
 const DEFAULT_OVERSCAN_ROWS = 3;
+const SCROLL_END_DELAY = 150;
 
 export interface VirtualGalleryGridProps {
   items: MediaItemDto[];
@@ -24,7 +25,7 @@ export interface VirtualGalleryGridProps {
   isSelectionMode?: boolean;
   selectedIds?: Set<string>;
   deletingIds?: Set<string>;
-  onTouchStart?: (mediaId: string, event: TouchEvent) => void;
+  onTouchStart?: (mediaId: string, event: TouchEvent, isScrolling: boolean) => void;
   onTouchMove?: (event: TouchEvent) => void;
   onTouchEnd?: () => void;
 }
@@ -47,6 +48,8 @@ export function VirtualGalleryGrid({
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalRows = Math.ceil(items.length / COLUMNS);
   const totalHeight = totalRows * rowHeight;
@@ -67,11 +70,33 @@ export function VirtualGalleryGrid({
     return () => observer.disconnect();
   }, []);
 
-  // Handle scroll
+  // Cleanup scroll timer on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollEndTimerRef.current) {
+        clearTimeout(scrollEndTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Handle scroll with state tracking
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     setScrollTop(el.scrollTop);
+
+    // Mark as scrolling
+    setIsScrolling(true);
+
+    // Clear previous timer
+    if (scrollEndTimerRef.current) {
+      clearTimeout(scrollEndTimerRef.current);
+    }
+
+    // Set timer to detect scroll end
+    scrollEndTimerRef.current = setTimeout(() => {
+      setIsScrolling(false);
+    }, SCROLL_END_DELAY);
   }, []);
 
   // Calculate visible range
@@ -150,7 +175,7 @@ export function VirtualGalleryGrid({
                 data-media-id={item.mediaId}
                 data-grid-index={globalIdx}
                 onClick={() => onItemClick(item)}
-                onTouchStart={onTouchStart ? (e) => onTouchStart(item.mediaId, e) : undefined}
+                onTouchStart={onTouchStart ? (e) => onTouchStart(item.mediaId, e, isScrolling) : undefined}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
                 onTouchCancel={onTouchEnd}

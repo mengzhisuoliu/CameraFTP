@@ -9,7 +9,8 @@ import { toast } from 'sonner';
 import { buildDeleteFailureMessage } from '../utils/gallery-delete';
 import type { DeleteImagesResult } from '../types';
 
-const LONG_PRESS_DURATION = 500;
+const LONG_PRESS_DURATION = 400; // Android ViewConfiguration.DEFAULT_LONG_PRESS_TIMEOUT
+const TOUCH_MOVE_THRESHOLD = 15; // Movement threshold to cancel long press (px)
 
 type UseGallerySelectionOptions = {
   activeTab: string;
@@ -22,7 +23,7 @@ type UseGallerySelectionResult = {
   showMenu: boolean;
   deletingIds: Set<string>;
   menuRef: RefObject<HTMLDivElement>;
-  handleTouchStart: (imagePath: string, event: TouchEvent) => void;
+  handleTouchStart: (imagePath: string, event: TouchEvent, isScrolling: boolean) => void;
   handleTouchMove: (event: TouchEvent) => void;
   handleTouchEnd: () => void;
   handleSelectionClick: (imagePath: string) => boolean;
@@ -42,6 +43,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSelectionModeRef = useRef(false);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const wasScrollingAtTouchStartRef = useRef(false);
 
   const clearTransientSelectionUiState = useCallback(() => {
     setShowMenu(false);
@@ -71,13 +73,31 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
     return true;
   }, [clearTransientSelectionUiState, isSelectionMode]);
 
-  const handleTouchStart = useCallback((imagePath: string, event: React.TouchEvent) => {
+  const handleTouchStart = useCallback((imagePath: string, event: React.TouchEvent, isScrolling: boolean) => {
+    // Ignore multi-finger touches (e.g., three-finger screenshot gesture)
+    if (event.touches.length > 1) {
+      return;
+    }
+
+    // If the list is scrolling, this touch is for stopping the scroll only.
+    // Never trigger long press in this case, regardless of how long the user holds.
+    if (isScrolling) {
+      wasScrollingAtTouchStartRef.current = true;
+      return;
+    }
+
+    // Reset the flag - this is a fresh touch on a stationary list
+    wasScrollingAtTouchStartRef.current = false;
+
     const touch = event.touches[0];
     touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
 
     longPressTimerRef.current = setTimeout(() => {
-      setIsSelectionMode(true);
-      setSelectedIds(new Set([imagePath]));
+      // Double-check that this touch didn't start during scrolling
+      if (!wasScrollingAtTouchStartRef.current) {
+        setIsSelectionMode(true);
+        setSelectedIds(new Set([imagePath]));
+      }
     }, LONG_PRESS_DURATION);
   }, []);
 
@@ -91,7 +111,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
     const dy = touch.clientY - touchStartPosRef.current.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance > 10) {
+    if (distance > TOUCH_MOVE_THRESHOLD) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
       touchStartPosRef.current = null;
@@ -104,6 +124,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied }: UseGallerySe
       longPressTimerRef.current = null;
     }
     touchStartPosRef.current = null;
+    wasScrollingAtTouchStartRef.current = false;
   }, []);
 
   const handleRefreshStart = useCallback(() => {

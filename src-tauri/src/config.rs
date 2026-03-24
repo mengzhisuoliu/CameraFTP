@@ -108,7 +108,7 @@ pub enum AndroidImageOpenMethod {
 
 impl Default for AndroidImageOpenMethod {
     fn default() -> Self {
-        AndroidImageOpenMethod::ExternalApp
+        AndroidImageOpenMethod::BuiltInViewer
     }
 }
 
