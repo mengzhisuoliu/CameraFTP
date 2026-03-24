@@ -10,6 +10,7 @@ import { useConfigStore } from '../stores/configStore';
 import { usePermissionStore } from '../stores/permissionStore';
 import type { MediaItemDto } from '../types/gallery-v2';
 import { isGalleryMediaAvailable } from '../services/gallery-media';
+import { invalidateMediaIds } from '../services/gallery-media-v2';
 import { permissionBridge } from '../types';
 import { useGalleryPager } from '../hooks/useGalleryPager';
 import { useThumbnailScheduler } from '../hooks/useThumbnailScheduler';
@@ -43,6 +44,8 @@ export const GalleryCard = memo(function GalleryCard() {
     onDeleteApplied: async (idsToDelete) => {
       pager.removeItems(idsToDelete);
       scheduler.removeThumbs(idsToDelete);
+      // Invalidate disk cache for deleted media IDs
+      await invalidateMediaIds([...idsToDelete]);
     },
   });
 
