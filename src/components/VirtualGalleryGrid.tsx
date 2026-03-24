@@ -97,6 +97,8 @@ export function VirtualGalleryGrid({
   useEffect(() => {
     if (!onRangeChange) return;
     if (items.length === 0) return;
+    // Skip if container height is not yet measured - prevents incorrect range calculation
+    if (containerHeight === 0) return;
 
     const visibleStartIdx = visibleStartRow * COLUMNS;
     const visibleEndIdx = Math.min(items.length, (visibleEndRow + 1) * COLUMNS);
