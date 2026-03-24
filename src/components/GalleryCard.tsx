@@ -24,6 +24,11 @@ export const GalleryCard = memo(function GalleryCard() {
   const pager = useGalleryPager();
   const scheduler = useThumbnailScheduler();
 
+  const getUriForId = useCallback(
+    (mediaId: string) => pager.items.find((item) => item.mediaId === mediaId)?.uri,
+    [pager.items]
+  );
+
   const {
     isSelectionMode,
     selectedIds,
@@ -47,6 +52,7 @@ export const GalleryCard = memo(function GalleryCard() {
       // Invalidate disk cache for deleted media IDs
       await invalidateMediaIds([...idsToDelete]);
     },
+    getUriForId,
   });
 
   // Load first page on mount
