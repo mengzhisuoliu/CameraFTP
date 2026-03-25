@@ -200,14 +200,20 @@ export const ConfigCard = memo(function ConfigCard() {
       {/* 预览配置卡片（Windows 专属） */}
       <PreviewConfigCard platform={platform} />
 
-      {/* 图片查看器配置（Android 专属） */}
+      {/* 图片查看设置（Android 专属） */}
       {isAndroid && draft?.androidImageViewer && (
         <Card className="overflow-hidden">
           <CardHeader
-            title="使用第三方图片查看器"
-            description="使用外部应用打开图片"
+            title="图片查看设置"
+            description="配置图片查看相关选项"
             icon={<Image className="w-5 h-5 text-violet-600" />}
-            action={
+          />
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-gray-700">使用外部应用打开图片</span>
+                <p className="text-xs text-gray-500 mt-0.5">使用第三方APP打开图片</p>
+              </div>
               <ToggleSwitch
                 enabled={draft.androidImageViewer.openMethod === 'external-app'}
                 onChange={(enabled) => {
@@ -221,8 +227,8 @@ export const ConfigCard = memo(function ConfigCard() {
                 }}
                 disabled={isLoading}
               />
-            }
-          />
+            </div>
+          </div>
         </Card>
       )}
 
