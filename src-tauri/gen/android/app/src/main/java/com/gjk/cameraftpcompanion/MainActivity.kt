@@ -343,10 +343,8 @@ class MainActivity : TauriActivity() {
 
   override fun onResume() {
     super.onResume()
-    // Notify WebView to refresh gallery (may be returning from ImageViewerActivity after deletion)
-    val refreshPayload = "{\"reason\":\"activity-resume\",\"timestamp\":${System.currentTimeMillis()}}"
-    emitWindowEvent("gallery-refresh-requested", refreshPayload)
-    emitWindowEvent("latest-photo-refresh-requested", refreshPayload)
+    // Incremental delete events are handled by ImageViewerActivity via gallery-items-deleted
+    // Full refresh is no longer needed on resume, preserving scroll position
   }
 
     /**

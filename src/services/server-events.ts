@@ -8,10 +8,11 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Event } from '@tauri-apps/api/event';
 import type { ServerInfo, ServerStateSnapshot } from '../types';
 import { storageSettingsBridge } from '../types/global';
-import type { MediaStoreReadyPayload } from '../types/events';
+
 import { createEventManager, type EventRegistration } from '../utils/events';
-import { scheduleMediaLibraryRefresh } from '../utils/gallery-refresh';
-import { shouldScheduleUploadRefresh } from '../utils/server-stats-refresh';
+// Note: scheduleMediaLibraryRefresh removed - full refresh no longer needed
+// FTP uploads and deletions are handled incrementally to preserve scroll position
+
 import { useServerStore } from '../stores/serverStore';
 import { syncAndroidServerState } from './android-server-state-sync';
 
@@ -63,38 +64,16 @@ function createEventRegistrations(): EventRegistration<any>[] {
       name: 'stats-update',
       handler: (event: Event<ServerStateSnapshot>) => {
         const stats = event.payload;
-        const previousStats = useServerStore.getState().stats;
         useServerStore.setState((state) => ({ ...state, stats }));
         syncAndroidServerState(true, stats, stats.connectedClients || 0);
 
-        if (shouldScheduleUploadRefresh(previousStats.filesReceived, stats.filesReceived)) {
-          scheduleMediaLibraryRefresh({
-            reason: 'upload',
-            timestamp: Date.now(),
-          });
-        }
+        // Note: FTP upload refresh is handled incrementally via gallery-items-added event
+        // to preserve scroll position. Full refresh is no longer needed here.
       },
     },
-    {
-      name: 'media-store-ready',
-      handler: (event: Event<MediaStoreReadyPayload>) => {
-        scheduleMediaLibraryRefresh({
-          reason: 'upload',
-          uri: event.payload.uri,
-          displayName: event.payload.displayName,
-          timestamp: event.payload.timestamp,
-        });
-      },
-    },
-    {
-      name: 'media-library-refresh-requested',
-      handler: () => {
-        scheduleMediaLibraryRefresh({
-          reason: 'delete',
-          timestamp: Date.now(),
-        });
-      },
-    },
+    // Note: media-store-ready and media-library-refresh-requested events are now handled
+    // incrementally via gallery-items-added and gallery-items-deleted events to preserve
+    // scroll position. Full refresh is no longer needed for these events.
     {
       name: 'tray-start-server',
       handler: async () => {

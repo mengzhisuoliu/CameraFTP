@@ -83,6 +83,7 @@ class GalleryBridgeV2(
                 })
                 put("nextCursor", result.nextCursor ?: JSONObject.NULL)
                 put("revisionToken", result.revisionToken)
+                put("totalCount", result.totalCount)
             }
             json.toString()
         } catch (e: Exception) {
