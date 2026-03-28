@@ -33,7 +33,7 @@ class AndroidServiceStateCoordinatorTest {
         val context = getApplicationContext<Context>()
 
         AndroidServiceStateCoordinator.clearState()
-        AndroidServiceStateCoordinator.updateServiceState(context, true, "{\"files_transferred\":1}", 2)
+        AndroidServiceStateCoordinator.syncNativeServiceState(context, true, "{\"files_transferred\":1}", 2)
 
         val snapshot = AndroidServiceStateCoordinator.getLatestState()
         assertTrue(snapshot.isRunning)
@@ -46,7 +46,7 @@ class AndroidServiceStateCoordinatorTest {
         val context = getApplicationContext<Context>()
 
         AndroidServiceStateCoordinator.clearState()
-        AndroidServiceStateCoordinator.updateServiceState(context, true, "{\"files_transferred\":1}", 2)
+        AndroidServiceStateCoordinator.syncNativeServiceState(context, true, "{\"files_transferred\":1}", 2)
 
         val startedIntent = shadowOf(getApplicationContext<android.app.Application>()).nextStartedService
         assertEquals(FtpForegroundService::class.java.name, startedIntent.component?.className)
@@ -54,14 +54,14 @@ class AndroidServiceStateCoordinatorTest {
     }
 
     @Test
-    fun update_service_state_stops_foreground_service_when_stopped() {
+    fun update_service_state_stops_foreground_service_via_stop_service_call() {
         val context = getApplicationContext<Context>()
 
         AndroidServiceStateCoordinator.clearState()
-        AndroidServiceStateCoordinator.updateServiceState(context, true, "{\"files_transferred\":1}", 2)
+        AndroidServiceStateCoordinator.syncNativeServiceState(context, true, "{\"files_transferred\":1}", 2)
         shadowOf(getApplicationContext<android.app.Application>()).clearStartedServices()
 
-        AndroidServiceStateCoordinator.updateServiceState(context, false, null, 0)
+        AndroidServiceStateCoordinator.syncNativeServiceState(context, false, null, 0)
 
         val snapshot = AndroidServiceStateCoordinator.getLatestState()
         val stoppedIntent = shadowOf(getApplicationContext<android.app.Application>()).nextStoppedService
@@ -69,7 +69,7 @@ class AndroidServiceStateCoordinatorTest {
         assertNull(snapshot.statsJson)
         assertEquals(0, snapshot.connectedClients)
         assertEquals(FtpForegroundService::class.java.name, stoppedIntent.component?.className)
-        assertEquals(FtpForegroundService.ACTION_STOP, stoppedIntent.action)
+        assertEquals(null, stoppedIntent.action)
     }
 
     @Test
@@ -78,7 +78,7 @@ class AndroidServiceStateCoordinatorTest {
         val application = getApplicationContext<android.app.Application>()
 
         AndroidServiceStateCoordinator.clearState()
-        AndroidServiceStateCoordinator.updateServiceState(context, true, "{\"files_transferred\":1}", 2)
+        AndroidServiceStateCoordinator.syncNativeServiceState(context, true, "{\"files_transferred\":1}", 2)
         shadowOf(application).clearStartedServices()
 
         val service = Robolectric.buildService(FtpForegroundService::class.java).get()
@@ -86,7 +86,7 @@ class AndroidServiceStateCoordinatorTest {
         instanceField.isAccessible = true
         instanceField.set(null, service)
 
-        AndroidServiceStateCoordinator.updateServiceState(context, true, "{\"files_transferred\":2}", 3)
+        AndroidServiceStateCoordinator.syncNativeServiceState(context, true, "{\"files_transferred\":2}", 3)
 
         val snapshot = AndroidServiceStateCoordinator.getLatestState()
         val restartedIntent = shadowOf(application).nextStartedService
@@ -105,10 +105,10 @@ class AndroidServiceStateCoordinatorTest {
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         AndroidServiceStateCoordinator.clearState()
-        AndroidServiceStateCoordinator.updateServiceState(
+        AndroidServiceStateCoordinator.syncNativeServiceState(
             context,
             true,
-            "{\"files_transferred\":5,\"bytes_transferred\":1024}",
+            "{\"isRunning\":true,\"connectedClients\":4,\"filesReceived\":5,\"bytesReceived\":1024,\"lastFile\":null}",
             4,
         )
 
@@ -121,7 +121,7 @@ class AndroidServiceStateCoordinatorTest {
         assertTrue(restored.isRunning)
         assertEquals(4, restored.connectedClients)
         assertEquals(4, readConnectedClients(service))
-        assertEquals("{\"files_transferred\":5,\"bytes_transferred\":1024}", restoredStats)
+        assertEquals("{\"isRunning\":true,\"connectedClients\":4,\"filesReceived\":5,\"bytesReceived\":1024,\"lastFile\":null}", restoredStats)
         assertNotNull(notification)
         assertTrue(notification.extras.getCharSequence("android.text")!!.contains("1.0 KB"))
     }
@@ -129,8 +129,6 @@ class AndroidServiceStateCoordinatorTest {
     @Test
     fun stale_start_intent_does_not_restart_service_when_snapshot_is_stopped() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val notificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val controller = Robolectric.buildService(FtpForegroundService::class.java).create()
         val service = controller.get()
 
@@ -145,34 +143,40 @@ class AndroidServiceStateCoordinatorTest {
         )
 
         assertEquals(Service.START_NOT_STICKY, result)
-        assertNull(shadowOf(notificationManager).getNotification(FtpForegroundService.NOTIFICATION_ID))
+        assertEquals(0, readConnectedClients(service))
+        assertNull(readServiceStatsJson(service))
     }
 
     @Test
-    fun direct_service_update_refreshes_notification_using_coordinator_backed_state() {
+    fun direct_native_update_refreshes_notification_using_rust_payload_shape() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         AndroidServiceStateCoordinator.clearState()
-        AndroidServiceStateCoordinator.updateServiceState(
+        AndroidServiceStateCoordinator.syncNativeServiceState(
             context,
             true,
-            "{\"files_transferred\":1,\"bytes_transferred\":512}",
+            "{\"isRunning\":true,\"connectedClients\":1,\"filesReceived\":1,\"bytesReceived\":512,\"lastFile\":null}",
             1,
         )
 
         val service = Robolectric.buildService(FtpForegroundService::class.java).create().get()
         service.onStartCommand(Intent(context, FtpForegroundService::class.java), 0, 1)
-        service.updateServerState("{\"files_transferred\":7,\"bytes_transferred\":2048}", 3)
+        AndroidServiceStateCoordinator.syncNativeServiceState(
+            context,
+            true,
+            "{\"isRunning\":true,\"connectedClients\":3,\"filesReceived\":7,\"bytesReceived\":2048,\"lastFile\":null}",
+            3,
+        )
 
         val snapshot = AndroidServiceStateCoordinator.getLatestState()
         val notification = shadowOf(notificationManager).getNotification(FtpForegroundService.NOTIFICATION_ID)
         assertTrue(snapshot.isRunning)
         assertEquals(3, snapshot.connectedClients)
-        assertEquals("{\"files_transferred\":7,\"bytes_transferred\":2048}", snapshot.statsJson)
+        assertEquals("{\"isRunning\":true,\"connectedClients\":3,\"filesReceived\":7,\"bytesReceived\":2048,\"lastFile\":null}", snapshot.statsJson)
         assertEquals(3, readConnectedClients(service))
-        assertEquals("{\"files_transferred\":7,\"bytes_transferred\":2048}", readServiceStatsJson(service))
+        assertEquals("{\"isRunning\":true,\"connectedClients\":3,\"filesReceived\":7,\"bytesReceived\":2048,\"lastFile\":null}", readServiceStatsJson(service))
         assertNotNull(notification)
         assertTrue(notification.extras.getCharSequence("android.text")!!.contains("2.0 KB"))
     }

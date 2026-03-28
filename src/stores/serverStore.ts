@@ -9,10 +9,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ServerInfo, ServerStateSnapshot } from '../types';
 import { executeAsync } from '../utils/store';
 import { checkAndroidPermissions } from '../types';
-import { syncAndroidServerState } from '../services/android-server-state-sync';
 
 interface ServerState {
-  // 状态
   isRunning: boolean;
   serverInfo: ServerInfo | null;
   stats: ServerStateSnapshot;
@@ -20,8 +18,7 @@ interface ServerState {
   error: string | null;
   showPermissionDialog: boolean;
   pendingServerStart: boolean;
-  
-  // 操作
+
   startServer: () => Promise<boolean>;
   stopServer: () => Promise<void>;
   closePermissionDialog: () => void;
@@ -80,20 +77,17 @@ export const useServerStore = create<ServerState>((set, get) => ({
   pendingServerStart: false,
 
   startServer: async () => {
-    // Check if we're on Android and need to check permissions
     const permissions = await checkAndroidPermissions();
-    
+
     if (permissions !== null) {
       if (!permissions.storage || !permissions.notification || !permissions.batteryOptimization) {
-        // Show permission dialog instead of starting server
         set({ showPermissionDialog: true, pendingServerStart: true });
-        return false; // Return false to indicate server was NOT started
+        return false;
       }
     }
-    
-    // Permissions OK or not on Android, proceed to start
+
     await doStartServer(set, get);
-    return true; // Return true to indicate server was successfully started
+    return true;
   },
 
   stopServer: async () => {
@@ -111,7 +105,6 @@ export const useServerStore = create<ServerState>((set, get) => ({
 
   continueAfterPermissionsGranted: async () => {
     set({ showPermissionDialog: false, pendingServerStart: false });
-    // Now actually start the server
     await doStartServer(set, get);
   },
 
@@ -123,10 +116,9 @@ export const useServerStore = create<ServerState>((set, get) => ({
       serverInfo,
       stats,
     }));
-    syncAndroidServerState(true, stats, stats.connectedClients, options?.immediate ?? false);
   },
 
-  setServerStopped: (options) => {
+  setServerStopped: (_options) => {
     const stats = createStoppedStats();
     set((state) => ({
       ...state,
@@ -134,17 +126,10 @@ export const useServerStore = create<ServerState>((set, get) => ({
       serverInfo: null,
       stats,
     }));
-    syncAndroidServerState(false, null, 0, options?.immediate ?? false);
   },
 
   setServerStats: (stats) => {
     const nextStats = stats.isRunning ? createRunningStats(stats) : createStoppedStats();
     set((state) => ({ ...state, stats: nextStats, isRunning: nextStats.isRunning }));
-    syncAndroidServerState(
-      nextStats.isRunning,
-      nextStats.isRunning ? nextStats : null,
-      nextStats.connectedClients || 0,
-      false,
-    );
   },
 }));

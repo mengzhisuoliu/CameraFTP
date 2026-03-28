@@ -7,28 +7,32 @@
 package com.gjk.cameraftpcompanion.bridges
 
 import android.content.Context
+import android.util.Log
 import android.webkit.JavascriptInterface
-import com.gjk.cameraftpcompanion.AndroidServiceStateCoordinator
 
 /**
  * Server State JavaScript Bridge
- * Forwards server state changes to the foreground service
+ * Legacy compatibility shim while Android service control is native-driven.
  */
-class ServerStateBridge(private val context: Context) {
+class ServerStateBridge(@Suppress("UNUSED_PARAMETER") private val context: Context) {
+
+    companion object {
+        private const val TAG = "ServerStateBridge"
+    }
 
     /**
-     * Called from JavaScript when server state changes
-     * @param isRunning Whether FTP server is running
-     * @param statsJson JSON string with stats (files_transferred, bytes_transferred)
-     * @param connectedClients Number of connected clients
+     * Ignore legacy WebView-driven service updates now that Rust owns native sync.
      */
     @JavascriptInterface
-    fun onServerStateChanged(isRunning: Boolean, statsJson: String?, connectedClients: Int) {
-        AndroidServiceStateCoordinator.updateServiceState(
-            context,
-            isRunning,
-            statsJson,
-            connectedClients,
+    fun onServerStateChanged(
+        isRunning: Boolean,
+        @Suppress("UNUSED_PARAMETER")
+        statsJson: String?,
+        connectedClients: Int,
+    ) {
+        Log.d(
+            TAG,
+            "Ignoring legacy WebView server state update: isRunning=$isRunning, connectedClients=$connectedClients",
         )
     }
 }

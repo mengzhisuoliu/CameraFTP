@@ -12,7 +12,6 @@ const {
   invokeMock,
   listenMock,
   checkAndroidPermissionsMock,
-  syncAndroidServerStateMock,
   openStorageSettingsMock,
   scheduleMediaLibraryRefreshMock,
   shouldScheduleUploadRefreshMock,
@@ -20,7 +19,6 @@ const {
   invokeMock: vi.fn(),
   listenMock: vi.fn(),
   checkAndroidPermissionsMock: vi.fn(),
-  syncAndroidServerStateMock: vi.fn(),
   openStorageSettingsMock: vi.fn(),
   scheduleMediaLibraryRefreshMock: vi.fn(),
   shouldScheduleUploadRefreshMock: vi.fn(),
@@ -55,10 +53,6 @@ vi.mock('../../types/global', async () => {
   };
 });
 
-vi.mock('../android-server-state-sync', () => ({
-  syncAndroidServerState: syncAndroidServerStateMock,
-}));
-
 vi.mock('../../utils/gallery-refresh', () => ({
   scheduleMediaLibraryRefresh: scheduleMediaLibraryRefreshMock,
 }));
@@ -89,7 +83,6 @@ describe('server event lifecycle service', () => {
     invokeMock.mockReset();
     listenMock.mockReset();
     checkAndroidPermissionsMock.mockReset();
-    syncAndroidServerStateMock.mockReset();
     openStorageSettingsMock.mockReset();
     scheduleMediaLibraryRefreshMock.mockReset();
     shouldScheduleUploadRefreshMock.mockReset();
@@ -163,19 +156,6 @@ describe('server event lifecycle service', () => {
       bytesReceived: 0,
       lastFile: null,
     });
-    expect(syncAndroidServerStateMock).toHaveBeenCalledWith(
-      true,
-      {
-        isRunning: true,
-        connectedClients: 0,
-        filesReceived: 0,
-        bytesReceived: 0,
-        lastFile: null,
-      },
-      0,
-      false,
-    );
-
     await eventHandlers.get('server-stopped')?.({ payload: undefined });
     expect(useServerStore.getState().isRunning).toBe(false);
     expect(useServerStore.getState().serverInfo).toBeNull();
@@ -186,12 +166,10 @@ describe('server event lifecycle service', () => {
       bytesReceived: 0,
       lastFile: null,
     });
-    expect(syncAndroidServerStateMock).toHaveBeenLastCalledWith(false, null, 0, false);
-
     cleanup();
   });
 
-  it('syncs Android bridge state during initial sync when server is already running', async () => {
+  it('hydrates store state during initial sync when server is already running', async () => {
     invokeMock.mockImplementation(async (command: string) => {
       if (command === 'get_server_info') {
         return {
@@ -218,12 +196,13 @@ describe('server event lifecycle service', () => {
     await initializeServerEvents();
 
     expect(useServerStore.getState().isRunning).toBe(true);
-    expect(syncAndroidServerStateMock).toHaveBeenCalledWith(
-      true,
-      expect.objectContaining({ filesReceived: 7, bytesReceived: 2048 }),
-      2,
-      true,
-    );
+    expect(useServerStore.getState().stats).toEqual({
+      isRunning: true,
+      connectedClients: 2,
+      filesReceived: 7,
+      bytesReceived: 2048,
+      lastFile: null,
+    });
   });
 
   it('reconciles stopped backend state during initial sync', async () => {
@@ -257,12 +236,10 @@ describe('server event lifecycle service', () => {
       bytesReceived: 0,
       lastFile: null,
     });
-    expect(syncAndroidServerStateMock).toHaveBeenCalledWith(false, null, 0, true);
   });
 
-  it('delegates Android sync ownership to store setters without extra event-layer calls', async () => {
+  it('delegates lifecycle ownership to store setters without bridge work', async () => {
     await initializeServerEvents();
-    syncAndroidServerStateMock.mockClear();
 
     const originalState = useServerStore.getState();
     const setServerRunning = vi.fn();
@@ -290,7 +267,6 @@ describe('server event lifecycle service', () => {
     expect(setServerRunning).toHaveBeenCalledTimes(1);
     expect(setServerStats).toHaveBeenCalledTimes(1);
     expect(setServerStopped).toHaveBeenCalledTimes(1);
-    expect(syncAndroidServerStateMock).not.toHaveBeenCalled();
 
     useServerStore.setState({
       setServerRunning: originalState.setServerRunning,
@@ -322,14 +298,6 @@ describe('server event lifecycle service', () => {
       bytesReceived: 100,
       lastFile: null,
     });
-    expect(syncAndroidServerStateMock).toHaveBeenLastCalledWith(true, {
-      isRunning: true,
-      connectedClients: 1,
-      filesReceived: 1,
-      bytesReceived: 100,
-      lastFile: null,
-    }, 1, false);
-
     await eventHandlers.get('android-open-manage-storage-settings')?.({ payload: undefined });
     expect(openStorageSettingsMock).toHaveBeenCalledTimes(1);
   });

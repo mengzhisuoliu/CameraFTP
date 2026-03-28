@@ -143,7 +143,7 @@ impl ServerStatus {
 }
 
 /// 领域事件 - 用于事件驱动架构
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(tag = "type", content = "data")]
 pub enum DomainEvent {
     ServerStarted {

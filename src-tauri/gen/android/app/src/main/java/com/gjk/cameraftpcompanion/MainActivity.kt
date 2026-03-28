@@ -16,7 +16,6 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import com.gjk.cameraftpcompanion.bridges.FileUploadBridge
-import com.gjk.cameraftpcompanion.bridges.ServerStateBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridgeV2
 import com.gjk.cameraftpcompanion.bridges.MediaStoreBridge
@@ -57,7 +56,6 @@ class MainActivity : TauriActivity() {
 
     private var webViewRef: WebView? = null
     private var fileUploadBridge: FileUploadBridge? = null
-    private var serverStateBridge: ServerStateBridge? = null
     private var permissionBridge: PermissionBridge? = null
     private var galleryBridge: GalleryBridge? = null
     private var galleryBridgeV2: GalleryBridgeV2? = null
@@ -93,7 +91,6 @@ class MainActivity : TauriActivity() {
         
         Log.d(TAG, "onCreate: initializing bridges")
         fileUploadBridge = FileUploadBridge(this)
-        serverStateBridge = ServerStateBridge(this)
         permissionBridge = PermissionBridge(this)
         galleryBridge = GalleryBridge(this)
         galleryBridgeV2 = GalleryBridgeV2(this)
@@ -121,7 +118,6 @@ class MainActivity : TauriActivity() {
         
         Log.d(TAG, "onWebViewCreate: adding JavaScript bridges")
         addJsBridge(webView, fileUploadBridge, "FileUploadAndroid")
-        addJsBridge(webView, serverStateBridge, "ServerStateAndroid")
         addJsBridge(webView, permissionBridge, "PermissionAndroid")
         addJsBridge(webView, galleryBridge, "GalleryAndroid")
         addJsBridge(webView, galleryBridgeV2, "GalleryAndroidV2")
@@ -205,7 +201,6 @@ class MainActivity : TauriActivity() {
         // Clear all bridge references to prevent memory leaks
         webViewRef = null
         fileUploadBridge = null
-        serverStateBridge = null
         permissionBridge = null
         galleryBridge = null
         galleryBridgeV2 = null

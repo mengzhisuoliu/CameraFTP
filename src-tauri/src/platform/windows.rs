@@ -15,6 +15,7 @@ use crate::config_service::ConfigService;
 use crate::constants::{
     SERVER_READY_TIMEOUT_SECS, AUTOSTART_DELAY_MS,
 };
+use crate::ftp::types::ServerStateSnapshot;
 use super::traits::PlatformService;
 use super::types::{StorageInfo, PermissionStatus};
 
@@ -301,6 +302,8 @@ impl PlatformService for WindowsPlatform {
         }
     }
 
+    fn sync_android_service_state(&self, _app: &AppHandle, _snapshot: &ServerStateSnapshot) {}
+
     // ========== 开机自启相关 ==========
 
     fn set_autostart(&self, enable: bool) -> Result<(), String> {
@@ -376,10 +379,6 @@ impl PlatformService for WindowsPlatform {
                         Err(_) => tracing::warn!("Event processor ready timeout, continuing anyway"),
                     }
 
-                    // 重新发送 server-started 事件（因为原事件在 EventProcessor 就绪前已发出）
-                    ctx.event_bus.emit_server_started(format!("{}:{}", ctx.ip, ctx.port));
-                    tracing::info!("Re-emitted server-started event for autostart via EventBus");
-
                     // 统一通过 PlatformService 处理启动后逻辑
                     crate::platform::get_platform().on_server_started(&app_handle);
                 }
@@ -415,5 +414,15 @@ impl PlatformService for WindowsPlatform {
     fn select_save_directory(&self, _app: &AppHandle) -> Result<Option<String>, String> {
         // Windows 平台通过前端对话框选择，这里返回 None 表示使用前端选择
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn windows_autostart_no_longer_reemits_server_started_event() {
+        let source = include_str!("windows.rs");
+
+        assert!(!source.contains("ctx.event_bus\n                        .emit_server_started"));
     }
 }

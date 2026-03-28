@@ -30,8 +30,6 @@ class FtpForegroundService : Service() {
 
         // Actions
         const val ACTION_START = "com.gjk.cameraftpcompanion.START_SERVICE"
-        const val ACTION_STOP = "com.gjk.cameraftpcompanion.STOP_SERVICE"
-
         // Singleton instance for MainActivity to access
         @Volatile
         private var instance: FtpForegroundService? = null
@@ -69,16 +67,10 @@ class FtpForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand: action=${intent?.action}, startId=$startId")
 
-        // Handle stop service action
-        if (intent?.action == ACTION_STOP) {
-            Log.d(TAG, "onStartCommand: stopping service")
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
         val snapshot = AndroidServiceStateCoordinator.getLatestState()
         if (!snapshot.isRunning) {
             Log.d(TAG, "onStartCommand: ignoring start because coordinator is stopped")
+            applyServerState(null, 0)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -218,8 +210,8 @@ class FtpForegroundService : Service() {
             Pair(serverStats, connectedClients)
         }
 
-        val files = stats?.optInt("files_transferred", 0) ?: 0
-        val bytes = stats?.optLong("bytes_transferred", 0) ?: 0
+        val files = stats?.optInt("filesReceived", stats.optInt("files_transferred", 0)) ?: 0
+        val bytes = stats?.optLong("bytesReceived", stats.optLong("bytes_transferred", 0)) ?: 0
 
         // Connection status
         val connectionStatus = if (clients > 0) {
@@ -253,24 +245,15 @@ class FtpForegroundService : Service() {
      * Called when server is running to update stats display.
      * Thread-safe: can be called from any thread (e.g., JS bridge).
      */
-    fun updateServerState(
-        statsJson: String?,
-        connectedClients: Int,
-        syncCoordinator: Boolean = true,
-    ) {
-        Log.d(TAG, "updateServerState: connectedClients=$connectedClients")
+    fun refreshFromCoordinator() {
+        val snapshot = AndroidServiceStateCoordinator.getLatestState()
+        Log.d(TAG, "refreshFromCoordinator: connectedClients=${snapshot.connectedClients}")
 
-        if (syncCoordinator) {
-            AndroidServiceStateCoordinator.updateServiceState(
-                applicationContext,
-                true,
-                statsJson,
-                connectedClients,
-            )
+        if (!snapshot.isRunning) {
             return
         }
 
-        val statsChanged = applyServerState(statsJson, connectedClients)
+        val statsChanged = applyServerState(snapshot.statsJson, snapshot.connectedClients)
         if (!statsChanged) {
             return
         }
@@ -280,7 +263,7 @@ class FtpForegroundService : Service() {
     }
 
     private fun restoreStateFromCoordinator() {
-        restoreStateFromSnapshot(AndroidServiceStateCoordinator.getLatestState())
+        refreshFromCoordinator()
     }
 
     private fun restoreStateFromSnapshot(snapshot: AndroidServiceStateSnapshot) {

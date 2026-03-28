@@ -170,15 +170,29 @@ pub fn spawn_event_processor(app_handle: AppHandle, event_bus: EventBus) -> ones
     let (ready_tx, ready_rx) = oneshot::channel();
     
     tokio::spawn(async move {
-        let processor = EventProcessor::new(&event_bus)
+        let mut processor = EventProcessor::new(&event_bus)
             .register(StatsEventHandler::new(app_handle))
             .register(TrayUpdateHandler::new(app_handle_for_tray));
+
+        processor.catch_up().await;
         
-        // 信号就绪
+        // 信号就绪（已完成初始状态追赶）
         let _ = ready_tx.send(());
         
         processor.run().await;
     });
     
     ready_rx
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn event_processor_keeps_stats_handler_registered_for_dual_fan_out() {
+        let source = include_str!("server_factory.rs");
+
+        assert!(source.contains(".register(StatsEventHandler::new(app_handle))"));
+        assert!(source.contains(".register(TrayUpdateHandler::new(app_handle_for_tray))"));
+        assert!(source.contains("processor.catch_up().await;"));
+    }
 }

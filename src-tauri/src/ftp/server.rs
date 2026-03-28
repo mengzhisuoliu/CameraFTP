@@ -444,7 +444,12 @@ impl FtpServerActor {
         self.config = Some(config);
         self.bind_addr = Some(bind_addr);
 
-        self.event_bus.emit_server_started(bind_addr.to_string());
+        self.event_bus
+            .emit_server_started(advertised_server_addr(
+                bind_addr,
+                crate::network::NetworkManager::recommended_ip(),
+            ))
+            .await;
         info!(bind_addr = %bind_addr, "FTP server started successfully");
     }
 
@@ -484,7 +489,7 @@ impl FtpServerActor {
         self.config = None;
         self.bind_addr = None;
 
-        self.event_bus.emit_server_stopped();
+        self.event_bus.emit_server_stopped().await;
 
         info!("FTP server stopped");
 
@@ -542,6 +547,16 @@ impl FtpServerActor {
     }
 }
 
+fn advertised_server_addr(bind_addr: SocketAddr, recommended_ip: Option<String>) -> String {
+    let ip = recommended_ip.unwrap_or_else(|| match bind_addr.ip() {
+        std::net::IpAddr::V4(ip) if ip.is_unspecified() => "127.0.0.1".to_string(),
+        std::net::IpAddr::V6(ip) if ip.is_unspecified() => "::1".to_string(),
+        ip => ip.to_string(),
+    });
+
+    format!("{}:{}", ip, bind_addr.port())
+}
+
 /// 创建FTP服务器Actor系统
 pub fn create_ftp_server(app_handle: Option<AppHandle>) -> (
     FtpServerHandle,
@@ -579,5 +594,22 @@ mod tests {
 
         #[cfg(not(target_os = "android"))]
         assert_eq!(storage_backend_name(), "Filesystem");
+    }
+
+    #[test]
+    fn advertised_server_addr_prefers_usable_ip_over_unspecified_bind_address() {
+        let bind_addr: SocketAddr = ([0, 0, 0, 0], 2121).into();
+
+        assert_eq!(
+            advertised_server_addr(bind_addr, Some("192.168.1.23".to_string())),
+            "192.168.1.23:2121"
+        );
+    }
+
+    #[test]
+    fn advertised_server_addr_falls_back_to_loopback_when_bind_address_is_unspecified() {
+        let bind_addr: SocketAddr = ([0, 0, 0, 0], 2121).into();
+
+        assert_eq!(advertised_server_addr(bind_addr, None), "127.0.0.1:2121");
     }
 }

@@ -41,6 +41,16 @@ object AndroidServiceStateCoordinator {
         statsJson: String?,
         connectedClients: Int,
     ) {
+        syncNativeServiceState(callerContext, isRunning, statsJson, connectedClients)
+    }
+
+    @JvmStatic
+    fun syncNativeServiceState(
+        callerContext: Context,
+        isRunning: Boolean,
+        statsJson: String?,
+        connectedClients: Int,
+    ) {
         if (isRunning) {
             updateRunningState(callerContext, statsJson, connectedClients)
         } else {
@@ -55,17 +65,13 @@ object AndroidServiceStateCoordinator {
     fun updateRunningState(callerContext: Context, statsJson: String?, connectedClients: Int) {
         val appContext = callerContext.applicationContext
         val previousState = latestState
-        val nextState = storeSnapshot(true, statsJson, connectedClients)
+        storeSnapshot(true, statsJson, connectedClients)
 
         if (!previousState.isRunning || FtpForegroundService.getInstance() == null) {
             startForegroundService(appContext)
         }
 
-        FtpForegroundService.getInstance()?.updateServerState(
-            nextState.statsJson,
-            nextState.connectedClients,
-            syncCoordinator = false,
-        )
+        FtpForegroundService.getInstance()?.refreshFromCoordinator()
     }
 
     fun stopService(callerContext: Context) {
@@ -93,9 +99,7 @@ object AndroidServiceStateCoordinator {
     }
 
     private fun stopForegroundService(appContext: Context) {
-        val serviceIntent = Intent(appContext, FtpForegroundService::class.java).apply {
-            action = FtpForegroundService.ACTION_STOP
-        }
+        val serviceIntent = Intent(appContext, FtpForegroundService::class.java)
         appContext.stopService(serviceIntent)
     }
 }

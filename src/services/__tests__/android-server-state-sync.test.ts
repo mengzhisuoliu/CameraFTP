@@ -6,25 +6,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { isAvailableMock, updateStateMock } = vi.hoisted(() => ({
-  isAvailableMock: vi.fn(),
-  updateStateMock: vi.fn(),
-}));
-
-vi.mock('../../types/global', () => ({
-  serverStateBridge: {
-    isAvailable: isAvailableMock,
-    updateState: updateStateMock,
-  },
-}));
-
 import { syncAndroidServerState } from '../android-server-state-sync';
 
 describe('android server state sync', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    isAvailableMock.mockReset();
-    updateStateMock.mockReset();
   });
 
   afterEach(() => {
@@ -32,9 +18,7 @@ describe('android server state sync', () => {
     vi.useRealTimers();
   });
 
-  it('drops stale retry payloads after a newer state is queued', () => {
-    isAvailableMock.mockReturnValue(false);
-
+  it('acts as a compatibility no-op for stale and fresh payloads', () => {
     syncAndroidServerState(true, {
       isRunning: true,
       connectedClients: 2,
@@ -45,44 +29,24 @@ describe('android server state sync', () => {
 
     syncAndroidServerState(false, null, 0);
 
-    isAvailableMock.mockReturnValue(true);
-    vi.advanceTimersByTime(250);
-
-    expect(updateStateMock).toHaveBeenCalledTimes(1);
-    expect(updateStateMock).toHaveBeenCalledWith(
-      false,
-      null,
-      0,
-    );
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('preserves null stopped-state payloads when forwarding to the bridge', () => {
-    isAvailableMock.mockReturnValue(true);
-
+  it('preserves null stopped-state payloads without scheduling bridge work', () => {
     syncAndroidServerState(false, null, 0);
 
-    expect(updateStateMock).toHaveBeenCalledTimes(1);
-    expect(updateStateMock).toHaveBeenCalledWith(false, null, 0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('keeps retrying the latest payload until the bridge becomes available', () => {
-    isAvailableMock.mockReturnValue(false);
-
+  it('does not retry when asked for immediate compatibility sync', () => {
     syncAndroidServerState(false, null, 0, true);
 
-    vi.advanceTimersByTime(2000);
-    expect(updateStateMock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(3000);
 
-    isAvailableMock.mockReturnValue(true);
-    vi.advanceTimersByTime(1000);
-
-    expect(updateStateMock).toHaveBeenCalledTimes(1);
-    expect(updateStateMock).toHaveBeenCalledWith(false, null, 0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('does not let a stale retry callback clear the newest retry timeout', () => {
-    isAvailableMock.mockReturnValue(false);
-
+  it('ignores repeated sync requests without retaining timeout state', () => {
     syncAndroidServerState(true, {
       isRunning: true,
       connectedClients: 1,
@@ -91,24 +55,14 @@ describe('android server state sync', () => {
       lastFile: '/older.jpg',
     }, 1);
 
-    vi.advanceTimersByTime(1200);
-
     syncAndroidServerState(false, null, 0);
 
-    vi.advanceTimersByTime(1000);
-    expect(updateStateMock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(3000);
 
-    isAvailableMock.mockReturnValue(true);
-    vi.advanceTimersByTime(1000);
-
-    expect(updateStateMock).toHaveBeenCalledTimes(1);
-    expect(updateStateMock).toHaveBeenCalledWith(false, null, 0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('does not schedule a redundant retry after the first sync succeeds', () => {
-    isAvailableMock.mockReturnValue(true);
-    updateStateMock.mockReturnValue(true);
-
+  it('does not schedule any retry work after a compatibility sync call', () => {
     syncAndroidServerState(true, {
       isRunning: true,
       connectedClients: 3,
@@ -117,10 +71,8 @@ describe('android server state sync', () => {
       lastFile: '/latest.jpg',
     }, 3);
 
-    expect(updateStateMock).toHaveBeenCalledTimes(1);
-
     vi.advanceTimersByTime(3000);
 
-    expect(updateStateMock).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
