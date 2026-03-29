@@ -70,15 +70,14 @@ fn show_main_window(app: &AppHandle) {
 /// * `state` - 托盘图标状态（Stopped/Idle/Active）
 pub fn update_tray_icon(app: &AppHandle, state: TrayIconState) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(tray) = app.tray_by_id("main") {
-        let (icon_data, state_name) = match state {
-            TrayIconState::Stopped => (TRAY_STOPPED_PNG, "stopped (red dot)"),
-            TrayIconState::Idle => (TRAY_IDLE_PNG, "idle (yellow dot)"),
-            TrayIconState::Active => (TRAY_ACTIVE_PNG, "active (green dot)"),
+        let icon_data = match state {
+            TrayIconState::Stopped => TRAY_STOPPED_PNG,
+            TrayIconState::Idle => TRAY_IDLE_PNG,
+            TrayIconState::Active => TRAY_ACTIVE_PNG,
         };
         
         let icon = create_icon_from_bytes(icon_data)?;
         tray.set_icon(Some(icon))?;
-        tracing::info!("Tray icon updated to {}", state_name);
     }
     Ok(())
 }
@@ -93,7 +92,6 @@ pub fn update_tray_menu(app: &AppHandle, server_running: bool) -> Result<(), Box
     if let Some(state) = app.try_state::<TrayMenuState>() {
         state.start_item.set_enabled(!server_running)?;
         state.stop_item.set_enabled(server_running)?;
-        tracing::info!("Tray menu updated: server_running={}", server_running);
     }
     Ok(())
 }
@@ -365,9 +363,10 @@ impl PlatformService for WindowsPlatform {
                     tracing::info!("FTP server auto-started on {}:{}", ctx.ip, ctx.port);
 
                     // 先启动事件处理器（获取就绪信号）
+                    // 注意：传递 event_bus 的引用，不要克隆，以确保处理器和服务器共享同一个状态通道
                     let ready_rx = crate::ftp::server_factory::spawn_event_processor(
                         app_handle.clone(),
-                        ctx.event_bus.clone(),
+                        &ctx.event_bus,
                     );
 
                     // 等待事件处理器就绪（而非固定延迟）

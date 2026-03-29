@@ -41,9 +41,10 @@ pub async fn start_server(
     ).await?;
 
     // 先启动事件处理器，并等待其订阅建立
+    // 注意：传递 event_bus 的引用，不要克隆，以确保处理器和服务器共享同一个状态通道
     let ready_rx = crate::ftp::server_factory::spawn_event_processor(
         app.clone(),
-        ctx.event_bus.clone(),
+        &ctx.event_bus,
     );
 
     if tokio::time::timeout(Duration::from_secs(2), ready_rx).await.is_err() {

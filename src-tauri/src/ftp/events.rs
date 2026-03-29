@@ -7,7 +7,7 @@ use crate::ftp::types::{
 };
 use serde::Serialize;
 use tokio::sync::{broadcast, watch};
-use tracing::{trace, warn};
+use tracing::warn;
 use tauri::Emitter;
 
 /// 事件总线 - 中心化的领域事件分发
@@ -42,7 +42,6 @@ impl EventBus {
         self.runtime_state()
             .record_server_started(bind_addr.clone())
             .await;
-        trace!(bind_addr = %bind_addr, "Runtime state recorded for server start");
     }
 
     /// 发布服务器停止事件
@@ -108,6 +107,8 @@ pub trait RuntimeStateHandler: Send + Sync {
 pub struct EventProcessor {
     rx: broadcast::Receiver<DomainEvent>,
     state_rx: watch::Receiver<ServerRuntimeSnapshot>,
+    /// 用于在初始化时查询当前状态，解决订阅时序竞态条件
+    runtime_state: Option<crate::ftp::types::ServerRuntimeState>,
     runtime_state_handlers: Vec<Box<dyn RuntimeStateHandler>>,
     event_handlers: Vec<Box<dyn EventHandler>>,
 }
@@ -116,11 +117,30 @@ impl EventProcessor {
     /// 创建事件处理器
     pub fn new(bus: &EventBus) -> Self {
         let rx = bus.subscribe();
-        let state_rx = bus.runtime_state().subscribe();
+        let runtime_state = bus.runtime_state();
+        let state_rx = runtime_state.subscribe();
 
         Self {
             rx,
             state_rx,
+            runtime_state: Some(runtime_state),
+            runtime_state_handlers: Vec::new(),
+            event_handlers: Vec::new(),
+        }
+    }
+
+    /// 从组件创建事件处理器
+    ///
+    /// 用于当 EventBus 被提前丢弃，但需要保持状态监听的情况
+    pub fn from_parts(
+        transient_rx: broadcast::Receiver<DomainEvent>,
+        state_rx: watch::Receiver<ServerRuntimeSnapshot>,
+        runtime_state: Option<crate::ftp::types::ServerRuntimeState>,
+    ) -> Self {
+        Self {
+            rx: transient_rx,
+            state_rx,
+            runtime_state,
             runtime_state_handlers: Vec::new(),
             event_handlers: Vec::new(),
         }
@@ -146,6 +166,18 @@ impl EventProcessor {
     /// 运行处理器循环
     pub async fn run(mut self) {
         self.emit_current_runtime_state().await;
+        self.run_loop().await;
+    }
+
+    /// 运行处理器循环，并在初始化完成后发送就绪信号
+    ///
+    /// 这个方法与 `run()` 类似，但在完成初始状态分发后才会发送就绪信号，
+    /// 确保调用者在收到信号时，所有处理器已经处理完当前状态。
+    pub async fn run_with_ready_signal(mut self, ready_tx: tokio::sync::oneshot::Sender<()>) {
+        self.emit_current_runtime_state().await;
+        // 在启动事件循环前发送就绪信号
+        // 这确保调用者收到信号时，所有 runtime state handlers 已经处理了当前状态
+        let _ = ready_tx.send(());
         self.run_loop().await;
     }
 
@@ -185,7 +217,16 @@ impl EventProcessor {
     }
 
     async fn emit_current_runtime_state(&mut self) {
-        let snapshot = self.state_rx.borrow_and_update().clone();
+        // 优先从 ServerRuntimeState 直接查询当前状态，避免 watch channel 的竞态条件
+        // 如果 runtime_state 存在，使用它获取最新状态；否则回退到 receiver 的初始值
+        let snapshot = if let Some(ref rt_state) = self.runtime_state {
+            let current = rt_state.current_runtime_snapshot().await;
+            // 同时更新 receiver，使其与当前状态同步
+            let _ = self.state_rx.borrow_and_update();
+            current
+        } else {
+            self.state_rx.borrow_and_update().clone()
+        };
         self.replay_state_to_handlers(&snapshot).await;
     }
 
