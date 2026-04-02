@@ -8,3 +8,4 @@ linker = "link.exe"
 # This matches JSON serialization behavior (JSON doesn't support bigint)
 [env]
 TS_RS_LARGE_INT = "number"
+__TAURI_WORKSPACE__ = "true"

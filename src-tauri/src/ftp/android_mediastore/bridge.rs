@@ -24,13 +24,13 @@ use tracing::debug;
 #[cfg(not(target_os = "android"))]
 use super::types::{mime_type_from_filename, relative_path_from_full_path};
 
-#[cfg(any(target_os = "android", test))]
+#[cfg(target_os = "android")]
 const MEDIASTORE_BRIDGE_CLASS: &str = "com.gjk.cameraftpcompanion.bridges.MediaStoreBridge";
 
 #[cfg(any(target_os = "android", test))]
 const FINALIZE_ENTRY_METHOD_NAME: &str = "finalizeEntryAndEmitReadyNative";
 
-#[cfg(any(target_os = "android", test))]
+#[cfg(target_os = "android")]
 const FINALIZE_ENTRY_METHOD_SIGNATURE: &str =
     "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/Long;)Z";
 
@@ -748,6 +748,7 @@ pub fn create_bridge() -> Arc<dyn MediaStoreBridgeClient> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(not(target_os = "android"), unix))]
     use tempfile::TempDir;
 
     #[test]

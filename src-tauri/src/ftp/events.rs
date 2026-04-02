@@ -353,6 +353,10 @@ fn fan_out_runtime_state(
 }
 
 fn runtime_state_to_snapshot(runtime_state: &ServerRuntimeSnapshot) -> ServerStateSnapshot {
+    if !runtime_state.is_running {
+        return ServerStateSnapshot::default();
+    }
+
     let stats = runtime_state.stats.as_ref();
     ServerStateSnapshot {
         is_running: runtime_state.is_running,
@@ -1045,6 +1049,14 @@ mod tests {
                 ),
                 (
                     "stats-update".to_string(),
+                    serde_json::to_value(ServerStateSnapshot {
+                        is_running: true,
+                        ..ServerStateSnapshot::default()
+                    })
+                    .expect("server snapshot should serialize"),
+                ),
+                (
+                    "stats-update".to_string(),
                     serde_json::to_value(ServerStateSnapshot::from(&stats))
                         .expect("server snapshot should serialize"),
                 ),
@@ -1129,7 +1141,7 @@ mod tests {
 
     #[test]
     fn windows_tray_handler_uses_runtime_state_snapshot_semantics() {
-        let source = include_str!("windows.rs");
+        let source = include_str!("../platform/windows.rs");
 
         assert!(source.contains("fn update_server_state(&self, app: &AppHandle, connected_clients: u32)"));
         assert!(source.contains("TrayIconState::Active"));

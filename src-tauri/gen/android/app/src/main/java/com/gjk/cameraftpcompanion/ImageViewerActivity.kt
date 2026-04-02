@@ -502,7 +502,7 @@ class ImageViewerActivity : AppCompatActivity() {
             return
         }
 
-        viewPager.adapter?.notifyDataSetChanged()
+        (viewPager.adapter as? ImageViewerAdapter)?.replaceUris(uris)
         viewPager.setCurrentItem(currentIndex, false)
         updateUI()
         Toast.makeText(this, "图片已删除", Toast.LENGTH_SHORT).show()

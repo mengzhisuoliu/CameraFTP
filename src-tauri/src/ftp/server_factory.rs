@@ -205,7 +205,8 @@ mod tests {
         assert!(source.contains(".register_runtime_state_handler(StatsEventHandler::new(app_handle.clone()))"));
         assert!(source.contains(".register_runtime_state_handler(TrayUpdateHandler::new(app_handle_for_tray))"));
         assert!(source.contains(".register(FrontendTransientEventHandler::new(app_handle))"));
-        assert!(source.contains("drop(event_bus);"));
-        assert!(!source.contains("processor.catch_up().await;"));
+        assert!(source.contains("fn spawn_event_processor(app_handle: AppHandle, event_bus: &EventBus)"));
+        assert!(source.contains("EventProcessor::from_parts("));
+        assert!(source.contains("processor.run_with_ready_signal(ready_tx).await;"));
     }
 }

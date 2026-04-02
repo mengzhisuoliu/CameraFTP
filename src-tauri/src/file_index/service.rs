@@ -486,6 +486,18 @@ impl FileIndexService {
 
     /// 获取最新文件（排序第一个）
     pub async fn get_latest_file(&self) -> Option<FileInfo> {
+        {
+            let index = self.index.read().await;
+            if let Some(file) = index.files.first() {
+                return Some(file.clone());
+            }
+        }
+
+        if let Err(e) = self.scan_directory().await {
+            warn!(error = %e, "Failed to scan directory while getting latest file");
+            return None;
+        }
+
         let index = self.index.read().await;
         index.files.first().cloned()
     }
@@ -534,5 +546,54 @@ impl FileIndexService {
     #[cfg(target_os = "android")]
     async fn restart_watcher(&self, _path: PathBuf) {
         // Android 不使用文件系统监听
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use tempfile::tempdir;
+
+    use crate::config_service::ConfigService;
+
+    use super::FileIndexService;
+
+    #[tokio::test]
+    async fn get_latest_file_windows_startup_returns_saved_image_without_prior_scan() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+        let save_path = temp_dir.path().join("images");
+
+        std::fs::create_dir_all(&save_path).expect("failed to create save path");
+        std::fs::write(save_path.join("latest.jpg"), b"test-jpeg-content")
+            .expect("failed to write image file");
+
+        let config_service = ConfigService::new_with_path(config_path);
+        config_service
+            .mutate_and_persist(|config| {
+                config.save_path = PathBuf::from(&save_path);
+            })
+            .expect("failed to update save path in config");
+
+        let file_index_service = FileIndexService::new(Arc::new(config_service));
+
+        assert_eq!(file_index_service.get_file_count().await, 0);
+
+        let latest = file_index_service.get_latest_file().await;
+
+        assert!(
+            latest.is_some(),
+            "expected latest file on startup from configured save path even before explicit scan"
+        );
+        assert_eq!(
+            latest
+                .as_ref()
+                .expect("latest file should exist")
+                .filename,
+            "latest.jpg"
+        );
+        assert_eq!(file_index_service.get_file_count().await, 1);
     }
 }
