@@ -10,6 +10,43 @@ import { useServerStore } from '../stores/serverStore';
 import { IconContainer } from './ui';
 import { useImagePreviewOpener } from '../hooks/useImagePreviewOpener';
 import { useLatestPhoto } from '../hooks/useLatestPhoto';
+import { isGalleryV2Available, listMediaPage } from '../services/gallery-media-v2';
+
+const GALLERY_PAGE_SIZE = 120;
+
+async function getAllUrisFromGalleryV2(): Promise<string[]> {
+  if (!isGalleryV2Available()) {
+    return [];
+  }
+
+  const uris: string[] = [];
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+
+  while (true) {
+    const page = await listMediaPage({
+      cursor,
+      pageSize: GALLERY_PAGE_SIZE,
+      sort: 'dateDesc',
+    });
+
+    for (const item of page.items) {
+      if (seen.has(item.uri)) {
+        continue;
+      }
+      seen.add(item.uri);
+      uris.push(item.uri);
+    }
+
+    if (page.nextCursor === null) {
+      break;
+    }
+
+    cursor = page.nextCursor;
+  }
+
+  return uris;
+}
 
 export const LatestPhotoCard = memo(function LatestPhotoCard() {
   const { stats } = useServerStore();
@@ -38,6 +75,7 @@ export const LatestPhotoCard = memo(function LatestPhotoCard() {
         if (latest) {
           await openPreview({
             filePath: latest.path,
+            getAllUris: getAllUrisFromGalleryV2,
           });
         }
       } catch {

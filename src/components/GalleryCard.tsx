@@ -9,8 +9,7 @@ import { RefreshCw, ImageOff, X, Trash2, Share2, MoreVertical } from 'lucide-rea
 import { useConfigStore } from '../stores/configStore';
 import { usePermissionStore } from '../stores/permissionStore';
 import type { MediaItemDto } from '../types/gallery-v2';
-import { isGalleryMediaAvailable } from '../services/gallery-media';
-import { invalidateMediaIds } from '../services/gallery-media-v2';
+import { isGalleryV2Available, invalidateMediaIds } from '../services/gallery-media-v2';
 import { permissionBridge } from '../types';
 import { useGalleryPager } from '../hooks/useGalleryPager';
 import { useThumbnailScheduler } from '../hooks/useThumbnailScheduler';
@@ -189,7 +188,7 @@ export const GalleryCard = memo(function GalleryCard() {
   }, [pager]);
 
   // Not on Android
-  if (!isGalleryMediaAvailable()) {
+  if (!isGalleryV2Available()) {
     return null;
   }
 

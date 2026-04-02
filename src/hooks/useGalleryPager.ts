@@ -120,7 +120,15 @@ export function useGalleryPager(): UseGalleryPagerResult {
       return;
     }
 
-    setItems((prev) => prev.filter((item) => !mediaIds.has(item.mediaId)));
+    setItems((prev) => {
+      const next = prev.filter((item) => !mediaIds.has(item.mediaId));
+      const removedCount = prev.length - next.length;
+      if (removedCount > 0) {
+        setTotalCount((total) => Math.max(0, total - removedCount));
+      }
+      return next;
+    });
+
     const seen = seenMediaIdsRef.current;
     mediaIds.forEach((id) => seen.delete(id));
   }, []);

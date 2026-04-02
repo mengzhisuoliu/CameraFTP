@@ -104,6 +104,35 @@ describe('image-open service', () => {
     expect(openViewer).not.toHaveBeenCalled();
   });
 
+  it('uses getAllUris provider without calling legacy GalleryAndroid', async () => {
+    const openViewer = vi.fn().mockReturnValue(true);
+    window.ImageViewerAndroid = {
+      openViewer,
+      openOrNavigateTo: vi.fn().mockReturnValue(false),
+      isAppVisible: vi.fn().mockReturnValue(true),
+      closeViewer: vi.fn(),
+      onExifResult: vi.fn(),
+      resolveFilePath: vi.fn().mockReturnValue('/real/path.jpg'),
+    };
+
+    const legacyListMock = vi.fn().mockRejectedValue(new Error('legacy bridge should not be used'));
+    window.GalleryAndroid = {
+      listMediaStoreImages: legacyListMock,
+    } as unknown as Window['GalleryAndroid'];
+
+    await openImagePreview({
+      filePath: 'content://media/5',
+      openMethod: 'built-in-viewer',
+      getAllUris: async () => ['content://media/5', 'content://media/4'],
+    });
+
+    expect(openViewer).toHaveBeenCalledWith(
+      'content://media/5',
+      JSON.stringify(['content://media/5', 'content://media/4']),
+    );
+    expect(legacyListMock).not.toHaveBeenCalled();
+  });
+
   it('falls back to openViewer when openOrNavigateTo returns false', async () => {
     const openViewer = vi.fn().mockReturnValue(true);
     const openOrNavigateTo = vi.fn().mockReturnValue(false);

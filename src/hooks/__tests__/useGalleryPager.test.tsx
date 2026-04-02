@@ -29,6 +29,7 @@ function PagerHarness() {
       <span data-testid="error">{latestResult.error ?? ''}</span>
       <span data-testid="cursor">{latestResult.cursor ?? 'null'}</span>
       <span data-testid="revision">{latestResult.revisionToken}</span>
+      <span data-testid="total-count">{latestResult.totalCount}</span>
       <button onClick={() => void latestResult!.loadNextPage()} data-testid="load-next">
         load-next
       </button>
@@ -269,13 +270,14 @@ describe('useGalleryPager', () => {
 
   it('removes items by mediaId', async () => {
     listMediaPageMock.mockResolvedValueOnce(
-      makePage([makeItem('media-1'), makeItem('media-2'), makeItem('media-3')], null, 'rev-1'),
+      makePage([makeItem('media-1'), makeItem('media-2'), makeItem('media-3')], null, 'rev-1', 3),
     );
 
     await renderHarness();
     await clickLoadNext();
 
     expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('3');
+    expect(container.querySelector('[data-testid="total-count"]')?.textContent).toBe('3');
 
     await act(async () => {
       container.querySelector('[data-testid="remove-media-2"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -283,7 +285,28 @@ describe('useGalleryPager', () => {
     });
 
     expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('2');
+    expect(container.querySelector('[data-testid="total-count"]')?.textContent).toBe('2');
     expect(latestResult!.items.map((i) => i.mediaId)).toEqual(['media-1', 'media-3']);
+  });
+
+  it('does not decrement totalCount below zero when removing extra ids', async () => {
+    listMediaPageMock.mockResolvedValueOnce(
+      makePage([makeItem('media-1')], null, 'rev-1', 1),
+    );
+
+    await renderHarness();
+    await clickLoadNext();
+
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('1');
+    expect(container.querySelector('[data-testid="total-count"]')?.textContent).toBe('1');
+
+    await act(async () => {
+      latestResult!.removeItems(new Set(['media-1', 'missing-media-id']));
+      await flush();
+    });
+
+    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('0');
+    expect(container.querySelector('[data-testid="total-count"]')?.textContent).toBe('0');
   });
 
   it('sets error on non-stale-cursor failure', async () => {

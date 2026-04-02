@@ -13,15 +13,11 @@ const {
   listenMock,
   checkAndroidPermissionsMock,
   openStorageSettingsMock,
-  scheduleMediaLibraryRefreshMock,
-  shouldScheduleUploadRefreshMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   listenMock: vi.fn(),
   checkAndroidPermissionsMock: vi.fn(),
   openStorageSettingsMock: vi.fn(),
-  scheduleMediaLibraryRefreshMock: vi.fn(),
-  shouldScheduleUploadRefreshMock: vi.fn(),
 }));
 
 const eventHandlers = new Map<string, (event: { payload: unknown }) => void | Promise<void>>();
@@ -53,14 +49,6 @@ vi.mock('../../types/global', async () => {
   };
 });
 
-vi.mock('../../utils/gallery-refresh', () => ({
-  scheduleMediaLibraryRefresh: scheduleMediaLibraryRefreshMock,
-}));
-
-vi.mock('../../utils/server-stats-refresh', () => ({
-  shouldScheduleUploadRefresh: shouldScheduleUploadRefreshMock,
-}));
-
 describe('server event lifecycle service', () => {
   beforeEach(() => {
     useServerStore.setState({
@@ -84,9 +72,6 @@ describe('server event lifecycle service', () => {
     listenMock.mockReset();
     checkAndroidPermissionsMock.mockReset();
     openStorageSettingsMock.mockReset();
-    scheduleMediaLibraryRefreshMock.mockReset();
-    shouldScheduleUploadRefreshMock.mockReset();
-    shouldScheduleUploadRefreshMock.mockReturnValue(false);
 
     listenMock.mockImplementation(async (name: string, handler: (event: { payload: unknown }) => void) => {
       eventHandlers.set(name, handler);
@@ -141,6 +126,8 @@ describe('server event lifecycle service', () => {
     const cleanup = await initializeServerEvents();
 
     expect(invokeMock).toHaveBeenCalledWith('get_server_runtime_state');
+    expect(invokeMock).not.toHaveBeenCalledWith('get_server_status');
+    expect(invokeMock).not.toHaveBeenCalledWith('get_server_info');
     expect(eventHandlers.has('server-started')).toBe(true);
     expect(eventHandlers.has('server-stopped')).toBe(true);
     expect(eventHandlers.has('stats-update')).toBe(true);
@@ -390,7 +377,6 @@ describe('server event lifecycle service', () => {
     await eventHandlers.get('tray-start-server')?.({ payload: undefined });
     expect(invokeMock).toHaveBeenCalledWith('start_server');
 
-    shouldScheduleUploadRefreshMock.mockReturnValue(true);
     await eventHandlers.get('stats-update')?.({
       payload: {
         isRunning: true,
@@ -409,5 +395,30 @@ describe('server event lifecycle service', () => {
     });
     await eventHandlers.get('android-open-manage-storage-settings')?.({ payload: undefined });
     expect(openStorageSettingsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps gallery updates incremental by skipping full-refresh event paths', async () => {
+    await initializeServerEvents();
+
+    expect(eventHandlers.has('media-store-ready')).toBe(false);
+    expect(eventHandlers.has('media-library-refresh-requested')).toBe(false);
+
+    await eventHandlers.get('stats-update')?.({
+      payload: {
+        isRunning: true,
+        connectedClients: 2,
+        filesReceived: 12,
+        bytesReceived: 4096,
+        lastFile: '/latest.jpg',
+      },
+    });
+
+    expect(useServerStore.getState().stats).toEqual({
+      isRunning: true,
+      connectedClients: 2,
+      filesReceived: 12,
+      bytesReceived: 4096,
+      lastFile: '/latest.jpg',
+    });
   });
 });

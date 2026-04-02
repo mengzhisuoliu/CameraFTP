@@ -15,10 +15,10 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  enqueueThumbnailsV2,
-  cancelThumbnailRequestsV2,
-  registerThumbnailListenerV2,
-  unregisterThumbnailListenerV2,
+  enqueueThumbnails,
+  cancelThumbnailRequests,
+  registerThumbnailListener,
+  unregisterThumbnailListener,
 } from '../services/gallery-media-v2';
 import type { ThumbRequest, ThumbResult } from '../types/gallery-v2';
 
@@ -71,7 +71,6 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
   const failedMediaRef = useRef<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<{ visibleIds: string[]; nearbyIds: string[] } | null>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
   const debounceMsRef = useRef(debounceMs);
   debounceMsRef.current = debounceMs;
 
@@ -126,10 +125,10 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
       }
     };
 
-    void registerThumbnailListenerV2(VIEW_ID, LISTENER_ID, handleResult);
+    void registerThumbnailListener(VIEW_ID, LISTENER_ID, handleResult);
 
     return () => {
-      void unregisterThumbnailListenerV2(LISTENER_ID);
+      void unregisterThumbnailListener(LISTENER_ID);
     };
   }, []);
 
@@ -148,7 +147,7 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
         }
       }
       if (toCancel.length > 0) {
-        void cancelThumbnailRequestsV2(toCancel);
+        void cancelThumbnailRequests(toCancel);
         for (const id of toCancel) {
           const req = activeRequestsRef.current.get(id);
           if (req) {
@@ -212,7 +211,7 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
 
       if (newReqs.length > 0) {
         console.log(`[ThumbSched] enqueueing ${newReqs.length} thumbnail requests`);
-        void enqueueThumbnailsV2(newReqs).catch((e) => console.error('[ThumbSched] enqueueThumbnailsV2 error:', e));
+        void enqueueThumbnails(newReqs).catch((e) => console.error('[ThumbSched] enqueueThumbnails error:', e));
       } else {
         console.log('[ThumbSched] no new requests to enqueue');
       }
@@ -266,7 +265,7 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
       }
     }
     if (toCancel.length > 0) {
-      void cancelThumbnailRequestsV2(toCancel);
+      void cancelThumbnailRequests(toCancel);
       for (const id of toCancel) {
         activeRequestsRef.current.delete(id);
       }
@@ -287,28 +286,16 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
 
     const allRequestIds = [...activeRequestsRef.current.keys()];
     if (allRequestIds.length > 0) {
-      void cancelThumbnailRequestsV2(allRequestIds);
+      void cancelThumbnailRequests(allRequestIds);
     }
     activeRequestsRef.current.clear();
     failedMediaRef.current.clear();
     setLoadingThumbs(new Set());
   }, []);
 
-  // Expose cleanup for unmount
-  cleanupRef.current = cleanup;
-
   useEffect(() => {
-    return () => {
-      if (debounceRef.current !== null) {
-        clearTimeout(debounceRef.current);
-      }
-      const allRequestIds = [...activeRequestsRef.current.keys()];
-      if (allRequestIds.length > 0) {
-        void cancelThumbnailRequestsV2(allRequestIds);
-      }
-      activeRequestsRef.current.clear();
-    };
-  }, []);
+    return cleanup;
+  }, [cleanup]);
 
   return {
     thumbnails,

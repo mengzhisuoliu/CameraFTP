@@ -89,8 +89,9 @@ vi.mock('../../hooks/useImagePreviewOpener', () => ({
   useImagePreviewOpener: () => vi.fn(),
 }));
 
-vi.mock('../../services/gallery-media', () => ({
-  isGalleryMediaAvailable: () => true,
+vi.mock('../../services/gallery-media-v2', () => ({
+  isGalleryV2Available: () => true,
+  invalidateMediaIds: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../stores/configStore', () => ({

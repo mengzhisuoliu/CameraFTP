@@ -7,10 +7,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fetchLatestPhotoFile } from '../latest-photo';
 
-const { invokeMock, isGalleryV2AvailableMock, listMediaPageV2Mock } = vi.hoisted(() => ({
+const { invokeMock, isGalleryV2AvailableMock, listMediaPageMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   isGalleryV2AvailableMock: vi.fn(),
-  listMediaPageV2Mock: vi.fn(),
+  listMediaPageMock: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -19,13 +19,13 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 vi.mock('../gallery-media-v2', () => ({
   isGalleryV2Available: isGalleryV2AvailableMock,
-  listMediaPageV2: listMediaPageV2Mock,
+  listMediaPage: listMediaPageMock,
 }));
 
 describe('latest-photo service', () => {
   it('returns null when V2 bridge is available but empty', async () => {
     isGalleryV2AvailableMock.mockReturnValue(true);
-    listMediaPageV2Mock.mockResolvedValue({ items: [], nextCursor: null, revisionToken: '' });
+    listMediaPageMock.mockResolvedValue({ items: [], nextCursor: null, revisionToken: '' });
 
     await expect(fetchLatestPhotoFile()).resolves.toBeNull();
     expect(invokeMock).not.toHaveBeenCalled();
@@ -33,7 +33,7 @@ describe('latest-photo service', () => {
 
   it('returns latest mapped image from V2 bridge when available', async () => {
     isGalleryV2AvailableMock.mockReturnValue(true);
-    listMediaPageV2Mock.mockResolvedValue({
+    listMediaPageMock.mockResolvedValue({
       items: [
         { mediaId: '2', uri: 'content://latest/latest.jpg', dateModifiedMs: 200, width: 1920, height: 1080, mimeType: 'image/jpeg' },
       ],
@@ -45,7 +45,7 @@ describe('latest-photo service', () => {
       path: 'content://latest/latest.jpg',
       filename: 'latest.jpg',
     });
-    expect(listMediaPageV2Mock).toHaveBeenCalledWith({ cursor: null, pageSize: 1, sort: 'dateDesc' });
+    expect(listMediaPageMock).toHaveBeenCalledWith({ cursor: null, pageSize: 1, sort: 'dateDesc' });
     expect(invokeMock).not.toHaveBeenCalled();
   });
 

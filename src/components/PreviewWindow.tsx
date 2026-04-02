@@ -4,17 +4,19 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { useEffect, useState, useRef, useCallback, useMemo, memo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { ExifInfo } from '../types';
 import type { ConfigChangedEvent } from '../types/events';
 import { useConfigStore } from '../stores/configStore';
 import { PREVIEW_NAVIGATE_EVENT } from '../hooks/preview-window-events';
 import { usePreviewWindowLifecycle } from '../hooks/usePreviewWindowLifecycle';
 import { usePreviewNavigation } from '../hooks/usePreviewNavigation';
+import { usePreviewExif } from '../hooks/usePreviewExif';
+import { usePreviewZoomPan } from '../hooks/usePreviewZoomPan';
+import { usePreviewToolbarAutoHide } from '../hooks/usePreviewToolbarAutoHide';
 
 export function PreviewWindow() {
   const state = usePreviewWindowLifecycle();
@@ -45,42 +47,30 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   autoBringToFront: boolean;
 }) {
   const updatePreviewConfig = useConfigStore(state => state.updatePreviewConfig);
-  const [showToolbar, setShowToolbar] = useState(true);
-  const [isToolbarHovered, setIsToolbarHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [localAutoBringToFront, setLocalAutoBringToFront] = useState(autoBringToFront);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // EXIF 信息
-  const [exifInfo, setExifInfo] = useState<ExifInfo | null>(null);
-
-  // 加载 EXIF 信息
-  const loadExifInfo = useCallback(async (path: string) => {
-    try {
-      const exif = await invoke<ExifInfo | null>('get_image_exif', { filePath: path });
-      setExifInfo(exif);
-    } catch {
-      // Silently ignore - EXIF is optional metadata
-      setExifInfo(null);
-    }
-  }, []);
-
-  // 缩放和拖拽状态
-  const [scale, setScale] = useState(1);
-  const [panX, setPanX] = useState(0);
-  const [panY, setPanY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
+  const exifInfo = usePreviewExif(imagePath);
+  const {
+    showToolbar,
+    showToolbarOnPointerMove,
+    handleToolbarMouseEnter,
+    handleToolbarMouseLeave,
+  } = usePreviewToolbarAutoHide();
+  const {
+    scale,
+    panX,
+    panY,
+    isDragging,
+    containerRef,
+    resetZoom,
+    handleWheel,
+    handleMouseDown,
+    handleMouseMove,
+    stopDragging,
+  } = usePreviewZoomPan(imagePath);
   const appWindow = getCurrentWindow();
-
-  // 重置缩放
-  const resetZoom = useCallback(() => {
-    setScale(1);
-    setPanX(0);
-    setPanY(0);
-  }, []);
 
   const {
     currentIndex,
@@ -120,54 +110,11 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     };
   }, []);
 
-  // 自动隐藏工具栏（鼠标悬停在工具栏上时不隐藏）
-  useEffect(() => {
-    // 如果工具栏隐藏或鼠标悬停在工具栏上，不设置定时器
-    if (!showToolbar || isToolbarHovered) {
-      return;
-    }
-
-    if (toolbarTimeoutRef.current) {
-      clearTimeout(toolbarTimeoutRef.current);
-    }
-
-    toolbarTimeoutRef.current = setTimeout(() => {
-      setShowToolbar(false);
-    }, 3000);
-
-    return () => {
-      if (toolbarTimeoutRef.current) {
-        clearTimeout(toolbarTimeoutRef.current);
-      }
-    };
-  }, [showToolbar, isToolbarHovered]);
-
   // 重置图片错误状态和缩放
   useEffect(() => {
     setImageError(false);
-    resetZoom();
-  }, [imagePath]);
-
-  // 加载 EXIF 信息
-  useEffect(() => {
-    if (imagePath) {
-      loadExifInfo(imagePath);
-    }
-  }, [imagePath]);
-
-  // 监听窗口大小变化，重置缩放
-  useEffect(() => {
-    const handleResize = () => {
-      resetZoom();
-    };
-
-    // 使用 Tauri 的窗口大小变化监听
-    const unlisten = appWindow.onResized(handleResize);
-    
-    return () => {
-      void unlisten.then(fn => fn()).catch(() => {});
-    };
-  }, [appWindow]);
+    stopDragging();
+  }, [imagePath, stopDragging]);
 
   // 监听全屏状态变化
   useEffect(() => {
@@ -197,81 +144,10 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     }
   }, [isFullscreen, appWindow]);
 
-  // 处理鼠标滚轮缩放
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    
-    const container = containerRef.current;
-    const img = container?.querySelector('img');
-    if (!container || !img) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const imgRect = img.getBoundingClientRect();
-    
-    // 鼠标相对于容器的位置
-    const mouseX = e.clientX - containerRect.left;
-    const mouseY = e.clientY - containerRect.top;
-    
-    // 计算缩放因子 - 最小为1（不裁切充满窗口）
-    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(1, Math.min(5, scale * zoomFactor));
-
-    if (newScale !== scale) {
-      // 计算图片当前实际显示尺寸（考虑object-contain）
-      const currentImgWidth = imgRect.width;
-      const currentImgHeight = imgRect.height;
-      
-      // 图片中心相对于容器中心的位置
-      const imgCenterX = imgRect.left + currentImgWidth / 2 - containerRect.left;
-      const imgCenterY = imgRect.top + currentImgHeight / 2 - containerRect.top;
-      
-      // 鼠标相对于图片中心的位置
-      const mouseOffsetX = mouseX - imgCenterX;
-      const mouseOffsetY = mouseY - imgCenterY;
-      
-      // 以鼠标位置为中心缩放的平移计算
-      const scaleRatio = newScale / scale;
-      const newPanX = panX - mouseOffsetX * (scaleRatio - 1);
-      const newPanY = panY - mouseOffsetY * (scaleRatio - 1);
-
-      setScale(newScale);
-      // 只有在缩放大于1时才允许有平移
-      if (newScale > 1) {
-        setPanX(newPanX);
-        setPanY(newPanY);
-      } else {
-        setPanX(0);
-        setPanY(0);
-      }
-    }
-  }, [scale, panX, panY]);
-
-  // 处理鼠标按下（开始拖拽）
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (scale > 1) {
-      setIsDragging(true);
-      dragStartRef.current = {
-        x: e.clientX - panX,
-        y: e.clientY - panY,
-      };
-    }
-  }, [scale, panX, panY]);
-
-  // 处理鼠标移动（拖拽中）
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    // 更新工具栏显示
-    setShowToolbar(true);
-
-    if (isDragging && scale > 1) {
-      setPanX(e.clientX - dragStartRef.current.x);
-      setPanY(e.clientY - dragStartRef.current.y);
-    }
-  }, [isDragging, scale]);
-
-  // 处理鼠标释放（结束拖拽）
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  const handleMouseMoveWithToolbar = useCallback((e: React.MouseEvent) => {
+    showToolbarOnPointerMove();
+    handleMouseMove(e);
+  }, [showToolbarOnPointerMove, handleMouseMove]);
 
   // 处理双击重置
   const handleDoubleClick = useCallback(() => {
@@ -280,7 +156,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
 
   // 全局键盘和鼠标释放监听
   useEffect(() => {
-    const handleGlobalMouseUp = () => setIsDragging(false);
+    const handleGlobalMouseUp = () => stopDragging();
 
     const handleKeyDown = async (e: KeyboardEvent) => {
       switch (e.key) {
@@ -314,7 +190,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
       window.removeEventListener('mouseup', handleGlobalMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest]);
+  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest, stopDragging]);
 
   const handleOpenFolder = async () => {
     if (imagePath) {
@@ -362,8 +238,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         }`}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMoveWithToolbar}
+        onMouseUp={stopDragging}
         onDoubleClick={handleDoubleClick}
       >
         {imageError ? (
@@ -404,8 +280,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
           transition-all duration-300
           ${showToolbar ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}
         `}
-        onMouseEnter={() => setIsToolbarHovered(true)}
-        onMouseLeave={() => setIsToolbarHovered(false)}
+        onMouseEnter={handleToolbarMouseEnter}
+        onMouseLeave={handleToolbarMouseLeave}
       >
         {/* 左侧：文件名和拍摄信息 */}
         <div className="flex items-center gap-3 min-w-0">

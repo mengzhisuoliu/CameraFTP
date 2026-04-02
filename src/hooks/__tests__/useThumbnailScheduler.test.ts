@@ -8,10 +8,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useThumbnailScheduler } from '../useThumbnailScheduler';
 import {
-  enqueueThumbnailsV2,
-  cancelThumbnailRequestsV2,
-  registerThumbnailListenerV2,
-  unregisterThumbnailListenerV2,
+  enqueueThumbnails,
+  cancelThumbnailRequests,
+  registerThumbnailListener,
+  unregisterThumbnailListener,
 } from '../../services/gallery-media-v2';
 import type { ThumbRequest, ThumbResult } from '../../types/gallery-v2';
 
@@ -20,17 +20,17 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 vi.mock('../../services/gallery-media-v2', () => ({
-  enqueueThumbnailsV2: vi.fn().mockResolvedValue(undefined),
-  cancelThumbnailRequestsV2: vi.fn().mockResolvedValue(undefined),
-  registerThumbnailListenerV2: vi.fn().mockResolvedValue(undefined),
-  unregisterThumbnailListenerV2: vi.fn().mockResolvedValue(undefined),
+  enqueueThumbnails: vi.fn().mockResolvedValue(undefined),
+  cancelThumbnailRequests: vi.fn().mockResolvedValue(undefined),
+  registerThumbnailListener: vi.fn().mockResolvedValue(undefined),
+  unregisterThumbnailListener: vi.fn().mockResolvedValue(undefined),
 }));
 
 /** Short debounce for fast tests */
 const TEST_DEBOUNCE = 2;
 
 function getRegisteredListener(): (result: ThumbResult) => void {
-  const calls = vi.mocked(registerThumbnailListenerV2).mock.calls;
+  const calls = vi.mocked(registerThumbnailListener).mock.calls;
   const lastCall = calls[calls.length - 1];
   return lastCall[2] as (result: ThumbResult) => void;
 }
@@ -75,12 +75,12 @@ describe('useThumbnailScheduler', () => {
     });
 
     // Debounce not yet fired
-    expect(enqueueThumbnailsV2).not.toHaveBeenCalled();
+    expect(enqueueThumbnails).not.toHaveBeenCalled();
 
     await flushDebounce();
 
-    expect(enqueueThumbnailsV2).toHaveBeenCalledTimes(1);
-    const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+    expect(enqueueThumbnails).toHaveBeenCalledTimes(1);
+    const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
     expect(reqs).toHaveLength(2);
     expect(reqs[0].mediaId).toBe('1');
     expect(reqs[0].priority).toBe('visible');
@@ -101,7 +101,7 @@ describe('useThumbnailScheduler', () => {
 
     await flushDebounce();
 
-    const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+    const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
     expect(reqs).toHaveLength(3);
     expect(reqs.find((r) => r.mediaId === '1')?.priority).toBe('visible');
     expect(reqs.find((r) => r.mediaId === '2')?.priority).toBe('nearby');
@@ -121,7 +121,7 @@ describe('useThumbnailScheduler', () => {
     });
     await flushDebounce();
 
-    expect(enqueueThumbnailsV2).toHaveBeenCalledTimes(1);
+    expect(enqueueThumbnails).toHaveBeenCalledTimes(1);
 
     // Scroll: only '1' visible, '2' nearby, '3' is gone
     act(() => {
@@ -129,8 +129,8 @@ describe('useThumbnailScheduler', () => {
     });
     await flushDebounce();
 
-    expect(cancelThumbnailRequestsV2).toHaveBeenCalledTimes(1);
-    const cancelledIds = vi.mocked(cancelThumbnailRequestsV2).mock.calls[0][0];
+    expect(cancelThumbnailRequests).toHaveBeenCalledTimes(1);
+    const cancelledIds = vi.mocked(cancelThumbnailRequests).mock.calls[0][0];
     expect(cancelledIds.length).toBeGreaterThan(0);
   });
 
@@ -146,7 +146,7 @@ describe('useThumbnailScheduler', () => {
     });
     await flushDebounce();
 
-    const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+    const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
     const req = reqs[0];
 
     const listener = getRegisteredListener();
@@ -170,7 +170,7 @@ describe('useThumbnailScheduler', () => {
     });
     await flushDebounce();
 
-    const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+    const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
     const oldReq = reqs[0];
 
     // Simulate the media being updated (dateModifiedMs changed)
@@ -216,7 +216,7 @@ describe('useThumbnailScheduler', () => {
       const { result } = setupFailedRequest(errorCode);
       await flushDebounce();
 
-      const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+      const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
       const req = reqs[0];
 
       const listener = getRegisteredListener();
@@ -234,14 +234,14 @@ describe('useThumbnailScheduler', () => {
       await flushDebounce();
 
       // Should have been enqueued again (2nd call)
-      expect(enqueueThumbnailsV2).toHaveBeenCalledTimes(2);
+      expect(enqueueThumbnails).toHaveBeenCalledTimes(2);
     });
 
     it.each(permanentErrors)('does NOT retry on %s (permanent error)', async (errorCode) => {
       const { result } = setupFailedRequest(errorCode);
       await flushDebounce();
 
-      const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+      const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
       const req = reqs[0];
 
       const listener = getRegisteredListener();
@@ -258,7 +258,7 @@ describe('useThumbnailScheduler', () => {
       await flushDebounce();
 
       // Should NOT have been re-enqueued (still only 1 call)
-      expect(enqueueThumbnailsV2).toHaveBeenCalledTimes(1);
+      expect(enqueueThumbnails).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -282,7 +282,7 @@ describe('useThumbnailScheduler', () => {
 
     expect(result.current.loadingThumbs.has('1')).toBe(false);
     expect(result.current.loadingThumbs.has('2')).toBe(true);
-    expect(cancelThumbnailRequestsV2).toHaveBeenCalled();
+    expect(cancelThumbnailRequests).toHaveBeenCalled();
   });
 
   it('cleanup cancels all pending requests and clears loading state', async () => {
@@ -304,7 +304,27 @@ describe('useThumbnailScheduler', () => {
     });
 
     expect(result.current.loadingThumbs.size).toBe(0);
-    expect(cancelThumbnailRequestsV2).toHaveBeenCalled();
+    expect(cancelThumbnailRequests).toHaveBeenCalled();
+  });
+
+  it('does not duplicate cancellation work when cleanup is called before unmount', async () => {
+    const { result, unmount } = renderHook(() => useThumbnailScheduler({ debounceMs: TEST_DEBOUNCE }));
+
+    act(() => {
+      result.current.registerMedia([makeMedia('1'), makeMedia('2')]);
+    });
+
+    act(() => {
+      result.current.updateViewport(['1', '2'], []);
+    });
+    await flushDebounce();
+
+    act(() => {
+      result.current.cleanup();
+    });
+    unmount();
+
+    expect(cancelThumbnailRequests).toHaveBeenCalledTimes(1);
   });
 
   it('debounces rapid viewport changes into a single enqueue', async () => {
@@ -331,8 +351,8 @@ describe('useThumbnailScheduler', () => {
     });
 
     // Only one enqueue call (last viewport state)
-    expect(enqueueThumbnailsV2).toHaveBeenCalledTimes(1);
-    const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+    expect(enqueueThumbnails).toHaveBeenCalledTimes(1);
+    const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
     const mediaIds = reqs.map((r) => r.mediaId);
     expect(mediaIds).toContain('2');
     expect(mediaIds).toContain('3');
@@ -356,7 +376,7 @@ describe('useThumbnailScheduler', () => {
     });
     await flushDebounce();
 
-    const reqs = vi.mocked(enqueueThumbnailsV2).mock.calls[0][0] as ThumbRequest[];
+    const reqs = vi.mocked(enqueueThumbnails).mock.calls[0][0] as ThumbRequest[];
     const mediaIds = reqs.map((r) => r.mediaId);
     expect(mediaIds).toContain('1');
     expect(mediaIds).toContain('2');
@@ -368,7 +388,7 @@ describe('useThumbnailScheduler', () => {
     const LISTENER_ID = 'thumbnail-scheduler';
     const { unmount } = renderHook(() => useThumbnailScheduler({ debounceMs: TEST_DEBOUNCE }));
 
-    expect(registerThumbnailListenerV2).toHaveBeenCalledWith(
+    expect(registerThumbnailListener).toHaveBeenCalledWith(
       'gallery-grid',
       LISTENER_ID,
       expect.any(Function),
@@ -376,6 +396,6 @@ describe('useThumbnailScheduler', () => {
 
     unmount();
 
-    expect(unregisterThumbnailListenerV2).toHaveBeenCalledWith(LISTENER_ID);
+    expect(unregisterThumbnailListener).toHaveBeenCalledWith(LISTENER_ID);
   });
 });
