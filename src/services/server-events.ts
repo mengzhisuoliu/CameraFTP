@@ -7,7 +7,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Event } from '@tauri-apps/api/event';
 import type { ServerInfo, ServerStateSnapshot } from '../types';
-import { storageSettingsBridge } from '../types/global';
 
 import { createEventManager, type EventRegistration } from '../utils/events';
 // Note: scheduleMediaLibraryRefresh removed - full refresh no longer needed
@@ -127,12 +126,6 @@ function createEventRegistrations(): EventRegistration<any>[] {
         } catch (err) {
           console.warn('[server-events] Tray stop server failed:', err);
         }
-      },
-    },
-    {
-      name: 'android-open-manage-storage-settings',
-      handler: () => {
-        storageSettingsBridge.openAllFilesAccessSettings();
       },
     },
   ];

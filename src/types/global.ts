@@ -12,30 +12,6 @@
 // ===== Android JS Bridge 类型 =====
 
 /**
- * Android 文件上传回调接口
- * 由 Android WebView 注入
- */
-interface FileUploadAndroid {
-  /**
-   * 文件上传完成回调
-   * @param path 文件路径
-   * @param size 文件大小（字节）
-   */
-  onFileUploaded: (path: string, size: number) => void;
-}
-
-/**
- * Android 存储权限设置接口
- * 由 Android WebView 注入
- */
-interface StorageSettingsAndroid {
-  /**
-   * 打开"所有文件访问权限"设置页面
-   */
-  openAllFilesAccessSettings: () => void;
-}
-
-/**
  * Android 权限检查结果
  */
 export interface PermissionCheckResult {
@@ -171,14 +147,6 @@ interface GalleryAndroid {
 }
 
 /**
- * Android MediaStore Bridge interface
- * Optionally exposed for debug hooks
- */
-interface MediaStoreAndroidBridge {
-  // optionally exposed for debug hooks
-}
-
-/**
  * Android Gallery V2 Bridge interface
  * Async batched thumbnail pipeline with priority queues.
  * Injected by Android WebView as "GalleryAndroidV2".
@@ -294,16 +262,6 @@ interface ImageViewerAndroid {
 declare global {
   interface Window {
     /**
-     * Android 文件上传 JS Bridge
-     */
-    FileUploadAndroid?: FileUploadAndroid;
-    
-    /**
-     * Android 存储权限设置 JS Bridge
-     */
-    StorageSettingsAndroid?: StorageSettingsAndroid;
-    
-    /**
      * Android 权限管理 JS Bridge
      */
     PermissionAndroid?: PermissionAndroid;
@@ -319,11 +277,6 @@ declare global {
      */
     GalleryAndroidV2?: GalleryAndroidV2;
     
-    /**
-     * Android MediaStore Bridge for debug hooks
-     */
-    MediaStoreAndroid?: MediaStoreAndroidBridge;
-
     /**
      * Android Image Viewer JS Bridge
      */
@@ -405,25 +358,5 @@ export const permissionBridge = {
    */
   async checkAll(): Promise<PermissionCheckResult | null> {
     return checkAndroidPermissions();
-  },
-};
-
-/**
- * Storage settings bridge adapter
- * Provides a clean interface for opening Android storage settings
- */
-export const storageSettingsBridge = {
-  /**
-   * Check if the storage settings bridge is available
-   */
-  isAvailable(): boolean {
-    return typeof window !== 'undefined' && !!window.StorageSettingsAndroid;
-  },
-
-  /**
-   * Open the all files access settings page
-   */
-  openAllFilesAccessSettings(): void {
-    window.StorageSettingsAndroid?.openAllFilesAccessSettings();
   },
 };

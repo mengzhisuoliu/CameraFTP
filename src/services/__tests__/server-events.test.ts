@@ -12,12 +12,10 @@ const {
   invokeMock,
   listenMock,
   checkAndroidPermissionsMock,
-  openStorageSettingsMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   listenMock: vi.fn(),
   checkAndroidPermissionsMock: vi.fn(),
-  openStorageSettingsMock: vi.fn(),
 }));
 
 const eventHandlers = new Map<string, (event: { payload: unknown }) => void | Promise<void>>();
@@ -35,17 +33,6 @@ vi.mock('../../types', async () => {
   return {
     ...actual,
     checkAndroidPermissions: checkAndroidPermissionsMock,
-  };
-});
-
-vi.mock('../../types/global', async () => {
-  const actual = await vi.importActual<typeof import('../../types/global')>('../../types/global');
-  return {
-    ...actual,
-    storageSettingsBridge: {
-      isAvailable: () => true,
-      openAllFilesAccessSettings: openStorageSettingsMock,
-    },
   };
 });
 
@@ -71,7 +58,6 @@ describe('server event lifecycle service', () => {
     invokeMock.mockReset();
     listenMock.mockReset();
     checkAndroidPermissionsMock.mockReset();
-    openStorageSettingsMock.mockReset();
 
     listenMock.mockImplementation(async (name: string, handler: (event: { payload: unknown }) => void) => {
       eventHandlers.set(name, handler);
@@ -371,7 +357,7 @@ describe('server event lifecycle service', () => {
     });
   });
 
-  it('handles tray start, stats refresh, and storage settings bridge events', async () => {
+  it('handles tray start and stats refresh events', async () => {
     await initializeServerEvents();
 
     await eventHandlers.get('tray-start-server')?.({ payload: undefined });
@@ -393,8 +379,7 @@ describe('server event lifecycle service', () => {
       bytesReceived: 100,
       lastFile: null,
     });
-    await eventHandlers.get('android-open-manage-storage-settings')?.({ payload: undefined });
-    expect(openStorageSettingsMock).toHaveBeenCalledTimes(1);
+    expect(eventHandlers.has('android-open-manage-storage-settings')).toBe(false);
   });
 
   it('keeps gallery updates incremental by skipping full-refresh event paths', async () => {
