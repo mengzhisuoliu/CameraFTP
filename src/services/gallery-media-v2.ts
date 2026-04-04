@@ -14,7 +14,6 @@
 import type {
   MediaPageRequest,
   MediaPageResponse,
-  QueueStats,
   ThumbRequest,
   ThumbResult,
   ThumbResultListener,
@@ -75,14 +74,6 @@ export async function cancelThumbnailRequests(requestIds: string[]): Promise<voi
 }
 
 /**
- * Cancel all thumbnail requests associated with a view
- */
-export async function cancelByView(viewId: string): Promise<void> {
-  const bridge = getBridge();
-  await bridge.cancelByView(viewId);
-}
-
-/**
  * Register a listener for thumbnail results
  *
  * The bridge delivers results via a global callback mechanism.
@@ -117,19 +108,6 @@ export async function invalidateMediaIds(mediaIds: string[]): Promise<void> {
 }
 
 /**
- * Get current thumbnail queue statistics
- */
-export async function getQueueStats(): Promise<QueueStats> {
-  const bridge = getBridge();
-  const json = await bridge.getQueueStats();
-  try {
-    return JSON.parse(json) as QueueStats;
-  } catch (e) {
-    throw new Error(`Failed to parse getQueueStats response: ${(e as Error).message}`);
-  }
-}
-
-/**
  * Dispatch a thumbnail result to the registered listener.
  * Called by the Android bridge via a global callback.
  */
@@ -148,8 +126,3 @@ export function dispatchThumbnailResult(listenerId: string, resultJson: string):
     console.warn(`[GalleryV2] dispatchThumbnailResult: no listener for ${listenerId}, registered: ${[...listeners.keys()]}`);
   }
 }
-
-/**
- * List a page of media items using V2 bridge (simplified API).
- * Returns empty response if bridge is unavailable.
- */

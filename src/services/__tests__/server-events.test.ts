@@ -7,17 +7,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initializeServerEvents } from '../server-events';
 import { useServerStore } from '../../stores/serverStore';
+import { GALLERY_REFRESH_REQUESTED_EVENT } from '../../utils/gallery-refresh';
 
 const {
   invokeMock,
   listenMock,
   checkAndroidPermissionsMock,
-  openStorageSettingsMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   listenMock: vi.fn(),
   checkAndroidPermissionsMock: vi.fn(),
-  openStorageSettingsMock: vi.fn(),
 }));
 
 const eventHandlers = new Map<string, (event: { payload: unknown }) => void | Promise<void>>();
@@ -35,17 +34,6 @@ vi.mock('../../types', async () => {
   return {
     ...actual,
     checkAndroidPermissions: checkAndroidPermissionsMock,
-  };
-});
-
-vi.mock('../../types/global', async () => {
-  const actual = await vi.importActual<typeof import('../../types/global')>('../../types/global');
-  return {
-    ...actual,
-    storageSettingsBridge: {
-      isAvailable: () => true,
-      openAllFilesAccessSettings: openStorageSettingsMock,
-    },
   };
 });
 
@@ -71,7 +59,6 @@ describe('server event lifecycle service', () => {
     invokeMock.mockReset();
     listenMock.mockReset();
     checkAndroidPermissionsMock.mockReset();
-    openStorageSettingsMock.mockReset();
 
     listenMock.mockImplementation(async (name: string, handler: (event: { payload: unknown }) => void) => {
       eventHandlers.set(name, handler);
@@ -126,8 +113,7 @@ describe('server event lifecycle service', () => {
     const cleanup = await initializeServerEvents();
 
     expect(invokeMock).toHaveBeenCalledWith('get_server_runtime_state');
-    expect(invokeMock).not.toHaveBeenCalledWith('get_server_status');
-    expect(invokeMock).not.toHaveBeenCalledWith('get_server_info');
+    expect(invokeMock.mock.calls).toEqual([['get_server_runtime_state']]);
     expect(eventHandlers.has('server-started')).toBe(true);
     expect(eventHandlers.has('server-stopped')).toBe(true);
     expect(eventHandlers.has('stats-update')).toBe(true);
@@ -245,6 +231,7 @@ describe('server event lifecycle service', () => {
     await eventHandlers.get('server-started')?.({ payload: { ip: '192.168.1.50', port: 2121 } });
 
     expect(invokeMock).toHaveBeenCalledWith('get_server_runtime_state');
+    expect(invokeMock.mock.calls).toEqual([['get_server_runtime_state']]);
     expect(useServerStore.getState().serverInfo).toEqual({
       isRunning: true,
       ip: '192.168.1.50',
@@ -371,7 +358,7 @@ describe('server event lifecycle service', () => {
     });
   });
 
-  it('handles tray start, stats refresh, and storage settings bridge events', async () => {
+  it('handles tray start and stats refresh events', async () => {
     await initializeServerEvents();
 
     await eventHandlers.get('tray-start-server')?.({ payload: undefined });
@@ -393,15 +380,14 @@ describe('server event lifecycle service', () => {
       bytesReceived: 100,
       lastFile: null,
     });
-    await eventHandlers.get('android-open-manage-storage-settings')?.({ payload: undefined });
-    expect(openStorageSettingsMock).toHaveBeenCalledTimes(1);
+    expect(eventHandlers.has('android-open-manage-storage-settings')).toBe(false);
   });
 
   it('keeps gallery updates incremental by skipping full-refresh event paths', async () => {
     await initializeServerEvents();
 
     expect(eventHandlers.has('media-store-ready')).toBe(false);
-    expect(eventHandlers.has('media-library-refresh-requested')).toBe(false);
+    expect(eventHandlers.has('media-library-refresh-requested')).toBe(true);
 
     await eventHandlers.get('stats-update')?.({
       payload: {
@@ -419,6 +405,20 @@ describe('server event lifecycle service', () => {
       filesReceived: 12,
       bytesReceived: 4096,
       lastFile: '/latest.jpg',
+    });
+  });
+
+  it('bridges media-library-refresh-requested to gallery refresh events', async () => {
+    await initializeServerEvents();
+
+    const galleryRefreshHandler = vi.fn();
+    window.addEventListener(GALLERY_REFRESH_REQUESTED_EVENT, galleryRefreshHandler);
+
+    await eventHandlers.get('media-library-refresh-requested')?.({ payload: undefined });
+
+    expect(galleryRefreshHandler).toHaveBeenCalledTimes(1);
+    expect(galleryRefreshHandler.mock.calls[0]?.[0]).toMatchObject({
+      detail: { reason: 'delete' },
     });
   });
 });

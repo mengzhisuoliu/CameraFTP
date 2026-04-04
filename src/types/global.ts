@@ -12,30 +12,6 @@
 // ===== Android JS Bridge 类型 =====
 
 /**
- * Android 文件上传回调接口
- * 由 Android WebView 注入
- */
-interface FileUploadAndroid {
-  /**
-   * 文件上传完成回调
-   * @param path 文件路径
-   * @param size 文件大小（字节）
-   */
-  onFileUploaded: (path: string, size: number) => void;
-}
-
-/**
- * Android 存储权限设置接口
- * 由 Android WebView 注入
- */
-interface StorageSettingsAndroid {
-  /**
-   * 打开"所有文件访问权限"设置页面
-   */
-  openAllFilesAccessSettings: () => void;
-}
-
-/**
  * Android 权限检查结果
  */
 export interface PermissionCheckResult {
@@ -86,22 +62,10 @@ interface PermissionAndroid {
    /**
     * 用外部APP打开图片
     * 首次点击会显示选择器，用户选择"始终"后系统会记住选择
-    * @param path 图片的绝对路径
+    * @param path 图片的 content:// URI 或文件路径
     * @returns JSON 字符串，包含 success 和 message
     */
    openImageWithChooser: (path: string) => string;
-}
-
-/**
- * Gallery image data returned by Android file scanner
- * Uses file path as unique identifier (not MediaStore ID)
- */
-export interface GalleryImage {
-  path: string; // 完整文件路径（作为主键）
-  filename: string;
-  sortTime: number; // EXIF优先的排序时间
-  // thumbnail is loaded on-demand
-  thumbnail?: string;
 }
 
 /**
@@ -118,31 +82,23 @@ export interface DeleteImagesResult {
 
 /**
  * Android Gallery interface
- * Provides access to device image gallery via direct file access
- * Uses lazy loading for thumbnails to improve performance
+ * Legacy MediaStore URI bridge for gallery actions
+ * Operates on content URI arrays serialized as JSON strings
  */
 interface GalleryAndroid {
   /**
-   * Delete images by their paths
-   * @param pathsJson JSON array of image paths to delete
+   * Delete images by their content URIs
+   * @param urisJson JSON array of image content URIs to delete
    * @returns JSON string with deletion results containing deleted, notFound, and failed arrays
    */
-  deleteImages(pathsJson: string): string | Promise<string>;
+  deleteImages(urisJson: string): string | Promise<string>;
 
   /**
-   * Remove thumbnail cache files for the given paths
-   * Called after delete animation completes
-   * @param pathsJson JSON array of image paths to remove thumbnails for
-   * @returns true if any thumbnails were removed
-   */
-  removeThumbnails(pathsJson: string): boolean | Promise<boolean>;
-
-  /**
-   * Share images by their paths
-   * @param pathsJson JSON array of image paths to share
+   * Share images by their content URIs
+   * @param urisJson JSON array of image content URIs to share
    * @returns true if sharing succeeded, false otherwise
    */
-  shareImages(pathsJson: string): boolean | Promise<boolean>;
+  shareImages(urisJson: string): boolean | Promise<boolean>;
 
   /**
    * Register back press callback to intercept back button
@@ -158,24 +114,6 @@ interface GalleryAndroid {
    */
   unregisterBackPressCallback?(): boolean;
 
-  /**
-   * Callback for back button press (set by JS, called by Android)
-   */
-  onBackPressed?(): void;
-
-  /**
-   * List images from MediaStore
-   * @returns JSON array of MediaStore entries
-   */
-  listMediaStoreImages(): string | Promise<string>;
-}
-
-/**
- * Android MediaStore Bridge interface
- * Optionally exposed for debug hooks
- */
-interface MediaStoreAndroidBridge {
-  // optionally exposed for debug hooks
 }
 
 /**
@@ -207,13 +145,6 @@ interface GalleryAndroidV2 {
   cancelThumbnailRequests(requestIdsJson: string): Promise<string>;
 
   /**
-   * Cancel all thumbnail requests associated with a view
-   * @param viewId The view identifier
-   * @returns JSON string (empty on success)
-   */
-  cancelByView(viewId: string): Promise<string>;
-
-  /**
    * Register a listener for thumbnail results
    * @param viewId The view identifier to scope results
    * @param listenerId Unique listener identifier
@@ -235,11 +166,6 @@ interface GalleryAndroidV2 {
    */
   invalidateMediaIds(mediaIdsJson: string): Promise<string>;
 
-  /**
-   * Get current thumbnail queue statistics
-   * @returns JSON string of QueueStats
-   */
-  getQueueStats(): Promise<string>;
 }
 
 /**
@@ -294,22 +220,12 @@ interface ImageViewerAndroid {
 declare global {
   interface Window {
     /**
-     * Android 文件上传 JS Bridge
-     */
-    FileUploadAndroid?: FileUploadAndroid;
-    
-    /**
-     * Android 存储权限设置 JS Bridge
-     */
-    StorageSettingsAndroid?: StorageSettingsAndroid;
-    
-    /**
      * Android 权限管理 JS Bridge
      */
     PermissionAndroid?: PermissionAndroid;
     
     /**
-     * Android Gallery JS Bridge (legacy, will be removed in Task 12)
+     * Android Gallery JS Bridge (legacy compatibility)
      */
     GalleryAndroid?: GalleryAndroid;
     
@@ -320,11 +236,6 @@ declare global {
     GalleryAndroidV2?: GalleryAndroidV2;
     
     /**
-     * Android MediaStore Bridge for debug hooks
-     */
-    MediaStoreAndroid?: MediaStoreAndroidBridge;
-
-    /**
      * Android Image Viewer JS Bridge
      */
     ImageViewerAndroid?: ImageViewerAndroid;
@@ -334,6 +245,12 @@ declare global {
      * Called by the Android bridge: window.__galleryThumbDispatch(listenerId, resultJson)
      */
     __galleryThumbDispatch?: (listenerId: string, resultJson: string) => void;
+
+    /**
+     * Global callback for Android back press handling.
+     * Set by JS and invoked by Android (not exposed as a bridge instance method).
+     */
+    __galleryOnBackPressed?: () => void;
   }
 }
 
@@ -405,25 +322,5 @@ export const permissionBridge = {
    */
   async checkAll(): Promise<PermissionCheckResult | null> {
     return checkAndroidPermissions();
-  },
-};
-
-/**
- * Storage settings bridge adapter
- * Provides a clean interface for opening Android storage settings
- */
-export const storageSettingsBridge = {
-  /**
-   * Check if the storage settings bridge is available
-   */
-  isAvailable(): boolean {
-    return typeof window !== 'undefined' && !!window.StorageSettingsAndroid;
-  },
-
-  /**
-   * Open the all files access settings page
-   */
-  openAllFilesAccessSettings(): void {
-    window.StorageSettingsAndroid?.openAllFilesAccessSettings();
   },
 };

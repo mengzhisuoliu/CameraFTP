@@ -15,12 +15,10 @@ import android.webkit.WebView
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
-import com.gjk.cameraftpcompanion.bridges.FileUploadBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridge
 import com.gjk.cameraftpcompanion.bridges.GalleryBridgeV2
 import com.gjk.cameraftpcompanion.bridges.MediaStoreBridge
 import com.gjk.cameraftpcompanion.bridges.ImageViewerBridge
-import com.gjk.cameraftpcompanion.cache.ThumbnailCacheProvider
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -84,11 +82,9 @@ class MainActivity : TauriActivity() {
     }
 
     private var webViewRef: WebView? = null
-    private var fileUploadBridge: FileUploadBridge? = null
     private var permissionBridge: PermissionBridge? = null
     private var galleryBridge: GalleryBridge? = null
     private var galleryBridgeV2: GalleryBridgeV2? = null
-    private var mediaStoreBridge: MediaStoreBridge? = null
     private var imageViewerBridge: ImageViewerBridge? = null
     @Volatile
     private var isWebViewActive = false
@@ -119,16 +115,11 @@ class MainActivity : TauriActivity() {
         instance = this
         
         Log.d(TAG, "onCreate: initializing bridges")
-        fileUploadBridge = FileUploadBridge(this)
         permissionBridge = PermissionBridge(this)
         galleryBridge = GalleryBridge(this)
         galleryBridgeV2 = GalleryBridgeV2(this)
-        mediaStoreBridge = MediaStoreBridge(this)
         imageViewerBridge = ImageViewerBridge(this)
 
-        // Initialize thumbnail cache
-        ThumbnailCacheProvider.initialize(this)
-        
         // Cleanup stale pending entries (older than 24 hours)
         val cutoffMillis = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
         MediaStoreBridge.cleanupStalePendingEntries(contentResolver, cutoffMillis)
@@ -146,11 +137,9 @@ class MainActivity : TauriActivity() {
         isWebViewActive = true
         
         Log.d(TAG, "onWebViewCreate: adding JavaScript bridges")
-        addJsBridge(webView, fileUploadBridge, "FileUploadAndroid")
         addJsBridge(webView, permissionBridge, "PermissionAndroid")
         addJsBridge(webView, galleryBridge, "GalleryAndroid")
         addJsBridge(webView, galleryBridgeV2, "GalleryAndroidV2")
-        addJsBridge(webView, mediaStoreBridge, "MediaStoreAndroid")
         addJsBridge(webView, imageViewerBridge, "ImageViewerAndroid")
 
         // 注册Tauri事件监听
@@ -229,11 +218,9 @@ class MainActivity : TauriActivity() {
         instance = null
         // Clear all bridge references to prevent memory leaks
         webViewRef = null
-        fileUploadBridge = null
         permissionBridge = null
         galleryBridge = null
         galleryBridgeV2 = null
-        mediaStoreBridge = null
         imageViewerBridge = null
     }
 
