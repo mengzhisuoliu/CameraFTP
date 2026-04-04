@@ -31,7 +31,6 @@ val tauriStagingDir = layout.buildDirectory.dir("tauri-staging")
 val tauriStagingAssetsDir = tauriStagingDir.map { it.dir("assets") }
 val tauriStagingJniLibsDir = tauriStagingDir.map { it.dir("jniLibs") }
 
-val staticAssetsSourceDir = layout.projectDirectory.dir("../../../android-build/static-assets")
 val generatedAssetsSourceDir = layout.projectDirectory.dir("src/main/assets")
 val rustTargetDir = layout.projectDirectory.dir("../../../target")
 
@@ -41,19 +40,12 @@ val cleanTauriStaging by tasks.registering(Delete::class) {
 
 val stageTauriAssets by tasks.registering(Sync::class) {
     dependsOn(cleanTauriStaging)
-    from(staticAssetsSourceDir) {
-        include("wechat.png")
-    }
     from(generatedAssetsSourceDir) {
         include("tauri.conf.json")
     }
     into(tauriStagingAssetsDir)
 
     doFirst {
-        val requiredAsset = staticAssetsSourceDir.file("wechat.png").asFile
-        if (!requiredAsset.isFile) {
-            throw GradleException("Missing required Android static asset: ${requiredAsset.path}")
-        }
         val generatedConfig = generatedAssetsSourceDir.file("tauri.conf.json").asFile
         if (!generatedConfig.isFile) {
             throw GradleException("Missing generated Android asset: ${generatedConfig.path}")

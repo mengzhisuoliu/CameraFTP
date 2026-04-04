@@ -9,8 +9,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { createPortal } from 'react-dom';
 import { Info, X, ExternalLink, ChevronDown, ChevronUp, Heart } from 'lucide-react';
-import { toast } from 'sonner';
 import { Card, CardHeader } from './ui';
+import { WeChatDonateDialog } from './WeChatDonateDialog';
 import { useConfigStore } from '../stores/configStore';
 
 async function openExternalLink(url: string) {
@@ -36,42 +36,6 @@ async function openExternalLink(url: string) {
     // Fallback: try to open via window.open (may not work in Tauri)
     window.open(url, '_blank');
   }
-}
-
-interface SaveImageResult {
-  success: boolean;
-  reason?: string;
-  message?: string;
-}
-
-/**
- * Save image to gallery on Android
- * @param assetPath The path to the asset image (e.g., "wechat.png")
- * @returns Save result with success status and optional reason
- */
-async function saveImageToGallery(assetPath: string): Promise<SaveImageResult> {
-  console.log('[saveImageToGallery] called with assetPath:', assetPath);
-
-  // Android 平台：使用 JS Bridge
-  if (window.PermissionAndroid?.saveImageToGallery) {
-    console.log('[saveImageToGallery] calling Android bridge');
-    try {
-      const result = await window.PermissionAndroid.saveImageToGallery(assetPath);
-      console.log('[saveImageToGallery] bridge result:', result);
-      const parsed = JSON.parse(result);
-      return {
-        success: parsed.success === true,
-        reason: parsed.reason,
-        message: parsed.message
-      };
-    } catch (e) {
-      console.warn('[saveImageToGallery] failed:', e);
-      return { success: false, reason: 'error', message: 'Parse error' };
-    }
-  }
-
-  console.log('[saveImageToGallery] bridge not available');
-  return { success: false, reason: 'not_available', message: 'Bridge not available' };
 }
 
 interface Dependency {
@@ -176,6 +140,8 @@ interface DonateDialogProps {
 }
 
 function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
+  const [isWeChatDonateOpen, setIsWeChatDonateOpen] = useState(false);
+
   if (!isOpen) return null;
 
   const isAndroid = platform === 'android';
@@ -229,16 +195,7 @@ function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
               <div className="grid grid-cols-2 gap-4">
                 {/* 微信支付按钮 */}
                 <button
-                  onClick={async () => {
-                    const result = await saveImageToGallery('wechat.png');
-                    if (result.success) {
-                      toast.success('付款码已保存，请使用微信扫码付款');
-                    } else if (result.reason !== 'permission_denied') {
-                      // Only show error toast if it's not a permission denial
-                      // (permission denial already shows Android system toast)
-                      toast.error('保存付款码失败，请重试');
-                    }
-                  }}
+                  onClick={() => setIsWeChatDonateOpen(true)}
                   className="flex flex-col items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                 >
                   <img
@@ -275,6 +232,11 @@ function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
             关闭
           </button>
         </div>
+
+        <WeChatDonateDialog
+          isOpen={isWeChatDonateOpen}
+          onClose={() => setIsWeChatDonateOpen(false)}
+        />
       </div>
     </div>
   );

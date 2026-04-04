@@ -1,0 +1,116 @@
+/**
+ * CameraFTP - A Cross-platform FTP companion for camera photo transfer
+ * Copyright (C) 2026 GoldJohnKing <GoldJohnKing@Live.cn>
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AboutCard } from '../AboutCard';
+import wechatQrCodeSrc from '../../assets/wechat.png';
+import { useConfigStore } from '../../stores/configStore';
+
+const { getVersionMock, invokeMock } = vi.hoisted(() => ({
+  getVersionMock: vi.fn(),
+  invokeMock: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/app', () => ({
+  getVersion: getVersionMock,
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: invokeMock,
+}));
+
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+describe('AboutCard Android donation flow', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let saveImageToGalleryMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    getVersionMock.mockReset();
+    getVersionMock.mockResolvedValue('1.3.1');
+    invokeMock.mockReset();
+
+    saveImageToGalleryMock = vi.fn().mockResolvedValue(
+      JSON.stringify({ success: true }),
+    );
+
+    vi.stubGlobal('PermissionAndroid', {
+      saveImageToGallery: saveImageToGalleryMock,
+      openExternalLink: vi.fn(),
+    });
+
+    useConfigStore.setState((state) => ({
+      ...state,
+      platform: 'android',
+    }));
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it('opens a full-screen WeChat QR dialog instead of saving the QR image locally', async () => {
+    await act(async () => {
+      root.render(<AboutCard />);
+      await flush();
+    });
+
+    const donateEntryButton = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('捐赠渠道'),
+    ) as HTMLButtonElement | undefined;
+    expect(donateEntryButton).toBeTruthy();
+
+    await act(async () => {
+      donateEntryButton?.click();
+      await flush();
+    });
+
+    const wechatButton = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('微信支付'),
+    ) as HTMLButtonElement | undefined;
+    expect(wechatButton).toBeTruthy();
+
+    await act(async () => {
+      wechatButton?.click();
+      await flush();
+    });
+
+    expect(saveImageToGalleryMock).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('微信收款');
+    expect(document.body.textContent).toContain('请先对当前界面截图');
+
+    const qrCodeImage = document.querySelector(
+      'img[alt="微信收款码"]',
+    ) as HTMLImageElement | null;
+    expect(qrCodeImage?.getAttribute('src')).toBe(wechatQrCodeSrc);
+
+    const overlay = document.querySelector(
+      '[data-testid="wechat-donate-dialog-overlay"]',
+    ) as HTMLDivElement | null;
+    expect(overlay).toBeTruthy();
+    expect(overlay?.className).toContain('fixed');
+    expect(overlay?.className).toContain('inset-0');
+  });
+
+  it('serves the WeChat QR code from a real frontend static asset', () => {
+    expect(wechatQrCodeSrc).toContain('wechat.png');
+  });
+});
