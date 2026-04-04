@@ -35,9 +35,9 @@ export function WeChatDonateDialog({
           </button>
         </div>
 
-        <div className="p-6 flex flex-col items-center gap-4">
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <img src={wechatQrCodeSrc} alt="微信收款码" className="w-64 h-auto" />
+        <div className="p-4 flex flex-col items-center gap-4">
+          <div className="bg-white rounded-xl p-2 border border-gray-200">
+            <img src={wechatQrCodeSrc} alt="微信收款码" className="w-72 h-auto" />
           </div>
 
           <p className="text-sm text-gray-600 text-left leading-6">

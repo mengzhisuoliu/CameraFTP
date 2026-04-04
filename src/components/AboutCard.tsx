@@ -171,7 +171,7 @@ function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
         </div>
 
         {/* 内容区域 */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 space-y-6">
           <p className="text-sm text-gray-600 text-left">
             感谢您对本项目的支持！您的捐赠将帮助我持续改进和维护这个项目。
           </p>
@@ -179,11 +179,11 @@ function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
           {isDesktop && (
             <div className="flex flex-col items-center space-y-4">
               {/* Windows 平台显示二维码 */}
-              <div className="bg-white rounded-xl p-4 border border-gray-200">
+              <div className="bg-white rounded-xl p-2 border border-gray-200">
                 <img
                   src={donateQrcode}
                   alt="捐赠二维码"
-                  className="w-64 h-auto"
+                  className="w-72 h-auto"
                 />
               </div>
               <p className="text-xs text-gray-500 text-center">
