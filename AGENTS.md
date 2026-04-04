@@ -6,9 +6,17 @@ Follow these rules when working on this codebase.
 
 ## Critical Rules
 
-### 1. Build Commands
+### 1. ALWAYS use `cargo.exe` instead of `cargo`
 
-NEVER use `bun` or `cargo build` directly. Use `./build.sh windows android` instead.
+This is a cross-platform project, supports Windows and Android.
+
+You MUST use `cargo.exe` to build Windows artifects. You are in WSL2 and you can directly call `cargo.exe`.
+
+NEVER use `cargo` as it can't build Windows artifects.
+
+### 2. Build Commands
+
+NEVER use `bun` or `cargo.exe build` directly. Use `./build.sh windows android` instead.
 
 This command builds Android and Windows in parallel, making it much faster than building them one by one.
 
@@ -23,7 +31,7 @@ Do not use LSP tools in this environment. They hang or timeout.
 
 ### 3. Verify Code Changes
 
-ALWAYS build both platform to verify code changes: run `./build.sh windows android`.
+ALWAYS build both platforms to verify code changes: run `./build.sh windows android`.
 
 ---
 

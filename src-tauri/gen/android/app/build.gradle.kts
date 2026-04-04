@@ -1,5 +1,9 @@
 import java.io.File
 import java.util.Properties
+import org.gradle.api.GradleException
+import org.gradle.api.tasks.Sync
+import org.gradle.api.tasks.Delete
+import org.gradle.api.tasks.Copy
 
 fun resolveKeystoreFile(rootProjectFile: File, storeFilePath: String): File {
     val configuredFile = File(storeFilePath)
@@ -20,6 +24,104 @@ val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
         propFile.inputStream().use { load(it) }
+    }
+}
+
+val tauriStagingDir = layout.buildDirectory.dir("tauri-staging")
+val tauriStagingAssetsDir = tauriStagingDir.map { it.dir("assets") }
+val tauriStagingJniLibsDir = tauriStagingDir.map { it.dir("jniLibs") }
+
+val staticAssetsSourceDir = layout.projectDirectory.dir("../../../android-build/static-assets")
+val generatedAssetsSourceDir = layout.projectDirectory.dir("src/main/assets")
+val rustTargetDir = layout.projectDirectory.dir("../../../target")
+
+val cleanTauriStaging by tasks.registering(Delete::class) {
+    delete(tauriStagingDir)
+}
+
+val stageTauriAssets by tasks.registering(Sync::class) {
+    dependsOn(cleanTauriStaging)
+    from(staticAssetsSourceDir) {
+        include("wechat.png")
+    }
+    from(generatedAssetsSourceDir) {
+        include("tauri.conf.json")
+    }
+    into(tauriStagingAssetsDir)
+
+    doFirst {
+        val requiredAsset = staticAssetsSourceDir.file("wechat.png").asFile
+        if (!requiredAsset.isFile) {
+            throw GradleException("Missing required Android static asset: ${requiredAsset.path}")
+        }
+        val generatedConfig = generatedAssetsSourceDir.file("tauri.conf.json").asFile
+        if (!generatedConfig.isFile) {
+            throw GradleException("Missing generated Android asset: ${generatedConfig.path}")
+        }
+    }
+}
+
+val stageTauriJniLibsDebug by tasks.registering(Copy::class) {
+    dependsOn(cleanTauriStaging)
+    from(rustTargetDir.dir("aarch64-linux-android/debug")) {
+        include("libcamera_ftp_companion_lib.so")
+    }
+    into(tauriStagingJniLibsDir.map { it.dir("arm64-v8a") })
+
+    doFirst {
+        val rustLibrary = rustTargetDir.file("aarch64-linux-android/debug/libcamera_ftp_companion_lib.so").asFile
+        if (!rustLibrary.isFile) {
+            throw GradleException("Missing debug Rust JNI library: ${rustLibrary.path}")
+        }
+    }
+}
+
+val stageTauriJniLibsRelease by tasks.registering(Copy::class) {
+    dependsOn(cleanTauriStaging)
+    from(rustTargetDir.dir("aarch64-linux-android/release")) {
+        include("libcamera_ftp_companion_lib.so")
+    }
+    into(tauriStagingJniLibsDir.map { it.dir("arm64-v8a") })
+
+    doFirst {
+        val rustLibrary = rustTargetDir.file("aarch64-linux-android/release/libcamera_ftp_companion_lib.so").asFile
+        if (!rustLibrary.isFile) {
+            throw GradleException("Missing release Rust JNI library: ${rustLibrary.path}")
+        }
+    }
+}
+
+val validateStagedJniLibsDebug by tasks.registering {
+    dependsOn(stageTauriJniLibsDebug)
+    doLast {
+        val packagedSoNames = fileTree(tauriStagingJniLibsDir.get().asFile)
+            .matching { include("**/*.so") }
+            .files
+            .map { it.relativeTo(tauriStagingJniLibsDir.get().asFile).invariantSeparatorsPath }
+            .toSet()
+        val expectedSoNames = setOf("arm64-v8a/libcamera_ftp_companion_lib.so")
+        if (packagedSoNames != expectedSoNames) {
+            throw GradleException(
+                "Unexpected JNI libraries in tauri staging: $packagedSoNames",
+            )
+        }
+    }
+}
+
+val validateStagedJniLibsRelease by tasks.registering {
+    dependsOn(stageTauriJniLibsRelease)
+    doLast {
+        val packagedSoNames = fileTree(tauriStagingJniLibsDir.get().asFile)
+            .matching { include("**/*.so") }
+            .files
+            .map { it.relativeTo(tauriStagingJniLibsDir.get().asFile).invariantSeparatorsPath }
+            .toSet()
+        val expectedSoNames = setOf("arm64-v8a/libcamera_ftp_companion_lib.so")
+        if (packagedSoNames != expectedSoNames) {
+            throw GradleException(
+                "Unexpected JNI libraries in tauri staging: $packagedSoNames",
+            )
+        }
     }
 }
 
@@ -96,6 +198,20 @@ android {
             useLegacyPackaging = true
         }
     }
+    sourceSets {
+        getByName("main") {
+            assets.setSrcDirs(listOf(tauriStagingAssetsDir.get().asFile))
+            jniLibs.setSrcDirs(listOf(tauriStagingJniLibsDir.get().asFile))
+        }
+    }
+}
+
+tasks.matching { it.name.endsWith("Assets") && it.name.contains("merge") }.configureEach {
+    dependsOn(stageTauriAssets)
+}
+
+tasks.matching { it.name.contains("lint", ignoreCase = true) }.configureEach {
+    dependsOn(stageTauriAssets)
 }
 
 rust {

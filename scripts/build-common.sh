@@ -368,14 +368,26 @@ clean_build_cache() {
         "src-tauri/bindings"
         "dist"
         "$OUTPUT_DIR"
+        # Android 构建产物包含 tauri-staging (app/build/tauri-staging)
         "src-tauri/gen/android/app/build"
+        "src-tauri/gen/android/build"
+        "src-tauri/gen/android/buildSrc/build"
+        "src-tauri/gen/android/buildSrc/.gradle"
         "src-tauri/gen/android/.gradle"
+        "src-tauri/gen/android/.kotlin"
+        "src-tauri/gen/android/app/src/main/assets"
+        "src-tauri/gen/android/app/src/main/jniLibs"
+        "src-tauri/gen/android/app/src/main/java/com/gjk/cameraftpcompanion/generated"
+        "src-tauri/gen/android/app/tauri.build.gradle.kts"
+        "src-tauri/gen/android/app/tauri.properties"
+        "src-tauri/gen/android/app/proguard-tauri.pro"
+        "src-tauri/gen/android/tauri.settings.gradle"
     )
 
-    for dir in "${clean_list[@]}"; do
-        if [ -d "$dir" ]; then
-            info "删除 $dir"
-            rm -rf "$dir"
+    for path in "${clean_list[@]}"; do
+        if [ -e "$path" ]; then
+            info "删除 $path"
+            rm -rf "$path"
         fi
     done
 
