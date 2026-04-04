@@ -5,7 +5,7 @@
  */
 
 import { X } from 'lucide-react';
-import wechatQrCodeSrc from '../assets/wechat.png';
+import wechatQrCodeSrc from '../assets/donate-qrcode-wechat.png';
 
 interface WeChatDonateDialogProps {
   isOpen: boolean;

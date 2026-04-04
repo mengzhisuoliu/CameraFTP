@@ -8,7 +8,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AboutCard } from '../AboutCard';
-import wechatQrCodeSrc from '../../assets/wechat.png';
+import wechatQrCodeSrc from '../../assets/donate-qrcode-wechat.png';
 import { useConfigStore } from '../../stores/configStore';
 
 const { getVersionMock, invokeMock } = vi.hoisted(() => ({
@@ -111,6 +111,6 @@ describe('AboutCard Android donation flow', () => {
   });
 
   it('serves the WeChat QR code from a real frontend static asset', () => {
-    expect(wechatQrCodeSrc).toContain('wechat.png');
+    expect(wechatQrCodeSrc).toContain('donate-qrcode-wechat.png');
   });
 });

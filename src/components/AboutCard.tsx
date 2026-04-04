@@ -12,6 +12,9 @@ import { Info, X, ExternalLink, ChevronDown, ChevronUp, Heart } from 'lucide-rea
 import { Card, CardHeader } from './ui';
 import { WeChatDonateDialog } from './WeChatDonateDialog';
 import { useConfigStore } from '../stores/configStore';
+import wechatLogo from '../assets/wechat-logo.png';
+import alipayLogo from '../assets/alipay-logo.png';
+import donateQrcode from '../assets/donate-qrcode.png';
 
 async function openExternalLink(url: string) {
   console.log('[openExternalLink] called with url:', url);
@@ -178,7 +181,7 @@ function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
               {/* Windows 平台显示二维码 */}
               <div className="bg-white rounded-xl p-4 border border-gray-200">
                 <img
-                  src="/donate-qrcode.png"
+                  src={donateQrcode}
                   alt="捐赠二维码"
                   className="w-64 h-auto"
                 />
@@ -199,7 +202,7 @@ function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
                   className="flex flex-col items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                 >
                   <img
-                    src="/wechat-logo.png"
+                    src={wechatLogo}
                     alt="微信支付"
                     className="h-12 w-auto"
                   />
@@ -212,7 +215,7 @@ function DonateDialog({ isOpen, onClose, platform }: DonateDialogProps) {
                   className="flex flex-col items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
                 >
                   <img
-                    src="/alipay-logo.png"
+                    src={alipayLogo}
                     alt="支付宝"
                     className="h-12 w-auto"
                   />
