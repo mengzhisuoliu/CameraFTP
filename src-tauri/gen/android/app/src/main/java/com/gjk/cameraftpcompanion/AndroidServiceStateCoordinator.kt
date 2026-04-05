@@ -35,15 +35,6 @@ object AndroidServiceStateCoordinator {
         return latestState
     }
 
-    fun updateServiceState(
-        callerContext: Context,
-        isRunning: Boolean,
-        statsJson: String?,
-        connectedClients: Int,
-    ) {
-        syncNativeServiceState(callerContext, isRunning, statsJson, connectedClients)
-    }
-
     @JvmStatic
     fun syncNativeServiceState(
         callerContext: Context,
@@ -56,10 +47,6 @@ object AndroidServiceStateCoordinator {
         } else {
             stopService(callerContext)
         }
-    }
-
-    fun startService(callerContext: Context) {
-        updateRunningState(callerContext, latestState.statsJson, latestState.connectedClients)
     }
 
     fun updateRunningState(callerContext: Context, statsJson: String?, connectedClients: Int) {

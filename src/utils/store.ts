@@ -57,40 +57,6 @@ interface AsyncActionOptions<T, S> {
   rethrow?: boolean;
 }
 
-interface RetryOptions {
-  maxRetries: number;
-  delayMs: number;
-  maxDurationMs?: number;
-}
-
-export function retryAction(
-  action: () => boolean | void,
-  options: RetryOptions
-): void {
-  const { maxRetries, delayMs, maxDurationMs = 5000 } = options;
-  const startTime = Date.now();
-  
-  const tryAction = (retriesLeft: number) => {
-    if (Date.now() - startTime > maxDurationMs) {
-      console.warn(`[retryAction] Max duration (${maxDurationMs}ms) exceeded, giving up`);
-      return;
-    }
-    
-    try {
-      const result = action();
-      if (result === false && retriesLeft > 0) {
-        setTimeout(() => tryAction(retriesLeft - 1), delayMs);
-      }
-    } catch {
-      if (retriesLeft > 0) {
-        setTimeout(() => tryAction(retriesLeft - 1), delayMs);
-      }
-    }
-  };
-  
-  tryAction(maxRetries);
-}
-
 export async function executeAsync<T, S>(
   options: AsyncActionOptions<T, S>,
   set: (fn: (state: S) => S) => void,

@@ -242,8 +242,6 @@ cameraftp/
 │           ├── MainActivity.kt                    # 主活动，WebView管理和Bridge注册
 │           ├── FtpForegroundService.kt            # 前台服务，后台运行FTP
 │           ├── PermissionBridge.kt                # 权限管理Bridge
-│           ├── StorageHelper.kt                   # 存储辅助
-│           ├── MediaScannerHelper.kt              # 媒体扫描
 │           ├── ImageViewerActivity.kt             # 全屏图片查看
 │           ├── ImageViewerAdapter.kt              # 图片查看适配器
 │           ├── AndroidServiceStateCoordinator.kt  # 服务状态协调
@@ -273,15 +271,13 @@ Android平台使用Kotlin实现以下功能：
 | **MainActivity.kt** | 主活动，WebView管理和Bridge注册 |
 | **FtpForegroundService.kt** | 前台服务，后台运行FTP，显示状态通知 |
 | **PermissionBridge.kt** | 权限管理（存储、通知、电池优化） |
-| **StorageHelper.kt** | 存储辅助，跳转到系统存储权限设置页面 |
-| **MediaScannerHelper.kt** | 媒体扫描，文件上传后让照片出现在相册 |
 | **ImageViewerActivity.kt** | 全屏图片查看Activity |
 | **ImageViewerAdapter.kt** | 图片查看适配器 |
 | **AndroidServiceStateCoordinator.kt** | 服务状态协调 |
 | **bridges/GalleryBridge.kt** | 原始图库Bridge，提供基础图库访问 |
 | **bridges/GalleryBridgeV2.kt** | 增强图库Bridge，支持分页加载和缩略图缓存 |
 | **bridges/ImageViewerBridge.kt** | 图片查看Bridge，支持全屏查看和分享 |
-| **bridges/MediaStoreBridge.kt** | MediaStore访问Bridge，读取设备媒体库 |
+| **bridges/MediaStoreBridge.kt** | MediaStore 原生访问与上传落库辅助，供 Kotlin/Rust 集成调用 |
 | **galleryv2/MediaPageProvider.kt** | 分页媒体加载，高效加载大量图片 |
 | **galleryv2/ThumbnailCacheV2.kt** | 缩略图缓存，内存+磁盘两级缓存 |
 | **galleryv2/ThumbnailDecoder.kt** | 缩略图解码，支持多种图片格式 |
@@ -296,25 +292,23 @@ Android平台使用Kotlin实现以下功能：
 // 权限管理
 window.PermissionAndroid?.checkAllPermissions()
 window.PermissionAndroid?.requestStoragePermission()
-
-// 存储设置
-window.StorageSettingsAndroid?.openAllFilesAccessSettings()
+window.PermissionAndroid?.requestNotificationPermission()
 
 // 图库访问（原始版本）
-window.GalleryAndroid?.getImages()
-window.GalleryAndroid?.getThumbnail(uri)
+window.GalleryAndroid?.deleteImages(urisJson)
+window.GalleryAndroid?.shareImages(urisJson)
 
 // 图库访问（V2增强版，支持分页和缓存）
-window.GalleryAndroidV2?.loadMediaPage(page, pageSize)
-window.GalleryAndroidV2?.getThumbnail(uri, width, height)
+window.GalleryAndroidV2?.listMediaPage(requestJson)
+window.GalleryAndroidV2?.enqueueThumbnails(requestsJson)
+window.GalleryAndroidV2?.registerThumbnailListener(viewId, listenerId)
 
 // 图片查看
-window.ImageViewerAndroid?.openImageViewer(uris, initialIndex)
-window.ImageViewerAndroid?.shareImage(uri)
-
-// MediaStore访问
-window.MediaStoreAndroid?.queryMediaStore(mimeType)
-window.MediaStoreAndroid?.scanFile(path)
+window.ImageViewerAndroid?.openViewer(uri, allUrisJson)
+window.ImageViewerAndroid?.openOrNavigateTo(uri, allUrisJson)
+window.ImageViewerAndroid?.closeViewer()
 ```
+
+`MediaStoreBridge.kt` 当前不作为 WebView 暴露的 JS Bridge 注册，而是作为 Android 原生侧的 MediaStore/JNI 集成辅助模块使用。
 
 </details>

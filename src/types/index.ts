@@ -14,7 +14,6 @@
 // ===== Re-export from ts-rs generated bindings =====
 export type { ServerInfo } from '../../src-tauri/bindings/ServerInfo';
 export type { ServerStateSnapshot } from '../../src-tauri/bindings/ServerStateSnapshot';
-export type { AuthConfig } from '../../src-tauri/bindings/AuthConfig';
 export type { AdvancedConnectionConfig } from '../../src-tauri/bindings/AdvancedConnectionConfig';
 export type { AppConfig } from '../../src-tauri/bindings/AppConfig';
 export type { StorageInfo } from '../../src-tauri/bindings/StorageInfo';
@@ -22,17 +21,12 @@ export type { PermissionStatus } from '../../src-tauri/bindings/PermissionStatus
 export type { ServerStartCheckResult } from '../../src-tauri/bindings/ServerStartCheckResult';
 export type { ExifInfo } from '../../src-tauri/bindings/ExifInfo';
 export type { FileInfo } from '../../src-tauri/bindings/FileInfo';
-export type { ImageOpenMethod } from '../../src-tauri/bindings/ImageOpenMethod';
 export type { PreviewWindowConfig } from '../../src-tauri/bindings/PreviewWindowConfig';
 export type { AndroidImageOpenMethod } from '../../src-tauri/bindings/AndroidImageOpenMethod';
-export type { AndroidImageViewerConfig } from '../../src-tauri/bindings/AndroidImageViewerConfig';
 
 // ===== Re-export from global.ts =====
 export type { PermissionCheckResult } from './global';
 export * from './global';
-
-// ===== Re-export from events.ts =====
-export type { ConfigChangedEvent } from './events';
 
 // ===== Re-export from gallery-v2.ts =====
 export type {

@@ -69,6 +69,39 @@ class AndroidServiceStateCoordinatorTest {
     }
 
     @Test
+    fun dead_android_helpers_are_removed() {
+        val storageHelper = resolveProjectPathOrNull(
+            "src/main/java/com/gjk/cameraftpcompanion/StorageHelper.kt",
+            "app/src/main/java/com/gjk/cameraftpcompanion/StorageHelper.kt",
+            "src-tauri/gen/android/app/src/main/java/com/gjk/cameraftpcompanion/StorageHelper.kt",
+        )
+        val mediaScannerHelper = resolveProjectPathOrNull(
+            "src/main/java/com/gjk/cameraftpcompanion/MediaScannerHelper.kt",
+            "app/src/main/java/com/gjk/cameraftpcompanion/MediaScannerHelper.kt",
+            "src-tauri/gen/android/app/src/main/java/com/gjk/cameraftpcompanion/MediaScannerHelper.kt",
+        )
+
+        assertNull(storageHelper)
+        assertNull(mediaScannerHelper)
+    }
+
+    @Test
+    fun main_activity_has_no_legacy_emit_or_empty_permission_override() {
+        val methods = MainActivity::class.java.declaredMethods.map { it.name }.toSet()
+
+        assertFalse(methods.contains("emitTauriEvent"))
+        assertFalse(methods.contains("onRequestPermissionsResult"))
+    }
+
+    @Test
+    fun coordinator_has_no_redundant_wrapper_methods() {
+        val methods = AndroidServiceStateCoordinator::class.java.declaredMethods.map { it.name }.toSet()
+
+        assertFalse(methods.contains("updateServiceState"))
+        assertFalse(methods.contains("startService"))
+    }
+
+    @Test
     fun update_service_state_persists_snapshot_before_service_instance_exists() {
         val context = getApplicationContext<Context>()
 
@@ -350,6 +383,17 @@ class AndroidServiceStateCoordinatorTest {
         }
 
         throw java.nio.file.NoSuchFileException(candidates.joinToString(", "))
+    }
+
+    private fun resolveProjectPathOrNull(vararg candidates: String): java.nio.file.Path? {
+        for (candidate in candidates) {
+            val path = Paths.get(candidate)
+            if (Files.exists(path)) {
+                return path
+            }
+        }
+
+        return null
     }
 
     private fun <T> withAccessibleField(

@@ -50,7 +50,7 @@ mod tests;
 
 // Re-export main types for convenience
 pub use backend::{AndroidMediaStoreBackend, MediaStoreMetadata};
-pub use bridge::{create_bridge, PlatformBridge};
+pub use bridge::create_bridge;
 pub use limiter::UploadLimiter;
 pub use retry::{retry_with_backoff, RetryConfig};
 pub use types::{

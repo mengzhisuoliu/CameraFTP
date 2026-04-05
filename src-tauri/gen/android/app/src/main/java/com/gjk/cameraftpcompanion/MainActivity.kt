@@ -246,19 +246,6 @@ class MainActivity : TauriActivity() {
     }
 
     /**
-     * Emit a Tauri event to the WebView
-     * @param name Event name
-     * @param payloadJson JSON payload as string
-     */
-    fun emitTauriEvent(name: String, payloadJson: String) {
-        getWebView() ?: return
-        val script = "window.__TAURI__?.event?.emit('$name', $payloadJson)"
-        runOnUiThread {
-            getWebView()?.evaluateJavascript(script, null)
-        }
-    }
-
-    /**
      * Dispatch a browser CustomEvent to the main window WebView.
      * @param name Event name
      * @param detailJson JSON detail object as string
@@ -299,17 +286,6 @@ class MainActivity : TauriActivity() {
         return completed && approvedRef.get()
     }
     
-    /**
-     * Handle permission request results
-     */
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-    }
-
   /**
    * Flag to track if we're in selection mode (for back button handling)
    */

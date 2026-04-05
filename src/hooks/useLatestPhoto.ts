@@ -147,12 +147,3 @@ export function useLatestPhoto() {
     refreshLatestPhoto,
   };
 }
-
-export function __resetLatestPhotoStoreForTests(): void {
-  disposeStore();
-  listeners.clear();
-  snapshot = {
-    latestPhoto: null,
-  };
-  inFlightRefresh = null;
-}

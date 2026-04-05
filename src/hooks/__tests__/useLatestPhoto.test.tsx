@@ -8,7 +8,6 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LATEST_PHOTO_REFRESH_REQUESTED_EVENT } from '../../utils/gallery-refresh';
-import { __resetLatestPhotoStoreForTests, useLatestPhoto } from '../useLatestPhoto';
 
 const { listenMock, fetchLatestPhotoFileMock } = vi.hoisted(() => ({
   listenMock: vi.fn(),
@@ -28,8 +27,10 @@ interface FileIndexChangedEvent {
   latestFilename: string | null;
 }
 
+let useLatestPhotoRef: typeof import('../useLatestPhoto').useLatestPhoto;
+
 function LatestPhotoHarness() {
-  const { latestPhoto, refreshLatestPhoto } = useLatestPhoto();
+  const { latestPhoto, refreshLatestPhoto } = useLatestPhotoRef();
 
   return (
     <div>
@@ -57,9 +58,9 @@ describe('useLatestPhoto', () => {
   let container: HTMLDivElement;
   let root: Root;
   let fileIndexChangedHandler: ((event: { payload: FileIndexChangedEvent }) => void) | null;
-
-  beforeEach(() => {
-    __resetLatestPhotoStoreForTests();
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ useLatestPhoto: useLatestPhotoRef } = await import('../useLatestPhoto'));
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -86,7 +87,11 @@ describe('useLatestPhoto', () => {
     });
     container.remove();
     vi.unstubAllGlobals();
-    __resetLatestPhotoStoreForTests();
+  });
+
+  it('does not expose test-only reset export', async () => {
+    const module = await import('../useLatestPhoto');
+    expect(module).not.toHaveProperty('__resetLatestPhotoStoreForTests');
   });
 
   it('loads latest photo on mount and on refresh request events', async () => {
