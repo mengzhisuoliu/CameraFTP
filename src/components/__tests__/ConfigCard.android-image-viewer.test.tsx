@@ -124,8 +124,8 @@ describe('ConfigCard Android image viewer settings', () => {
     await renderCard();
 
     expect(container.textContent).toContain('使用外部应用打开图片');
-    expect(container.textContent).toContain('前台接收新图片时自动显示');
-    expect(container.textContent).toContain('仅内置图片查看器生效');
+    expect(container.textContent).toContain('自动预览');
+    expect(container.textContent).toContain('收到新图片后自动显示预览');
 
     const externalViewerToggle = container.querySelector(
       'button[aria-label="使用外部应用打开图片"]',
@@ -138,7 +138,7 @@ describe('ConfigCard Android image viewer settings', () => {
     });
 
     expect(useConfigStore.getState().draft?.androidImageViewer?.openMethod).toBe('external-app');
-    expect(container.textContent).not.toContain('前台接收新图片时自动显示');
-    expect(container.textContent).not.toContain('仅内置图片查看器生效');
+    expect(container.textContent).not.toContain('自动预览');
+    expect(container.textContent).not.toContain('收到新图片后自动显示预览');
   });
 });
