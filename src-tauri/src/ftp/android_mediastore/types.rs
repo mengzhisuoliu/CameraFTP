@@ -37,15 +37,6 @@ impl MediaStoreCollection {
     }
 }
 
-/// Result of a MediaStore insert operation.
-#[derive(Debug, Clone)]
-pub struct InsertResult {
-    /// Content URI of the inserted file (e.g., content://media/external/images/media/123)
-    pub content_uri: String,
-    /// The display name of the file
-    pub display_name: String,
-}
-
 /// Result of a MediaStore query operation.
 #[derive(Debug, Clone)]
 pub struct QueryResult {
@@ -289,6 +280,16 @@ mod tests {
         assert_eq!(collection_from_filename("a.nef"), MediaStoreCollection::Downloads);
         assert_eq!(collection_from_filename("a.r3d"), MediaStoreCollection::Downloads);
         assert_eq!(collection_from_filename("a.bin"), MediaStoreCollection::Downloads);
+    }
+
+    #[test]
+    fn insert_result_is_removed() {
+        let source = include_str!("types.rs");
+        let needle = concat!("pub", ' ', "struct InsertResult");
+        assert!(
+            !source.contains(needle),
+            "InsertResult should be removed — it is never used"
+        );
     }
 
     #[test]
