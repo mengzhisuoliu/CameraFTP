@@ -275,10 +275,10 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       }
     };
 
-    (window as Window & { __galleryOnBackPressed?: () => void }).__galleryOnBackPressed = onBackPressed;
+    window.__galleryOnBackPressed = onBackPressed;
 
     return () => {
-      delete (window as Window & { __galleryOnBackPressed?: () => void }).__galleryOnBackPressed;
+      delete window.__galleryOnBackPressed;
     };
   }, [handleCancelSelection]);
 

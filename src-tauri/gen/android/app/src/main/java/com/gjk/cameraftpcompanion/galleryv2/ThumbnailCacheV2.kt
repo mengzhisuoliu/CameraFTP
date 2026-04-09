@@ -145,18 +145,6 @@ class ThumbnailCacheV2(
     }
 
     /**
-     * Remove all cached entries whose key matches exactly.
-     *
-     * @param keys Set of cache keys to invalidate
-     */
-    fun invalidate(keys: Set<String>) {
-        for (key in keys) {
-            l1.remove(key)
-            deleteDiskEntries(key)
-        }
-    }
-
-    /**
      * Evict entries until total L2 usage is within [maxBytes].
      * Eviction is LRU (oldest files by last-modified time).
      */

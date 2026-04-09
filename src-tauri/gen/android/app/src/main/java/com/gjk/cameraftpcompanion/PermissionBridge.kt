@@ -26,7 +26,6 @@ import android.content.ClipData
 import android.content.ContentUris
 import android.provider.MediaStore
 import java.io.File
-import java.io.FileOutputStream
 import kotlin.concurrent.thread
 
 /**

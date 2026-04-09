@@ -49,13 +49,13 @@ function isRetryable(errorCode: string | undefined): boolean {
   return errorCode === 'io_transient' || errorCode === 'oom_guard';
 }
 
-export type ThumbnailSchedulerMedia = {
+type ThumbnailSchedulerMedia = {
   mediaId: string;
   uri: string;
   dateModifiedMs: number;
 };
 
-export type UseThumbnailSchedulerOptions = {
+type UseThumbnailSchedulerOptions = {
   /** Override debounce interval in ms (default: 60). Useful for testing. */
   debounceMs?: number;
 };

@@ -48,8 +48,6 @@ class ImageViewerActivity : AppCompatActivity() {
         private const val TAG = "ImageViewerActivity"
         const val EXTRA_URIS = "uris"
         const val EXTRA_TARGET_INDEX = "target_index"
-        const val MEDIA_LIBRARY_REFRESH_REQUESTED_EVENT = "media-library-refresh-requested"
-
         /** Active instance, set by onResume/cleared by onDestroy for bridge access */
         var instance: ImageViewerActivity? = null
             private set

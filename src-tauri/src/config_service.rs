@@ -50,7 +50,7 @@ impl ConfigService {
     }
 
     pub fn update(&self, new_config: AppConfig) -> Result<(), AppError> {
-        let new_config = Self::normalize_for_runtime(new_config);
+        let new_config = new_config.normalized_for_current_platform();
         let mut guard = self
             .config
             .write()
@@ -75,7 +75,7 @@ impl ConfigService {
 
         let mut next_config = guard.clone();
         let result = mutate(&mut next_config);
-        next_config = Self::normalize_for_runtime(next_config);
+        next_config = next_config.normalized_for_current_platform();
         Self::save_to_path(&self.config_path, &next_config)?;
         *guard = next_config;
 
@@ -102,7 +102,7 @@ impl ConfigService {
             AppConfig::default()
         };
 
-        config = Self::normalize_for_runtime(config);
+        config = config.normalized_for_current_platform();
 
         if !path.exists() {
             Self::save_to_path(path, &config)?;
@@ -117,16 +117,12 @@ impl ConfigService {
             fs::create_dir_all(parent)?;
         }
 
-        let config_to_save = Self::normalize_for_runtime(config.clone());
+        let config_to_save = config.clone().normalized_for_current_platform();
 
         let content = serde_json::to_string_pretty(&config_to_save)?;
         fs::write(path, content)?;
         info!(config_path = ?path, "Config persisted by ConfigService");
         Ok(())
-    }
-
-    fn normalize_for_runtime(config: AppConfig) -> AppConfig {
-        config.normalized_for_current_platform()
     }
 }
 

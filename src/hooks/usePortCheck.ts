@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { validatePort } from '../utils/validation';
 
-export type PortSyntaxValidationResult =
+type PortSyntaxValidationResult =
   | { valid: false; reason: 'empty' | 'invalid_number' | 'out_of_range' }
   | { valid: true; port: number };
 

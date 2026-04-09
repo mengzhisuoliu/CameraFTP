@@ -108,7 +108,7 @@ export async function invalidateMediaIds(mediaIds: string[]): Promise<void> {
  * Dispatch a thumbnail result to the registered listener.
  * Called by the Android bridge via a global callback.
  */
-export function dispatchThumbnailResult(listenerId: string, resultJson: string): void {
+function dispatchThumbnailResult(listenerId: string, resultJson: string): void {
   const listener = listeners.get(listenerId);
   if (listener) {
     try {

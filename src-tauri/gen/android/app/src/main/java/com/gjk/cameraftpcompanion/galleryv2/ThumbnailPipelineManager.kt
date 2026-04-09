@@ -570,18 +570,6 @@ class ThumbnailPipelineManager(poolSize: Int = 3) {
     }
 
     /**
-     * Dynamically adjust the worker pool size.
-     * Shuts down the old pool and creates a new one with the given size.
-     */
-    fun setWorkerCount(count: Int) {
-        val clamped = count.coerceIn(2, 4)
-        lock.withLock {
-            workerPool.shutdownNow()
-            workerPool = Executors.newFixedThreadPool(clamped)
-        }
-    }
-
-    /**
      * Expose the retry matrix for testing.
      */
     fun getRetryMatrix(): Map<String, Map<String, Int>> = retryMatrix
