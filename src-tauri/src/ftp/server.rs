@@ -589,6 +589,8 @@ impl FtpServerActor {
             }
             Err(_) => {
                 server_task.abort();
+                // Port remained reachable after FTP server task exited
+                // (abort enforced — the port will be released by the OS)
                 match server_task.await {
                     Ok(()) | Err(_) => {
                         self.finalize_terminal_stop().await;
