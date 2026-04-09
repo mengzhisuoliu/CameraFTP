@@ -40,15 +40,6 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
             }
         }
 
-        @JvmStatic
-        fun shouldRequestDeleteConfirmation(apiLevel: Int, throwable: Throwable): Boolean {
-            return shouldRequestDeleteConfirmation(
-                apiLevel = apiLevel,
-                isSecurityException = throwable is SecurityException,
-                isRecoverableSecurityException = throwable is RecoverableSecurityException,
-            )
-        }
-
         /**
          * Build share intent using MediaStore URIs
          * Follows Android 10+ best practices:
@@ -118,7 +109,7 @@ class GalleryBridge(private val context: Context) : BaseJsBridge(context as andr
                             ?.requestDeleteConfirmation(e.userAction.actionIntent.intentSender)
                             ?: false
                         classifyDeleteResult(uriString, if (approved) 1 else 0, deleted, notFound, failed)
-                    } else if (shouldRequestDeleteConfirmation(Build.VERSION.SDK_INT, e)) {
+                    } else if (shouldRequestDeleteConfirmation(Build.VERSION.SDK_INT, e is SecurityException, e is RecoverableSecurityException)) {
                         pendingConfirmationUris.add(Uri.parse(uriString))
                         Log.w(TAG, "deleteImages: delete confirmation required for uri=$uriString", e)
                     } else {

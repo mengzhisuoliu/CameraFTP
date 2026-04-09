@@ -10,7 +10,6 @@ import type { AndroidImageOpenMethod, ExifInfo } from '../types';
 interface OpenImagePreviewParams {
   filePath: string;
   openMethod?: AndroidImageOpenMethod;
-  preferReuse?: boolean;
   allUris?: string[];
   getAllUris?: () => Promise<string[]>;
 }
@@ -73,20 +72,9 @@ export async function openImagePreview({
     const viewerUris = await resolveViewerUris({ filePath, allUris, getAllUris });
     const viewerUrisJson = JSON.stringify(viewerUris);
 
-    if (preferReuse && imageViewerAndroid.openOrNavigateTo) {
+    if (imageViewerAndroid.openOrNavigateTo) {
       try {
         if (imageViewerAndroid.openOrNavigateTo(filePath, viewerUrisJson)) {
-          void sendExifToViewer(filePath);
-          return;
-        }
-      } catch {
-        // Fall through to other open methods when bridge call fails.
-      }
-    }
-
-    if (imageViewerAndroid.openViewer) {
-      try {
-        if (imageViewerAndroid.openViewer(filePath, viewerUrisJson)) {
           void sendExifToViewer(filePath);
           return;
         }

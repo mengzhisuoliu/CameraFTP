@@ -135,11 +135,6 @@ class ThumbnailPipelineManager(poolSize: Int = 3) {
     /** Per-request retry attempt counter. */
     private val retryCount = HashMap<String, Int>()
 
-    // ── Cache hit tracking ─────────────────────────────────────────────
-
-    private var totalRequests: Long = 0
-    private var cacheHits: Long = 0
-
     // ── Result callback ─────────────────────────────────────────────────
 
     /**
@@ -212,22 +207,6 @@ class ThumbnailPipelineManager(poolSize: Int = 3) {
      * Total number of pending jobs across all three queues.
      */
     fun pendingCount(): Int = lock.withLock { pendingCountLocked() }
-
-    /**
-     * Record a cache hit (call when a thumbnail is served from cache
-     * without needing a pipeline job).
-     */
-    fun recordCacheHit() = lock.withLock {
-        totalRequests++
-        cacheHits++
-    }
-
-    /**
-     * Record a cache miss (call when a job is actually dispatched to a worker).
-     */
-    fun recordCacheMiss() = lock.withLock {
-        totalRequests++
-    }
 
     /**
      * Dequeue the next job from the highest-priority non-empty queue
