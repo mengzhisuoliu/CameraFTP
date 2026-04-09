@@ -106,7 +106,6 @@ describe('useAndroidAutoOpenLatestPhoto', () => {
       filePath: 'content://existing/2',
       openMethod: 'built-in-viewer',
       allUris: ['content://added/1', 'content://added/2', 'content://existing/2', 'content://existing/1'],
-      preferReuse: true,
     });
   });
 
@@ -264,7 +263,6 @@ describe('useAndroidAutoOpenLatestPhoto', () => {
         'content://batch1/1',
         'content://batch1/2',
       ],
-      preferReuse: true,
     });
   });
 
@@ -321,7 +319,6 @@ describe('useAndroidAutoOpenLatestPhoto', () => {
         'content://rapid1/1',
         'content://rapid1/2',
       ],
-      preferReuse: true,
     });
   });
 });
