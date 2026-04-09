@@ -56,12 +56,11 @@ async function syncRuntimeStateFromBackend(): Promise<boolean> {
     if (runtimeState.serverInfo?.isRunning) {
       useServerStore.getState().setServerRunning(runtimeState.serverInfo, {
         stats: runtimeState.stats,
-        immediate: true,
       });
       return true;
     }
 
-    useServerStore.getState().setServerStopped({ immediate: true });
+    useServerStore.getState().setServerStopped();
     return true;
   } catch (err) {
     console.warn('[server-events] Runtime state sync failed:', err);

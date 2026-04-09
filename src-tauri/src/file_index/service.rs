@@ -363,50 +363,6 @@ impl FileIndexService {
         }
     }
 
-    /// 检查并清理索引中不存在的文件
-    /// 返回清理的文件数量和新的当前索引
-    pub async fn cleanup_missing_files(&self) -> Result<(usize, Option<usize>), AppError> {
-        let mut index = self.index.write().await;
-        let _original_len = index.files.len();
-        let original_current = index.current_index;
-
-        // 找出不存在的文件
-        let mut missing_positions = Vec::new();
-        for (pos, file) in index.files.iter().enumerate() {
-            if !tokio::fs::try_exists(&file.path).await.unwrap_or(false) {
-                missing_positions.push(pos);
-            }
-        }
-
-        if missing_positions.is_empty() {
-            return Ok((0, original_current));
-        }
-
-        // 从后向前删除，避免索引偏移问题
-        for &pos in missing_positions.iter().rev() {
-            index.files.remove(pos);
-            info!("Cleaned up missing file from index: position {}", pos);
-        }
-
-        // 重新计算 current_index
-        let new_current = if index.files.is_empty() {
-            None
-        } else if let Some(current) = original_current {
-            // 统计在当前位置之前删除了多少个文件
-            let removed_before = missing_positions.iter().filter(|&&p| p < current).count();
-            let new_pos = current.saturating_sub(removed_before);
-            Some(new_pos.min(index.files.len() - 1))
-        } else {
-            Some(0)
-        };
-
-        index.current_index = new_current;
-
-        let cleaned_count = missing_positions.len();
-        info!("Cleanup complete: removed {} files, current index: {:?}", cleaned_count, new_current);
-        Ok((cleaned_count, new_current))
-    }
-
     /// 获取文件列表
     pub async fn get_files(&self) -> Arc<Vec<FileInfo>> {
         let index = self.index.read().await;

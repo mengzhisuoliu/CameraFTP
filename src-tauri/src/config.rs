@@ -98,7 +98,7 @@ impl Default for PreviewWindowConfig {
 }
 
 /// Android 图片打开方式
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "kebab-case")]
 pub enum AndroidImageOpenMethod {

@@ -29,15 +29,11 @@ export * from './global';
 
 // ===== Re-export from gallery-v2.ts =====
 export type {
-  MediaCursor,
-  MediaPageRequest,
   MediaItemDto,
+  MediaPageRequest,
   MediaPageResponse,
-  ThumbSizeBucket,
-  ThumbPriority,
+  MediaCursor,
   ThumbRequest,
-  ThumbStatus,
   ThumbResult,
-  ThumbErrorCode,
   ThumbResultListener,
 } from './gallery-v2';

@@ -34,14 +34,6 @@ pub struct ServerStats {
 }
 
 impl ServerStats {
-    /// 检查是否与另一个统计对象不同（用于增量更新）
-    pub fn has_changed(&self, other: &Self) -> bool {
-        self.active_connections != other.active_connections
-            || self.total_uploads != other.total_uploads
-            || self.total_bytes_received != other.total_bytes_received
-            || self.last_uploaded_file != other.last_uploaded_file
-    }
-
     pub fn with_connected_clients(mut self, connected_clients: u64) -> Self {
         self.active_connections = connected_clients;
         self
@@ -72,14 +64,6 @@ impl FtpAuthConfig {
     /// 检查是否是匿名访问
     pub fn is_anonymous(&self) -> bool {
         matches!(self, Self::Anonymous)
-    }
-
-    /// 获取用户名（如果是认证模式）
-    pub fn username(&self) -> Option<&str> {
-        match self {
-            Self::Anonymous => None,
-            Self::Authenticated { username, .. } => Some(username),
-        }
     }
 }
 
@@ -358,6 +342,8 @@ mod tests {
     }
 }
 
+/// Test-only event bus that doesn't persist events
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TransientEventBus {
     tx: broadcast::Sender<DomainEvent>,

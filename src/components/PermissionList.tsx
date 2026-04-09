@@ -110,7 +110,6 @@ const ZapIcon = <Zap className="w-5 h-5" />;
 interface PermissionConfig {
   key: 'storage' | 'notification' | 'batteryOptimization';
   label: string;
-  title: string;
   description: string;
   grantedIcon: React.ReactNode;
   deniedIcon: React.ReactNode;
@@ -120,7 +119,6 @@ const PERMISSION_CONFIGS: PermissionConfig[] = [
   {
     key: 'storage',
     label: '文件访问权限',
-    title: '文件访问权限',
     description: '用于保存相机上传的照片',
     grantedIcon: CheckIcon,
     deniedIcon: FolderIcon,
@@ -128,7 +126,6 @@ const PERMISSION_CONFIGS: PermissionConfig[] = [
   {
     key: 'notification',
     label: '通知权限',
-    title: '通知权限',
     description: '用于显示服务状态和快捷操作',
     grantedIcon: CheckIcon,
     deniedIcon: BellIcon,
@@ -136,7 +133,6 @@ const PERMISSION_CONFIGS: PermissionConfig[] = [
   {
     key: 'batteryOptimization',
     label: '电池优化白名单',
-    title: '电池优化白名单',
     description: '防止后台运行时被系统清理',
     grantedIcon: CheckIcon,
     deniedIcon: ZapIcon,
@@ -191,7 +187,7 @@ export function PermissionList({
       {visiblePermissions.map(config => (
         <PermissionItemDetailed
           key={config.key}
-          title={config.title}
+          title={config.label}
           description={config.description}
           granted={permissions[config.key]}
           isLoading={isLoading}

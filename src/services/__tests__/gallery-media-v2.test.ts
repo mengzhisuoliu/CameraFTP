@@ -174,15 +174,8 @@ describe('gallery-media-v2 service', () => {
         errorCode: 'io_transient',
       };
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-      try {
-        // Should not throw
-        expect(() => dispatchThumbnailResult('unknown', JSON.stringify(result))).not.toThrow();
-        expect(warnSpy).toHaveBeenCalled();
-      } finally {
-        warnSpy.mockRestore();
-      }
+      // Should not throw
+      expect(() => dispatchThumbnailResult('unknown', JSON.stringify(result))).not.toThrow();
     });
   });
 

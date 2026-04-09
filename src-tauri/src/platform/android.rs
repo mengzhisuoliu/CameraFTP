@@ -54,18 +54,10 @@ pub fn get_storage_info() -> StorageInfo {
 
 /// 检查权限状态
 pub fn check_permission_status() -> PermissionStatus {
-    let has_access = check_media_store_permission();
     PermissionStatus {
-        has_all_files_access: has_access,
-        needs_user_action: !has_access,
+        has_all_files_access: true,
+        needs_user_action: false,
     }
-}
-
-/// 检查是否有媒体存储权限
-/// 权限检查现在通过 Kotlin bridge 完成；假设如果可以查询 MediaStore 就已授权
-fn check_media_store_permission() -> bool {
-    // Permission check now done via Kotlin bridge; assume granted if we can query MediaStore
-    true
 }
 
 /// 检查 DCIM 目录是否可写（用于判断所有文件访问权限）

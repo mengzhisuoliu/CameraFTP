@@ -15,5 +15,9 @@ describe('types/index.ts exports (source guard)', () => {
     expect(source).not.toContain("export type { ImageOpenMethod }");
     expect(source).not.toContain("export type { AndroidImageViewerConfig }");
     expect(source).not.toContain("export type { ConfigChangedEvent } from './events';");
+    expect(source).not.toContain("ThumbSizeBucket");
+    expect(source).not.toContain("ThumbPriority");
+    expect(source).not.toContain("ThumbStatus");
+    expect(source).not.toContain("ThumbErrorCode");
   });
 });
