@@ -76,6 +76,18 @@ impl From<&AuthConfig> for FtpAuthConfig {
     }
 }
 
+impl FtpAuthConfig {
+    /// Returns (username, password_info) suitable for display in UI.
+    pub fn to_display_credentials(&self) -> (Option<String>, Option<String>) {
+        match self {
+            Self::Anonymous => (None, None),
+            Self::Authenticated { username, .. } => {
+                (Some(username.clone()), Some("(配置密码)".to_string()))
+            }
+        }
+    }
+}
+
 /// FTP 服务器配置
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -324,6 +336,20 @@ mod tests {
         let info = ServerInfo::new("192.168.1.8".to_string(), 2121, None, None);
 
         assert_eq!(info.url, "ftp://192.168.1.8:2121");
+    }
+
+    #[test]
+    fn ftp_auth_config_to_display_credentials() {
+        let anonymous = crate::ftp::types::FtpAuthConfig::Anonymous;
+        assert_eq!(anonymous.to_display_credentials(), (None, None));
+
+        let authed = crate::ftp::types::FtpAuthConfig::Authenticated {
+            username: "admin".to_string(),
+            password_hash: "hash123".to_string(),
+        };
+        let (user, pass_info) = authed.to_display_credentials();
+        assert_eq!(user.as_deref(), Some("admin"));
+        assert_eq!(pass_info.as_deref(), Some("(配置密码)"));
     }
 
     #[test]

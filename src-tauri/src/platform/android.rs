@@ -336,4 +336,23 @@ mod tests {
 
         assert!(rules.contains("AndroidServiceStateCoordinator"));
     }
+
+    #[test]
+    fn no_redundant_storage_free_functions() {
+        let source = include_str!("android.rs");
+        let production_code = source.split("#[cfg(test)]").next().unwrap();
+
+        assert!(
+            !production_code.contains("pub fn get_storage_info()"),
+            "get_storage_info() should be inlined into PlatformService impl"
+        );
+        assert!(
+            !production_code.contains("pub fn check_permission_status()"),
+            "check_permission_status() should be inlined into PlatformService impl"
+        );
+        assert!(
+            !production_code.contains("pub fn ensure_storage_ready()"),
+            "ensure_storage_ready() should be inlined into PlatformService impl"
+        );
+    }
 }

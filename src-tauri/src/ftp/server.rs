@@ -625,19 +625,10 @@ impl FtpServerActor {
         let port = bind_addr.port();
 
         // 获取认证信息
-        let (username, password_info) = if let Some(ref config) = self.config {
-            match &config.auth {
-                FtpAuthConfig::Anonymous => (None, None),
-                FtpAuthConfig::Authenticated { username, .. } => {
-                    (
-                        Some(username.clone()),
-                        Some("(配置密码)".to_string()),
-                    )
-                }
-            }
-        } else {
-            (None, None)
-        };
+        let (username, password_info) = self.config
+            .as_ref()
+            .map(|c| c.auth.to_display_credentials())
+            .unwrap_or((None, None));
 
         Some(ServerInfo::new(ip, port, username, password_info))
     }
