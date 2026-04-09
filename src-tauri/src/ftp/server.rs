@@ -127,13 +127,6 @@ impl FtpServerHandle {
         self.send_command(|tx| ServerCommand::Stop { respond_to: tx }).await?
     }
 
-    /// 获取状态快照
-    pub async fn get_snapshot(&self) -> ServerStateSnapshot {
-        self.send_command(|tx| ServerCommand::GetSnapshot { respond_to: tx })
-            .await
-            .unwrap_or_default()
-    }
-
     /// 获取服务器连接信息（包含 IP 和端口）
     pub async fn get_server_info(&self) -> Option<ServerInfo> {
         self.send_command(|tx| ServerCommand::GetServerInfo { respond_to: tx })
@@ -804,6 +797,20 @@ mod tests {
         assert!(!production_source.contains("Server may not be fully ready, continuing anyway"));
         assert!(!production_source.contains("Server did not stop within timeout, continuing anyway"));
         assert!(production_source.contains("FTP server startup timed out"));
+    }
+
+    #[test]
+    fn get_snapshot_is_removed_from_handle() {
+        let source = include_str!("server.rs");
+        let production_source = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("server.rs should contain production code before tests");
+
+        assert!(
+            !production_source.contains("pub async fn get_snapshot"),
+            "get_snapshot() should be removed from FtpServerHandle — it is never called externally"
+        );
     }
 
     #[test]
