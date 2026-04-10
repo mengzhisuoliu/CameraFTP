@@ -26,7 +26,7 @@ const CLSID_APPLICATION_ACTIVATION_MANAGER: windows::core::GUID = windows::core:
 
 /// 使用系统默认程序打开
 pub fn open_with_default(file_path: &PathBuf) -> Result<(), AppError> {
-    open_with_shell_execute(file_path, None)
+    open_with_shell_execute(file_path, None, None)
 }
 
 /// 使用 Windows 照片应用打开
@@ -140,20 +140,31 @@ pub fn open_folder_and_select_file(file_path: &PathBuf) -> Result<(), AppError> 
     Ok(())
 }
 
-fn open_with_shell_execute(file_path: &PathBuf, operation: Option<&str>) -> Result<(), AppError> {
+fn open_with_shell_execute(
+    file_path: &PathBuf,
+    operation: Option<&str>,
+    arguments: Option<&PathBuf>,
+) -> Result<(), AppError> {
     unsafe {
         let _ = CoInitialize(None);
     }
 
-    // 直接将 PathBuf 转换为宽字符
     let file_wide: Vec<u16> = file_path.as_os_str().encode_wide().chain(Some(0)).collect();
 
-    // 处理 operation 参数
-    let operation_ptr = if let Some(op) = operation {
-        let op_wide: Vec<u16> = OsStr::new(op).encode_wide().chain(Some(0)).collect();
-        PCWSTR(op_wide.as_ptr())
-    } else {
-        PCWSTR(ptr::null())
+    let operation_ptr = match operation {
+        Some(op) => {
+            let op_wide: Vec<u16> = OsStr::new(op).encode_wide().chain(Some(0)).collect();
+            PCWSTR(op_wide.as_ptr())
+        }
+        None => PCWSTR(ptr::null()),
+    };
+
+    let arguments_ptr = match arguments {
+        Some(arg) => {
+            let arg_wide: Vec<u16> = arg.as_os_str().encode_wide().chain(Some(0)).collect();
+            PCWSTR(arg_wide.as_ptr())
+        }
+        None => PCWSTR(ptr::null()),
     };
 
     let result = unsafe {
@@ -161,14 +172,12 @@ fn open_with_shell_execute(file_path: &PathBuf, operation: Option<&str>) -> Resu
             None,
             operation_ptr,
             PCWSTR(file_wide.as_ptr()),
-            None,
+            arguments_ptr,
             None,
             SW_SHOWNORMAL,
         )
     };
 
-    // ShellExecuteW 返回 HINSTANCE，成功时大于 32，失败时小于等于 32
-    // 在 windows 0.58 中 HINSTANCE 是一个结构体，其 .0 字段是 *mut c_void
     if result.0 as usize <= 32 {
         return Err(AppError::Other(format!(
             "ShellExecute failed with code {:?}",
@@ -180,33 +189,6 @@ fn open_with_shell_execute(file_path: &PathBuf, operation: Option<&str>) -> Resu
 }
 
 fn open_with_program_execute(file_path: &PathBuf, program: &str) -> Result<(), AppError> {
-    unsafe {
-        let _ = CoInitialize(None);
-    }
-
-    // 程序路径转换为宽字符
-    let program_wide: Vec<u16> = OsStr::new(program).encode_wide().chain(Some(0)).collect();
-
-    // 文件路径转换为宽字符
-    let file_wide: Vec<u16> = file_path.as_os_str().encode_wide().chain(Some(0)).collect();
-
-    let result = unsafe {
-        ShellExecuteW(
-            None,
-            None,
-            PCWSTR(program_wide.as_ptr()),
-            PCWSTR(file_wide.as_ptr()),
-            None,
-            SW_SHOWNORMAL,
-        )
-    };
-
-    if result.0 as usize <= 32 {
-        return Err(AppError::Other(format!(
-            "ShellExecute failed with code {:?}",
-            result.0
-        )));
-    }
-
-    Ok(())
+    let program_path = PathBuf::from(program);
+    open_with_shell_execute(&program_path, None, Some(file_path))
 }

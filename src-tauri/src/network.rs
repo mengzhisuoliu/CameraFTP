@@ -125,31 +125,21 @@ impl NetworkManager {
     /// 优先级：WiFi > 以太网 > 其他
     pub fn recommended_ip() -> Option<String> {
         let interfaces = Self::list_interfaces();
-        
+
         if interfaces.is_empty() {
             tracing::error!("No valid network interface found");
             return None;
         }
-        
-        // 优先 WiFi
-        if let Some(iface) = interfaces.iter().find(|i| i.is_wifi) {
-            tracing::info!("Selected WiFi interface: {} ({})", iface.name, iface.ip);
-            return Some(iface.ip.clone());
-        }
-        
-        // 其次以太网
-        if let Some(iface) = interfaces.iter().find(|i| i.is_ethernet) {
-            tracing::info!("Selected Ethernet interface: {} ({})", iface.name, iface.ip);
-            return Some(iface.ip.clone());
-        }
-        
-        // 最后选择任何可用接口（但排除链路本地和虚拟网卡后应该不会走到这里）
-        if let Some(iface) = interfaces.first() {
-            tracing::info!("Selected fallback interface: {} ({})", iface.name, iface.ip);
-            return Some(iface.ip.clone());
-        }
-        
-        None
+
+        interfaces
+            .iter()
+            .find(|i| i.is_wifi)
+            .or_else(|| interfaces.iter().find(|i| i.is_ethernet))
+            .or_else(|| interfaces.first())
+            .map(|iface| {
+                tracing::info!("Selected interface: {} ({})", iface.name, iface.ip);
+                iface.ip.clone()
+            })
     }
     
     /// 检查端口是否可用

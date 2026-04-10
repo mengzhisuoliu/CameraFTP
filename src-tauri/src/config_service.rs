@@ -11,6 +11,10 @@ use tracing::{error, info};
 use crate::config::AppConfig;
 use crate::error::AppError;
 
+fn lock_result<T>(result: std::sync::LockResult<T>) -> Result<T, AppError> {
+    result.map_err(|e| AppError::Other(format!("Config lock poisoned: {}", e)))
+}
+
 #[derive(Clone)]
 pub struct ConfigService {
     config: Arc<RwLock<AppConfig>>,
@@ -33,32 +37,24 @@ impl ConfigService {
 
     pub fn load(&self) -> Result<AppConfig, AppError> {
         let loaded_config = Self::load_from_path(&self.config_path)?;
-        let mut guard = self
-            .config
-            .write()
-            .map_err(|e| AppError::Other(format!("Config lock poisoned: {}", e)))?;
+        let mut guard = lock_result(self.config.write())?;
         *guard = loaded_config.clone();
         Ok(loaded_config)
     }
 
     pub fn get(&self) -> Result<AppConfig, AppError> {
-        let guard = self
-            .config
-            .read()
-            .map_err(|e| AppError::Other(format!("Config lock poisoned: {}", e)))?;
+        let guard = lock_result(self.config.read())?;
         Ok(guard.clone())
     }
 
     pub fn update(&self, new_config: AppConfig) -> Result<(), AppError> {
         let new_config = new_config.normalized_for_current_platform();
-        let mut guard = self
-            .config
-            .write()
-            .map_err(|e| AppError::Other(format!("Config lock poisoned: {}", e)))?;
+        let mut guard = lock_result(self.config.write())?;
         *guard = new_config;
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn save(&self) -> Result<(), AppError> {
         let config = self.get()?;
         Self::save_to_path(&self.config_path, &config)
@@ -68,10 +64,7 @@ impl ConfigService {
     where
         F: FnOnce(&mut AppConfig) -> R,
     {
-        let mut guard = self
-            .config
-            .write()
-            .map_err(|e| AppError::Other(format!("Config lock poisoned: {}", e)))?;
+        let mut guard = lock_result(self.config.write())?;
 
         let mut next_config = guard.clone();
         let result = mutate(&mut next_config);

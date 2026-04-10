@@ -5,7 +5,6 @@
 use crate::ftp::types::{
     DomainEvent, ServerRuntimeSnapshot, ServerRuntimeState, ServerStateSnapshot, ServerStats,
 };
-use serde::Serialize;
 use tokio::sync::{broadcast, watch};
 use tracing::warn;
 use tauri::Emitter;
@@ -269,19 +268,14 @@ impl StatsEventHandler {
         }
     }
 
-    /// 向前端发送事件，失败时记录警告日志
-    fn emit_to_frontend<T: Serialize + Clone>(&self, event_name: &str, payload: T) {
-        if let Err(e) = self.app_handle.emit(event_name, payload) {
-            warn!(event = event_name, error = %e, "Failed to emit frontend event");
-        }
-    }
-
     fn sync_android_service_state(&self, snapshot: &ServerStateSnapshot) {
         crate::platform::get_platform().sync_android_service_state(&self.app_handle, snapshot);
     }
 
     fn emit_frontend_json(&self, event_name: &str, payload: serde_json::Value) {
-        self.emit_to_frontend(event_name, payload);
+        if let Err(e) = self.app_handle.emit(event_name, payload) {
+            warn!(event = event_name, error = %e, "Failed to emit frontend event");
+        }
     }
 }
 

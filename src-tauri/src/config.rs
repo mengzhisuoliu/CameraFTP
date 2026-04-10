@@ -138,10 +138,16 @@ static ANDROID_CONFIG_PATH: OnceLock<PathBuf> = OnceLock::new();
 /// 设置 Android 配置路径（在应用初始化时调用）
 #[cfg(target_os = "android")]
 pub fn set_android_config_path(config_path: PathBuf) {
-    if ANDROID_CONFIG_PATH.set(config_path.clone()).is_err() {
-        warn!("Android config path already set, ignoring duplicate initialization");
-    } else {
-        info!("Android config path set: {:?}", config_path);
+    match ANDROID_CONFIG_PATH.set(config_path) {
+        Ok(()) => {
+            info!(
+                "Android config path set: {:?}",
+                ANDROID_CONFIG_PATH.get().unwrap()
+            );
+        }
+        Err(_) => {
+            warn!("Android config path already set, ignoring duplicate initialization");
+        }
     }
 }
 

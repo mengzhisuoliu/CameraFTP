@@ -380,7 +380,6 @@ impl FtpServerActor {
         };
 
         let server_task = tokio::spawn(async move {
-            let startup_tx = startup_tx;
             info!(bind_addr = %bind_str, "FTP server starting");
             match server.listen(bind_str).await {
                 Ok(_) => {
@@ -522,11 +521,7 @@ impl FtpServerActor {
 
     async fn clear_stopped_state(&mut self) {
         self.sessions.clear();
-        self.shutdown_tx = None;
-        self.config = None;
-        self.bind_addr = None;
-        self.server_task = None;
-        self.set_status(ServerStatus::Stopped).await;
+        self.reset_partial_state().await;
     }
 
     async fn emit_stopped_runtime_state(&self) {
@@ -584,12 +579,9 @@ impl FtpServerActor {
                 server_task.abort();
                 // Port remained reachable after FTP server task exited
                 // (abort enforced — the port will be released by the OS)
-                match server_task.await {
-                    Ok(()) | Err(_) => {
-                        self.finalize_terminal_stop().await;
-                        return Ok(());
-                    }
-                }
+                let _ = server_task.await;
+                self.finalize_terminal_stop().await;
+                return Ok(());
             }
         }
 

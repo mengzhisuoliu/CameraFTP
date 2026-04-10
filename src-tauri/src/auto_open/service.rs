@@ -56,32 +56,12 @@ impl AutoOpenService {
     pub async fn on_file_uploaded(&self, _file_path: PathBuf) -> Result<(), AppError> {
         #[cfg(target_os = "windows")]
         {
-            // 检查是否启用自动预览
             let config = self.current_config();
             if !config.enabled {
                 return Ok(());
             }
-
-            match &config.method {
-                ImageOpenMethod::BuiltInPreview => {
-                    // 创建或更新预览窗口
-                    self.open_or_update_preview_window(&_file_path, config.auto_bring_to_front).await?;
-                }
-                ImageOpenMethod::SystemDefault => {
-                    crate::auto_open::windows::open_with_default(&_file_path)?;
-                }
-                ImageOpenMethod::WindowsPhotos => {
-                    crate::auto_open::windows::open_with_photos(&_file_path)?;
-                }
-                ImageOpenMethod::Custom => {
-                    if let Some(program_path) = &config.custom_path {
-                        crate::auto_open::windows::open_with_program(&_file_path, program_path)?;
-                    }
-                }
-            }
+            self.dispatch_open(&_file_path, config.auto_bring_to_front).await?;
         }
-        
-        // Android 上暂时不支持自动打开
         Ok(())
     }
 
@@ -89,26 +69,33 @@ impl AutoOpenService {
     pub async fn open_image(&self, _file_path: &PathBuf) -> Result<(), AppError> {
         #[cfg(target_os = "windows")]
         {
-            let config = self.current_config();
-            
-            match &config.method {
-                ImageOpenMethod::BuiltInPreview => {
-                    self.open_or_update_preview_window(_file_path, true).await?;
-                }
-                ImageOpenMethod::SystemDefault => {
-                    crate::auto_open::windows::open_with_default(_file_path)?;
-                }
-                ImageOpenMethod::WindowsPhotos => {
-                    crate::auto_open::windows::open_with_photos(_file_path)?;
-                }
-                ImageOpenMethod::Custom => {
-                    if let Some(program_path) = &config.custom_path {
-                        crate::auto_open::windows::open_with_program(_file_path, program_path)?;
-                    }
+            self.dispatch_open(_file_path, true).await?;
+        }
+        Ok(())
+    }
+
+    /// 根据配置分发打开操作
+    #[cfg(target_os = "windows")]
+    async fn dispatch_open(&self, file_path: &PathBuf, bring_to_front: bool) -> Result<(), AppError> {
+        let config = self.current_config();
+
+        match &config.method {
+            ImageOpenMethod::BuiltInPreview => {
+                self.open_or_update_preview_window(file_path, bring_to_front).await?;
+            }
+            ImageOpenMethod::SystemDefault => {
+                crate::auto_open::windows::open_with_default(file_path)?;
+            }
+            ImageOpenMethod::WindowsPhotos => {
+                crate::auto_open::windows::open_with_photos(file_path)?;
+            }
+            ImageOpenMethod::Custom => {
+                if let Some(program_path) = &config.custom_path {
+                    crate::auto_open::windows::open_with_program(file_path, program_path)?;
                 }
             }
         }
-        
+
         Ok(())
     }
 

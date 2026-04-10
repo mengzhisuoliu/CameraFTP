@@ -67,24 +67,11 @@ pub const PREVIEW_WINDOW_WIDTH: f64 = 1024.0;
 /// 预览窗口高度
 pub const PREVIEW_WINDOW_HEIGHT: f64 = 768.0;
 
-/// 预览窗口就绪超时时间（秒）
-pub const PREVIEW_READY_TIMEOUT_SECS: u64 = 5;
-
 /// 预览窗口置顶持续时间（秒）
 pub const PREVIEW_ON_TOP_DURATION_SECS: u64 = 2;
 
 /// 预览事件发送延迟（毫秒）
 pub const PREVIEW_EMIT_DELAY_MS: u64 = 300;
-
-// ============================================================================
-// Android 平台常量
-// ============================================================================
-
-/// Tauri 监听器注册最大重试次数
-pub const TAURI_LISTENER_MAX_RETRIES: i32 = 50;
-
-/// Tauri 监听器注册重试延迟（毫秒）
-pub const TAURI_LISTENER_RETRY_DELAY_MS: i64 = 50;
 
 // ============================================================================
 // 自动启动常量

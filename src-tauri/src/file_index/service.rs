@@ -112,30 +112,28 @@ impl FileIndexService {
                 // 克隆 Arc 用于 watcher 任务
                 let self_arc_clone = Arc::clone(&self_arc);
 
-                let result = match watcher.start(self_arc_clone).await {
+                let result = watcher.start(self_arc_clone).await;
+
+                // 将 watcher 重新放回 Mutex（无论 start 成功与否）
+                {
+                    let mut watcher_guard = self_arc.watcher.lock().await;
+                    *watcher_guard = Some(watcher);
+                }
+
+                match result {
                     Ok(true) => {
                         info!("File watcher started successfully");
-                        // 将 watcher 重新放回 Mutex
-                        let mut watcher_guard = self_arc.watcher.lock().await;
-                        *watcher_guard = Some(watcher);
                         Ok(true)
                     }
                     Ok(false) => {
                         info!("File watcher not started (may be unsupported platform)");
-                        // 将 watcher 重新放回 Mutex
-                        let mut watcher_guard = self_arc.watcher.lock().await;
-                        *watcher_guard = Some(watcher);
                         Ok(false)
                     }
                     Err(e) => {
                         error!("Failed to start file watcher: {}", e);
-                        // 将 watcher 重新放回 Mutex
-                        let mut watcher_guard = self_arc.watcher.lock().await;
-                        *watcher_guard = Some(watcher);
                         Err(AppError::Other(format!("Failed to start watcher: {}", e)))
                     }
-                };
-                result
+                }
             } else {
                 Ok(false)
             }
