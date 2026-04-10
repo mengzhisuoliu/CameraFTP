@@ -92,6 +92,10 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     useCallback((config) => setLocalAutoBringToFront(config.autoBringToFront), []),
   );
 
+  useEffect(() => {
+    setLocalAutoBringToFront(autoBringToFront);
+  }, [autoBringToFront]);
+
   // 重置图片错误状态和缩放
   useEffect(() => {
     setImageError(false);

@@ -59,8 +59,11 @@ export const useConfigStore = create<ConfigState>((set, get) => {
       return nextConfig;
     }
 
+    const preserveAdvancedEnabled = currentDraft.advancedConnection.enabled
+      !== currentConfig.advancedConnection.enabled;
     const preserveAuth = preserveMode !== 'excludeAuth'
       && currentDraft.advancedConnection.auth !== currentConfig.advancedConnection.auth;
+
     return {
       ...nextConfig,
       savePath: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'savePath'),
@@ -68,7 +71,9 @@ export const useConfigStore = create<ConfigState>((set, get) => {
       autoSelectPort: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'autoSelectPort'),
       advancedConnection: {
         ...nextConfig.advancedConnection,
-        enabled: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'advancedConnection').enabled,
+        enabled: preserveAdvancedEnabled
+          ? currentDraft.advancedConnection.enabled
+          : nextConfig.advancedConnection.enabled,
         auth: preserveAuth ? currentDraft.advancedConnection.auth : nextConfig.advancedConnection.auth,
       },
       previewConfig: nextConfig.previewConfig,
