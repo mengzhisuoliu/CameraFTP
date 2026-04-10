@@ -5,8 +5,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo, memo } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useConfigStore } from '../stores/configStore';
 import { PREVIEW_NAVIGATE_EVENT } from '../hooks/preview-window-events';

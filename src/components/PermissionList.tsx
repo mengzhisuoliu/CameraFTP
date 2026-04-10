@@ -9,9 +9,6 @@ import { Check, Folder, Bell, Zap } from 'lucide-react';
 import { usePermissionStore } from '../stores/permissionStore';
 
 interface PermissionListProps {
-  showStorage?: boolean;
-  showNotification?: boolean;
-  showBattery?: boolean;
   /** Use compact style (dots only) vs detailed style (icons with descriptions) */
   variant?: 'compact' | 'detailed';
 }
@@ -142,9 +139,6 @@ const PERMISSION_CONFIGS: PermissionConfig[] = [
 // ===== Main Component =====
 
 export function PermissionList({
-  showStorage = true,
-  showNotification = true,
-  showBattery = true,
   variant = 'detailed',
 }: PermissionListProps) {
   const permissions = usePermissionStore((state) => state.permissions);
@@ -159,13 +153,7 @@ export function PermissionList({
     batteryOptimization: requestBatteryOptimization,
   };
 
-  const showFlags = {
-    storage: showStorage,
-    notification: showNotification,
-    batteryOptimization: showBattery,
-  };
-
-  const visiblePermissions = PERMISSION_CONFIGS.filter(config => showFlags[config.key]);
+  const visiblePermissions = PERMISSION_CONFIGS;
 
   if (variant === 'compact') {
     return (

@@ -44,6 +44,11 @@ export const useConfigStore = create<ConfigState>((set, get) => {
     return queuedOperation;
   };
 
+  const preserveIfDirty = <K extends keyof AppConfig>(
+    next: AppConfig, current: AppConfig, draft: AppConfig, key: K,
+  ): AppConfig[K] =>
+    draft[key] !== current[key] ? draft[key] : next[key];
+
   const mergeDraftWithBackend = (
     nextConfig: AppConfig,
     currentConfig: AppConfig | null,
@@ -58,22 +63,16 @@ export const useConfigStore = create<ConfigState>((set, get) => {
       && currentDraft.advancedConnection.auth !== currentConfig.advancedConnection.auth;
     return {
       ...nextConfig,
-      savePath: currentDraft.savePath !== currentConfig.savePath ? currentDraft.savePath : nextConfig.savePath,
-      port: currentDraft.port !== currentConfig.port ? currentDraft.port : nextConfig.port,
-      autoSelectPort: currentDraft.autoSelectPort !== currentConfig.autoSelectPort
-        ? currentDraft.autoSelectPort
-        : nextConfig.autoSelectPort,
+      savePath: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'savePath'),
+      port: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'port'),
+      autoSelectPort: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'autoSelectPort'),
       advancedConnection: {
         ...nextConfig.advancedConnection,
-        enabled: currentDraft.advancedConnection.enabled !== currentConfig.advancedConnection.enabled
-          ? currentDraft.advancedConnection.enabled
-          : nextConfig.advancedConnection.enabled,
+        enabled: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'advancedConnection').enabled,
         auth: preserveAuth ? currentDraft.advancedConnection.auth : nextConfig.advancedConnection.auth,
       },
       previewConfig: nextConfig.previewConfig,
-      androidImageViewer: currentDraft.androidImageViewer !== currentConfig.androidImageViewer
-        ? currentDraft.androidImageViewer
-        : nextConfig.androidImageViewer,
+      androidImageViewer: preserveIfDirty(nextConfig, currentConfig, currentDraft, 'androidImageViewer'),
     };
   };
 

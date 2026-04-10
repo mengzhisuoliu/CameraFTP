@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "android")]
 use std::fs;
 use std::path::PathBuf;
 #[cfg(target_os = "android")]
 use std::sync::OnceLock;
+#[cfg(target_os = "android")]
 use tracing::info;
 #[cfg(target_os = "android")]
 use tracing::warn;
@@ -182,12 +184,14 @@ pub struct AppConfig {
     pub android_image_viewer: Option<AndroidImageViewerConfig>,
 }
 
+#[cfg(target_os = "android")]
 fn default_android_image_viewer() -> Option<AndroidImageViewerConfig> {
-    if cfg!(target_os = "android") {
-        Some(AndroidImageViewerConfig::default())
-    } else {
-        None
-    }
+    Some(AndroidImageViewerConfig::default())
+}
+
+#[cfg(not(target_os = "android"))]
+const fn default_android_image_viewer() -> Option<AndroidImageViewerConfig> {
+    None
 }
 
 impl Default for AppConfig {
@@ -251,23 +255,6 @@ impl AppConfig {
                 .unwrap_or_else(|| PathBuf::from("./config"))
                 .join("config.json")
         }
-    }
-
-    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let path = Self::config_path();
-
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
-        let config_to_save = self.clone().normalized_for_current_platform();
-
-        let content = serde_json::to_string_pretty(&config_to_save)?;
-        fs::write(&path, content)?;
-
-        info!("Config saved to {:?}", path);
-        Ok(())
     }
 
     #[cfg_attr(not(target_os = "android"), allow(unused_mut))]

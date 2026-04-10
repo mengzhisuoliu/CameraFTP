@@ -31,9 +31,6 @@ pub const DEFAULT_FTP_PORT_WINDOWS: u16 = 21;
 /// Android 默认 FTP 端口
 pub const DEFAULT_FTP_PORT_ANDROID: u16 = 2121;
 
-/// 其他平台默认 FTP 端口
-pub const DEFAULT_FTP_PORT_OTHER: u16 = 2121;
-
 /// 自动端口选择的最小端口
 pub const MIN_PORT: u16 = 1025;
 

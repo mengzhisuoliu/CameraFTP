@@ -38,8 +38,9 @@ impl ConfigService {
     pub fn load(&self) -> Result<AppConfig, AppError> {
         let loaded_config = Self::load_from_path(&self.config_path)?;
         let mut guard = lock_result(self.config.write())?;
-        *guard = loaded_config.clone();
-        Ok(loaded_config)
+        let result = loaded_config.clone();
+        *guard = loaded_config;
+        Ok(result)
     }
 
     pub fn get(&self) -> Result<AppConfig, AppError> {

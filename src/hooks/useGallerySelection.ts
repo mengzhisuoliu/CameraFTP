@@ -185,7 +185,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       }
 
       setDeletingIds(mediaIdsToAnimate);
-      setShowMenu(false);
 
       await new Promise((resolve) => setTimeout(resolve, 300));
 

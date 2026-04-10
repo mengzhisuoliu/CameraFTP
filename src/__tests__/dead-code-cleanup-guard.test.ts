@@ -52,4 +52,48 @@ describe('dead code cleanup guard', () => {
 
     expect(source).not.toContain('as Window &');
   });
+
+  // D1: gallery-v2 internal-only thumbnail types should not be exported
+  it('gallery-v2 does not export ThumbSizeBucket, ThumbPriority, ThumbStatus, ThumbErrorCode', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/types/gallery-v2.ts'), 'utf-8');
+
+    expect(source).not.toMatch(/export\s+type\s+ThumbSizeBucket/);
+    expect(source).not.toMatch(/export\s+type\s+ThumbPriority/);
+    expect(source).not.toMatch(/export\s+type\s+ThumbStatus/);
+    expect(source).not.toMatch(/export\s+type\s+ThumbErrorCode/);
+  });
+
+  // D2: handleDelete should not contain duplicate setShowMenu(false)
+  it('useGallerySelection handleDelete does not call setShowMenu(false) twice', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/hooks/useGallerySelection.ts'), 'utf-8');
+
+    // Extract handleDelete callback body
+    const handleDeleteMatch = source.match(/const handleDelete[\s\S]*?\}, \[.*?\]\);/);
+    expect(handleDeleteMatch).toBeTruthy();
+    const body = handleDeleteMatch![0];
+    const count = (body.match(/setShowMenu\(false\)/g) || []).length;
+    expect(count).toBe(1);
+  });
+
+  // D4: UseGalleryPagerResult should not be exported
+  it('useGalleryPager does not export UseGalleryPagerResult', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/hooks/useGalleryPager.ts'), 'utf-8');
+
+    expect(source).not.toMatch(/export\s+interface\s+UseGalleryPagerResult/);
+  });
+
+  // S3: PreviewWindow should use single import from @tauri-apps/api/core
+  it('PreviewWindow does not have duplicate imports from @tauri-apps/api/core', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/PreviewWindow.tsx'), 'utf-8');
+
+    const importCount = (source.match(/from\s+['"]@tauri-apps\/api\/core['"]/g) || []).length;
+    expect(importCount).toBe(1);
+  });
+
+  // S10: configStore mergeDraftWithBackend uses preserveIfDirty helper
+  it('configStore mergeDraftWithBackend uses preserveIfDirty helper to avoid repetition', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/stores/configStore.ts'), 'utf-8');
+
+    expect(source).toContain('preserveIfDirty');
+  });
 });

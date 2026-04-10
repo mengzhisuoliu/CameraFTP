@@ -14,12 +14,7 @@ import { requestMediaLibraryRefresh } from '../utils/gallery-refresh';
 // while delete-triggered bridge refresh remains as a compatibility fallback.
 
 import { useServerStore } from '../stores/serverStore';
-type ServerStartedPayload = { ip: string; port: number };
 
-type ServerRuntimeView = {
-  serverInfo: ServerInfo | null;
-  stats: ServerStateSnapshot;
-};
 
 function normalizeIpv4Host(host: string): string {
   const trimmedHost = host.trim();
@@ -52,7 +47,7 @@ function buildNormalizedIpv4ServerInfo(ip: string, port: number): Pick<ServerInf
 
 async function syncRuntimeStateFromBackend(): Promise<boolean> {
   try {
-    const runtimeState = await invoke<ServerRuntimeView>('get_server_runtime_state');
+    const runtimeState = await invoke<{ serverInfo: ServerInfo | null; stats: ServerStateSnapshot }>('get_server_runtime_state');
     if (runtimeState.serverInfo?.isRunning) {
       useServerStore.getState().setServerRunning(runtimeState.serverInfo, {
         stats: runtimeState.stats,
@@ -72,7 +67,7 @@ function createEventRegistrations(): EventRegistration<any>[] {
   return [
     {
       name: 'server-started',
-      handler: async (event: Event<ServerStartedPayload>) => {
+      handler: async (event: Event<{ ip: string; port: number }>) => {
         const { ip, port } = event.payload;
         if (await syncRuntimeStateFromBackend()) {
           return;

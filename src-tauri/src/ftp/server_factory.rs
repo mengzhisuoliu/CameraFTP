@@ -6,7 +6,7 @@
 
 use crate::config_service::ConfigService;
 use crate::constants::{
-    DEFAULT_FTP_PORT_WINDOWS, DEFAULT_FTP_PORT_ANDROID, DEFAULT_FTP_PORT_OTHER,
+    DEFAULT_FTP_PORT_WINDOWS, DEFAULT_FTP_PORT_ANDROID,
     MIN_PORT, IDLE_TIMEOUT_SECONDS,
 };
 use crate::error::AppError;
@@ -75,10 +75,8 @@ pub async fn start_ftp_server(
     // 当 advanced_connection 禁用时，Windows 使用默认端口 21，Android 使用 2121
     let default_port = if cfg!(target_os = "windows") {
         DEFAULT_FTP_PORT_WINDOWS
-    } else if cfg!(target_os = "android") {
-        DEFAULT_FTP_PORT_ANDROID
     } else {
-        DEFAULT_FTP_PORT_OTHER
+        DEFAULT_FTP_PORT_ANDROID
     };
     let requested_port = if config.advanced_connection.enabled {
         config.port

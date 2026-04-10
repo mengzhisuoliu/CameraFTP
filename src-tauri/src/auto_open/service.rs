@@ -30,7 +30,7 @@ macro_rules! wrap_err {
 }
 
 pub struct AutoOpenService {
-    #[allow(dead_code)]
+    #[cfg(target_os = "windows")]
     app_handle: AppHandle,
     #[cfg(target_os = "windows")]
     config_service: Arc<ConfigService>,
@@ -47,8 +47,9 @@ impl AutoOpenService {
         }
         #[cfg(target_os = "android")]
         {
+            let _ = app_handle;
             let _ = config_service;
-            Self { app_handle }
+            Self {}
         }
     }
 

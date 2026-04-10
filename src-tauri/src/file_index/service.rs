@@ -33,18 +33,6 @@ pub struct FileIndexService {
     event_bus: Arc<RwLock<Option<EventBus>>>,
 }
 
-impl Clone for FileIndexService {
-    fn clone(&self) -> Self {
-        Self {
-            index: RwLock::new(self.index.blocking_read().clone()),
-            save_path: RwLock::new(self.save_path.blocking_read().clone()),
-            #[cfg(target_os = "windows")]
-            watcher: Mutex::new(None), // watcher 不克隆，新实例需要重新启动
-            event_bus: Arc::clone(&self.event_bus), // 共享 event_bus
-        }
-    }
-}
-
 impl FileIndexService {
     pub fn new(config_service: Arc<ConfigService>) -> Self {
         let config = config_service.get().unwrap_or_else(|e| {
