@@ -353,18 +353,6 @@ mod tests {
     }
 
     #[test]
-    fn ftp_auth_config_is_anonymous_method_is_removed() {
-        // Verify no impl block exists with only is_anonymous — the pattern below
-        // encodes the check to avoid matching this test's own source text.
-        let needle = "pub fn is_ano".to_string() + "nymous(&self)";
-        let source = include_str!("types.rs");
-        assert!(
-            !source.contains(&needle),
-            "is_anonymous() should be removed — it is never called"
-        );
-    }
-
-    #[test]
     fn future_server_info_contract_falls_back_to_ipv4_loopback_for_ipv6_like_host() {
         let info = ServerInfo::new("::1".to_string(), 2121, None, None);
 

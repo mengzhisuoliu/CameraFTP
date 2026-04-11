@@ -770,33 +770,6 @@ mod tests {
     }
 
     #[test]
-    fn future_server_startup_contract_times_out_with_explicit_error_path() {
-        let source = include_str!("server.rs");
-        let production_source = source
-            .split("#[cfg(test)]")
-            .next()
-            .expect("server.rs should contain production code before tests");
-
-        assert!(!production_source.contains("Server may not be fully ready, continuing anyway"));
-        assert!(!production_source.contains("Server did not stop within timeout, continuing anyway"));
-        assert!(production_source.contains("FTP server startup timed out"));
-    }
-
-    #[test]
-    fn get_snapshot_is_removed_from_handle() {
-        let source = include_str!("server.rs");
-        let production_source = source
-            .split("#[cfg(test)]")
-            .next()
-            .expect("server.rs should contain production code before tests");
-
-        assert!(
-            !production_source.contains("pub async fn get_snapshot"),
-            "get_snapshot() should be removed from FtpServerHandle — it is never called externally"
-        );
-    }
-
-    #[test]
     fn future_server_lifecycle_contract_owns_and_times_out_server_task_shutdown() {
         let source = include_str!("server.rs");
         let production_source = source

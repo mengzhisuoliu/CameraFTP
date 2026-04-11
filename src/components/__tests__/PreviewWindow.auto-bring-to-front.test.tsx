@@ -8,6 +8,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreviewWindow } from '../PreviewWindow';
+import type { ConfigChangedEvent } from '../../types/events';
 
 const state = {
   isOpen: true,
@@ -15,9 +16,18 @@ const state = {
   autoBringToFront: false,
 };
 
+const { invokeMock, listenMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  listenMock: vi.fn(),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => path,
-  invoke: vi.fn(),
+  invoke: invokeMock,
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: listenMock,
 }));
 
 vi.mock('@tauri-apps/api/window', () => ({
@@ -77,10 +87,6 @@ vi.mock('../../hooks/usePreviewToolbarAutoHide', () => ({
   }),
 }));
 
-vi.mock('../../hooks/usePreviewConfigListener', () => ({
-  usePreviewConfigListener: vi.fn(),
-}));
-
 const { updatePreviewConfigMock } = vi.hoisted(() => ({
   updatePreviewConfigMock: vi.fn().mockResolvedValue({ autoBringToFront: false }),
 }));
@@ -91,6 +97,10 @@ describe('PreviewWindow autoBringToFront sync', () => {
 
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue(undefined);
+    listenMock.mockReset();
+    listenMock.mockResolvedValue(() => {});
     updatePreviewConfigMock.mockClear();
     state.isOpen = true;
     state.currentImage = '/tmp/example.jpg';
@@ -108,7 +118,7 @@ describe('PreviewWindow autoBringToFront sync', () => {
     vi.unstubAllGlobals();
   });
 
-  it('updates the local toggle title when lifecycle autoBringToFront changes', async () => {
+  it('updates the local toggle title when preview-config-changed event arrives', async () => {
     await act(async () => {
       root.render(<PreviewWindow />);
       await Promise.resolve();
@@ -116,10 +126,19 @@ describe('PreviewWindow autoBringToFront sync', () => {
 
     expect(container.querySelector('button[title="新图片时自动前台显示 (已关闭)"]')).toBeTruthy();
 
-    state.autoBringToFront = true;
+    const listener = listenMock.mock.calls[0]?.[1] as (event: { payload: ConfigChangedEvent }) => void;
 
     await act(async () => {
-      root.render(<PreviewWindow />);
+      listener({
+        payload: {
+          config: {
+            enabled: true,
+            method: 'built-in-preview',
+            customPath: null,
+            autoBringToFront: true,
+          },
+        },
+      });
       await Promise.resolve();
     });
 

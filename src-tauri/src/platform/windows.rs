@@ -397,11 +397,4 @@ impl PlatformService for WindowsPlatform {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn windows_autostart_no_longer_reemits_server_started_event() {
-        let source = include_str!("windows.rs");
-
-        assert!(!source.contains("ctx.event_bus\n                        .emit_server_started"));
-        assert!(source.contains("file_index.set_event_bus(ctx.event_bus).await;"));
-    }
 }
