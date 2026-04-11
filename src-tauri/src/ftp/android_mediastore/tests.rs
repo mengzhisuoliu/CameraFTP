@@ -589,6 +589,31 @@ async fn test_backend_rename_not_supported() {
     assert!(result.is_err());
 }
 
+#[cfg(not(target_os = "android"))]
+#[tokio::test]
+async fn test_put_allows_raw_files_routed_to_images() {
+    let (backend, _temp_dir) = create_test_backend();
+    let user = DefaultUser;
+    let data = b"raw-data".to_vec();
+    let reader = tokio::io::BufReader::new(std::io::Cursor::new(data.clone()));
+
+    let result = backend.put(&user, reader, "/DCIM/CameraFTP/sample.dng", 0).await;
+
+    // On Unix the mock bridge succeeds; on non-Unix FDs are unsupported so put()
+    // fails with PermanentFileNotAvailable — but crucially NOT FileNameNotAllowedError,
+    // which proves RAW files now pass the collection admission gate (Images).
+    match result {
+        Ok(_) => {},
+        Err(e) => {
+            assert_ne!(
+                e.kind(),
+                ErrorKind::FileNameNotAllowedError,
+                "RAW files should be routed to Images collection, not rejected: {e:?}"
+            );
+        }
+    }
+}
+
 #[test]
 fn test_backend_name() {
     let backend = AndroidMediaStoreBackend::new();
