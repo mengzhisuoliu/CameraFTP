@@ -201,6 +201,22 @@ pub fn relative_path_from_full_path(path: &str) -> String {
     }
 }
 
+/// Checks if a lowercase filename ends with a supported RAW photo extension.
+fn is_raw_extension(lower: &str) -> bool {
+    lower.ends_with(".dng")
+        || lower.ends_with(".nef")
+        || lower.ends_with(".nrw")
+        || lower.ends_with(".cr2")
+        || lower.ends_with(".cr3")
+        || lower.ends_with(".arw")
+        || lower.ends_with(".sr2")
+        || lower.ends_with(".raf")
+        || lower.ends_with(".orf")
+        || lower.ends_with(".rw2")
+        || lower.ends_with(".pef")
+        || lower.ends_with(".x3f")
+}
+
 /// Determines the MIME type from a file extension.
 pub fn mime_type_from_filename(filename: &str) -> &'static str {
     let lower = filename.to_lowercase();
@@ -252,18 +268,7 @@ pub fn collection_from_filename(filename: &str) -> MediaStoreCollection {
         || lower.ends_with(".heif")
         || lower.ends_with(".heic")
         || lower.ends_with(".hif")
-        || lower.ends_with(".dng")
-        || lower.ends_with(".nef")
-        || lower.ends_with(".nrw")
-        || lower.ends_with(".cr2")
-        || lower.ends_with(".cr3")
-        || lower.ends_with(".arw")
-        || lower.ends_with(".sr2")
-        || lower.ends_with(".raf")
-        || lower.ends_with(".orf")
-        || lower.ends_with(".rw2")
-        || lower.ends_with(".pef")
-        || lower.ends_with(".x3f")
+        || is_raw_extension(&lower)
     {
         MediaStoreCollection::Images
     } else if lower.ends_with(".mp4") || lower.ends_with(".mov") {

@@ -58,9 +58,16 @@ class MediaStoreBridgeTest {
     fun mime_detection_maps_raw_extensions() {
         assertEquals("image/x-adobe-dng", MediaStoreBridge.determineMime("IMG_1.DNG", null))
         assertEquals("image/x-nikon-nef", MediaStoreBridge.determineMime("IMG_1.NEF", null))
+        assertEquals("image/x-nikon-nrw", MediaStoreBridge.determineMime("IMG_1.NRW", null))
         assertEquals("image/x-canon-cr2", MediaStoreBridge.determineMime("IMG_1.CR2", null))
         assertEquals("image/x-canon-cr3", MediaStoreBridge.determineMime("IMG_1.CR3", null))
         assertEquals("image/x-sony-arw", MediaStoreBridge.determineMime("IMG_1.ARW", null))
+        assertEquals("image/x-sony-sr2", MediaStoreBridge.determineMime("IMG_1.SR2", null))
+        assertEquals("image/x-fuji-raf", MediaStoreBridge.determineMime("IMG_1.RAF", null))
+        assertEquals("image/x-olympus-orf", MediaStoreBridge.determineMime("IMG_1.ORF", null))
+        assertEquals("image/x-panasonic-rw2", MediaStoreBridge.determineMime("IMG_1.RW2", null))
+        assertEquals("image/x-pentax-pef", MediaStoreBridge.determineMime("IMG_1.PEF", null))
+        assertEquals("image/x-sigma-x3f", MediaStoreBridge.determineMime("IMG_1.X3F", null))
     }
 
     @Test

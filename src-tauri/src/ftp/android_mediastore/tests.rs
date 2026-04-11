@@ -130,12 +130,16 @@ fn test_mime_type_unknown() {
 fn test_mime_type_raw_formats() {
     assert_eq!(mime_type_from_filename("photo.dng"), "image/x-adobe-dng");
     assert_eq!(mime_type_from_filename("photo.nef"), "image/x-nikon-nef");
+    assert_eq!(mime_type_from_filename("photo.nrw"), "image/x-nikon-nrw");
     assert_eq!(mime_type_from_filename("photo.cr2"), "image/x-canon-cr2");
     assert_eq!(mime_type_from_filename("photo.cr3"), "image/x-canon-cr3");
     assert_eq!(mime_type_from_filename("photo.arw"), "image/x-sony-arw");
+    assert_eq!(mime_type_from_filename("photo.sr2"), "image/x-sony-sr2");
     assert_eq!(mime_type_from_filename("photo.raf"), "image/x-fuji-raf");
     assert_eq!(mime_type_from_filename("photo.orf"), "image/x-olympus-orf");
     assert_eq!(mime_type_from_filename("photo.rw2"), "image/x-panasonic-rw2");
+    assert_eq!(mime_type_from_filename("photo.pef"), "image/x-pentax-pef");
+    assert_eq!(mime_type_from_filename("photo.x3f"), "image/x-sigma-x3f");
 }
 
 #[test]
@@ -147,14 +151,13 @@ fn test_mime_type_raw_formats_case_insensitive() {
 
 #[test]
 fn test_collection_from_filename_routes_raw_to_images() {
-    assert_eq!(collection_from_filename("photo.dng"), MediaStoreCollection::Images);
-    assert_eq!(collection_from_filename("photo.nef"), MediaStoreCollection::Images);
-    assert_eq!(collection_from_filename("photo.cr2"), MediaStoreCollection::Images);
-    assert_eq!(collection_from_filename("photo.cr3"), MediaStoreCollection::Images);
-    assert_eq!(collection_from_filename("photo.arw"), MediaStoreCollection::Images);
-    assert_eq!(collection_from_filename("photo.raf"), MediaStoreCollection::Images);
-    assert_eq!(collection_from_filename("photo.orf"), MediaStoreCollection::Images);
-    assert_eq!(collection_from_filename("photo.rw2"), MediaStoreCollection::Images);
+    for ext in &["dng", "nef", "nrw", "cr2", "cr3", "arw", "sr2", "raf", "orf", "rw2", "pef", "x3f"] {
+        assert_eq!(
+            collection_from_filename(&format!("photo.{ext}")),
+            MediaStoreCollection::Images,
+            "expected .{ext} to route to Images"
+        );
+    }
 }
 
 #[test]
