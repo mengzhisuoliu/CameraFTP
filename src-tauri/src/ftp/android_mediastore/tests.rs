@@ -11,9 +11,10 @@ use super::backend::{AndroidMediaStoreBackend, MediaStoreMetadata};
 use super::limiter::UploadLimiter;
 use super::retry::{retry_with_backoff, RetryConfig};
 use super::types::{
-    default_relative_path, display_name_from_path, mime_type_from_filename,
-    relative_path_from_full_path, MediaStoreCollection, MediaStoreError, QueryResult,
-    MIME_TYPE_DEFAULT, MIME_TYPE_HEIF, MIME_TYPE_JPEG, MIME_TYPE_MP4,
+    collection_from_filename, default_relative_path, display_name_from_path,
+    mime_type_from_filename, relative_path_from_full_path, MediaStoreCollection,
+    MediaStoreError, QueryResult, MIME_TYPE_DEFAULT, MIME_TYPE_HEIF, MIME_TYPE_JPEG,
+    MIME_TYPE_MP4,
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -123,6 +124,43 @@ fn test_mime_type_unknown() {
     assert_eq!(mime_type_from_filename("file.txt"), MIME_TYPE_DEFAULT);
     assert_eq!(mime_type_from_filename("file.bin"), MIME_TYPE_DEFAULT);
     assert_eq!(mime_type_from_filename("noextension"), MIME_TYPE_DEFAULT);
+}
+
+#[test]
+fn test_mime_type_raw_formats() {
+    assert_eq!(mime_type_from_filename("photo.dng"), "image/x-adobe-dng");
+    assert_eq!(mime_type_from_filename("photo.nef"), "image/x-nikon-nef");
+    assert_eq!(mime_type_from_filename("photo.cr2"), "image/x-canon-cr2");
+    assert_eq!(mime_type_from_filename("photo.cr3"), "image/x-canon-cr3");
+    assert_eq!(mime_type_from_filename("photo.arw"), "image/x-sony-arw");
+    assert_eq!(mime_type_from_filename("photo.raf"), "image/x-fuji-raf");
+    assert_eq!(mime_type_from_filename("photo.orf"), "image/x-olympus-orf");
+    assert_eq!(mime_type_from_filename("photo.rw2"), "image/x-panasonic-rw2");
+}
+
+#[test]
+fn test_mime_type_raw_formats_case_insensitive() {
+    assert_eq!(mime_type_from_filename("PHOTO.DNG"), "image/x-adobe-dng");
+    assert_eq!(mime_type_from_filename("Photo.NEF"), "image/x-nikon-nef");
+    assert_eq!(mime_type_from_filename("Photo.CR3"), "image/x-canon-cr3");
+}
+
+#[test]
+fn test_collection_from_filename_routes_raw_to_images() {
+    assert_eq!(collection_from_filename("photo.dng"), MediaStoreCollection::Images);
+    assert_eq!(collection_from_filename("photo.nef"), MediaStoreCollection::Images);
+    assert_eq!(collection_from_filename("photo.cr2"), MediaStoreCollection::Images);
+    assert_eq!(collection_from_filename("photo.cr3"), MediaStoreCollection::Images);
+    assert_eq!(collection_from_filename("photo.arw"), MediaStoreCollection::Images);
+    assert_eq!(collection_from_filename("photo.raf"), MediaStoreCollection::Images);
+    assert_eq!(collection_from_filename("photo.orf"), MediaStoreCollection::Images);
+    assert_eq!(collection_from_filename("photo.rw2"), MediaStoreCollection::Images);
+}
+
+#[test]
+fn test_collection_from_filename_keeps_unknown_files_outside_images() {
+    assert_eq!(collection_from_filename("file.bin"), MediaStoreCollection::Downloads);
+    assert_eq!(collection_from_filename("file.txt"), MediaStoreCollection::Downloads);
 }
 
 // ============================================================================

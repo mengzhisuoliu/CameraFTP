@@ -16,6 +16,20 @@ pub const MIME_TYPE_HEIF: &str = "image/heif";
 pub const MIME_TYPE_MP4: &str = "video/mp4";
 pub const MIME_TYPE_MOV: &str = "video/quicktime";
 
+/// RAW image MIME types for camera photo formats.
+pub const MIME_TYPE_DNG: &str = "image/x-adobe-dng";
+pub const MIME_TYPE_NEF: &str = "image/x-nikon-nef";
+pub const MIME_TYPE_NRW: &str = "image/x-nikon-nrw";
+pub const MIME_TYPE_CR2: &str = "image/x-canon-cr2";
+pub const MIME_TYPE_CR3: &str = "image/x-canon-cr3";
+pub const MIME_TYPE_ARW: &str = "image/x-sony-arw";
+pub const MIME_TYPE_SR2: &str = "image/x-sony-sr2";
+pub const MIME_TYPE_RAF: &str = "image/x-fuji-raf";
+pub const MIME_TYPE_ORF: &str = "image/x-olympus-orf";
+pub const MIME_TYPE_RW2: &str = "image/x-panasonic-rw2";
+pub const MIME_TYPE_PEF: &str = "image/x-pentax-pef";
+pub const MIME_TYPE_X3F: &str = "image/x-sigma-x3f";
+
 /// Default MIME type for unknown files.
 pub const MIME_TYPE_DEFAULT: &str = "application/octet-stream";
 
@@ -194,6 +208,30 @@ pub fn mime_type_from_filename(filename: &str) -> &'static str {
         MIME_TYPE_JPEG
     } else if lower.ends_with(".heif") || lower.ends_with(".heic") || lower.ends_with(".hif") {
         MIME_TYPE_HEIF
+    } else if lower.ends_with(".dng") {
+        MIME_TYPE_DNG
+    } else if lower.ends_with(".nef") {
+        MIME_TYPE_NEF
+    } else if lower.ends_with(".nrw") {
+        MIME_TYPE_NRW
+    } else if lower.ends_with(".cr2") {
+        MIME_TYPE_CR2
+    } else if lower.ends_with(".cr3") {
+        MIME_TYPE_CR3
+    } else if lower.ends_with(".arw") {
+        MIME_TYPE_ARW
+    } else if lower.ends_with(".sr2") {
+        MIME_TYPE_SR2
+    } else if lower.ends_with(".raf") {
+        MIME_TYPE_RAF
+    } else if lower.ends_with(".orf") {
+        MIME_TYPE_ORF
+    } else if lower.ends_with(".rw2") {
+        MIME_TYPE_RW2
+    } else if lower.ends_with(".pef") {
+        MIME_TYPE_PEF
+    } else if lower.ends_with(".x3f") {
+        MIME_TYPE_X3F
     } else if lower.ends_with(".mp4") {
         MIME_TYPE_MP4
     } else if lower.ends_with(".mov") {
@@ -206,14 +244,27 @@ pub fn mime_type_from_filename(filename: &str) -> &'static str {
 /// Routes a filename to a MediaStore collection.
 ///
 /// Media files that need gallery refresh go to images/videos collections,
-/// while all other files (including RAW formats) go to downloads.
+/// while all other files go to downloads.
 pub fn collection_from_filename(filename: &str) -> MediaStoreCollection {
     let lower = filename.to_lowercase();
-    if lower.ends_with(".jpg") 
-        || lower.ends_with(".jpeg") 
-        || lower.ends_with(".heif") 
+    if lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".heif")
         || lower.ends_with(".heic")
-        || lower.ends_with(".hif") {
+        || lower.ends_with(".hif")
+        || lower.ends_with(".dng")
+        || lower.ends_with(".nef")
+        || lower.ends_with(".nrw")
+        || lower.ends_with(".cr2")
+        || lower.ends_with(".cr3")
+        || lower.ends_with(".arw")
+        || lower.ends_with(".sr2")
+        || lower.ends_with(".raf")
+        || lower.ends_with(".orf")
+        || lower.ends_with(".rw2")
+        || lower.ends_with(".pef")
+        || lower.ends_with(".x3f")
+    {
         MediaStoreCollection::Images
     } else if lower.ends_with(".mp4") || lower.ends_with(".mov") {
         MediaStoreCollection::Videos
@@ -257,8 +308,7 @@ mod tests {
         assert_eq!(mime_type_from_filename("photo.hif"), MIME_TYPE_HEIF);
         assert_eq!(mime_type_from_filename("video.mp4"), MIME_TYPE_MP4);
         assert_eq!(mime_type_from_filename("video.mov"), MIME_TYPE_MOV);
-        assert_eq!(mime_type_from_filename("photo.dng"), MIME_TYPE_DEFAULT);
-        assert_eq!(mime_type_from_filename("photo.cr2"), MIME_TYPE_DEFAULT);
+        assert_eq!(mime_type_from_filename("photo.xyz"), MIME_TYPE_DEFAULT);
         assert_eq!(mime_type_from_filename("photo.unknown"), MIME_TYPE_DEFAULT);
     }
 
@@ -276,8 +326,6 @@ mod tests {
         assert_eq!(collection_from_filename("a.HIF"), MediaStoreCollection::Images);
         assert_eq!(collection_from_filename("a.mp4"), MediaStoreCollection::Videos);
         assert_eq!(collection_from_filename("a.mov"), MediaStoreCollection::Videos);
-        assert_eq!(collection_from_filename("a.dng"), MediaStoreCollection::Downloads);
-        assert_eq!(collection_from_filename("a.nef"), MediaStoreCollection::Downloads);
         assert_eq!(collection_from_filename("a.r3d"), MediaStoreCollection::Downloads);
         assert_eq!(collection_from_filename("a.bin"), MediaStoreCollection::Downloads);
     }
