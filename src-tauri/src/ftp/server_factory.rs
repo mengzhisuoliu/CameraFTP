@@ -24,7 +24,6 @@ use tracing::{error, info, warn};
 pub struct ServerStartupContext {
     pub port: u16,
     pub ip: String,
-    pub server_handle: FtpServerHandle,
     pub event_bus: EventBus,
 }
 
@@ -152,7 +151,6 @@ pub async fn start_ftp_server(
             Ok(ServerStartupContext {
                 port,
                 ip,
-                server_handle,
                 event_bus,
             })
         }
@@ -196,4 +194,11 @@ pub fn spawn_event_processor(app_handle: AppHandle, event_bus: &EventBus) -> one
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn startup_context_source_does_not_store_server_handle() {
+        let source = include_str!("server_factory.rs");
+        let forbidden = ["pub server_handle", "FtpServerHandle"].join(": ");
+
+        assert!(!source.contains(&forbidden));
+    }
 }

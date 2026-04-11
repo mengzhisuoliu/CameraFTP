@@ -15,30 +15,34 @@ import { requestMediaLibraryRefresh } from '../utils/gallery-refresh';
 
 import { useServerStore } from '../stores/serverStore';
 
-
-function normalizeIpv4Host(host: string): string {
+function buildFallbackServerInfo(host: string, port: number): Pick<ServerInfo, 'ip' | 'url'> {
   const trimmedHost = host.trim();
   const octets = trimmedHost.split('.');
   if (octets.length !== 4) {
-    return '127.0.0.1';
+    return {
+      ip: '127.0.0.1',
+      url: `ftp://127.0.0.1:${port}`,
+    };
   }
 
   for (const octet of octets) {
     if (!/^\d+$/.test(octet)) {
-      return '127.0.0.1';
+      return {
+        ip: '127.0.0.1',
+        url: `ftp://127.0.0.1:${port}`,
+      };
     }
 
     const value = Number(octet);
     if (!Number.isInteger(value) || value < 0 || value > 255) {
-      return '127.0.0.1';
+      return {
+        ip: '127.0.0.1',
+        url: `ftp://127.0.0.1:${port}`,
+      };
     }
   }
 
-  return octets.map((octet) => String(Number(octet))).join('.');
-}
-
-function buildNormalizedIpv4ServerInfo(ip: string, port: number): Pick<ServerInfo, 'ip' | 'url'> {
-  const normalizedIp = normalizeIpv4Host(ip);
+  const normalizedIp = octets.map((octet) => String(Number(octet))).join('.');
   return {
     ip: normalizedIp,
     url: `ftp://${normalizedIp}:${port}`,
@@ -73,7 +77,7 @@ function createEventRegistrations(): EventRegistration<any>[] {
           return;
         }
 
-        const normalizedServerInfo = buildNormalizedIpv4ServerInfo(ip, port);
+        const normalizedServerInfo = buildFallbackServerInfo(ip, port);
 
         useServerStore.getState().setServerRunning({
           isRunning: true,

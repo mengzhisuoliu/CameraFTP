@@ -102,6 +102,18 @@ class AndroidServiceStateCoordinatorTest {
     }
 
     @Test
+    fun foreground_service_start_source_has_no_pre_o_fallback() {
+        val sourcePath = resolveProjectPath(
+            "src/main/java/com/gjk/cameraftpcompanion/AndroidServiceStateCoordinator.kt",
+            "app/src/main/java/com/gjk/cameraftpcompanion/AndroidServiceStateCoordinator.kt",
+            "src-tauri/gen/android/app/src/main/java/com/gjk/cameraftpcompanion/AndroidServiceStateCoordinator.kt",
+        )
+        val source = String(Files.readAllBytes(sourcePath))
+
+        assertFalse(source.contains("Build.VERSION.SDK_INT >= Build.VERSION_CODES.O"))
+    }
+
+    @Test
     fun update_service_state_persists_snapshot_before_service_instance_exists() {
         val context = getApplicationContext<Context>()
 

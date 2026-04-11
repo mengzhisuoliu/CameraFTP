@@ -144,7 +144,8 @@ unsafe fn activate_uwp_app_for_file(
 
 /// 使用自定义程序打开
 pub fn open_with_program(file_path: &PathBuf, program: &str) -> Result<(), AppError> {
-    open_with_program_execute(file_path, program)
+    let program_path = PathBuf::from(program);
+    open_with_shell_execute(&program_path, None, Some(file_path))
 }
 
 /// 打开文件夹并选中文件
@@ -217,11 +218,6 @@ fn open_with_shell_execute(
     Ok(())
 }
 
-fn open_with_program_execute(file_path: &PathBuf, program: &str) -> Result<(), AppError> {
-    let program_path = PathBuf::from(program);
-    open_with_shell_execute(&program_path, None, Some(file_path))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,5 +255,13 @@ mod tests {
         let encoded_argument = payload.arguments_utf16.as_ref().unwrap();
         let argument = String::from_utf16_lossy(&encoded_argument[..encoded_argument.len() - 1]);
         assert_eq!(argument, format!("\"{}\"", file_path.display()));
+    }
+
+    #[test]
+    fn source_has_no_redundant_program_execute_wrapper() {
+        let source = include_str!("windows.rs");
+        let forbidden = ["fn", "open_with_program_execute"].join(" ");
+
+        assert!(!source.contains(&forbidden));
     }
 }

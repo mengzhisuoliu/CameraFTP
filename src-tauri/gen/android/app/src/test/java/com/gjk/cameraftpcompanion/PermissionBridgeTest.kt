@@ -7,9 +7,16 @@
 package com.gjk.cameraftpcompanion
 
 import android.provider.Settings
+import java.nio.file.Files
+import java.nio.file.Paths
 import org.junit.Test
 import org.junit.Assert.*
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33], manifest = Config.NONE)
 class PermissionBridgeTest {
 
     @Test
@@ -51,5 +58,33 @@ class PermissionBridgeTest {
     fun does_not_open_settings_when_full_access_exists() {
         assertFalse(PermissionBridge.should_open_settings_for_storage_request(true, false))
         assertFalse(PermissionBridge.should_open_settings_for_storage_request(true, true))
+    }
+
+    @Test
+    fun storage_permission_source_targets_android15_plus_only() {
+        val source = String(
+            Files.readAllBytes(
+                resolveProjectPath(
+                    "src/main/java/com/gjk/cameraftpcompanion/PermissionBridge.kt",
+                    "app/src/main/java/com/gjk/cameraftpcompanion/PermissionBridge.kt",
+                    "src-tauri/gen/android/app/src/main/java/com/gjk/cameraftpcompanion/PermissionBridge.kt",
+                )
+            )
+        )
+
+        assertFalse(source.contains("WRITE_EXTERNAL_STORAGE"))
+        assertFalse(source.contains("Build.VERSION_CODES.TIRAMISU"))
+        assertFalse(source.contains("Build.VERSION_CODES.M"))
+    }
+
+    private fun resolveProjectPath(vararg candidates: String): java.nio.file.Path {
+        for (candidate in candidates) {
+            val path = Paths.get(candidate)
+            if (Files.exists(path)) {
+                return path
+            }
+        }
+
+        throw java.nio.file.NoSuchFileException(candidates.joinToString(", "))
     }
 }
