@@ -9,11 +9,14 @@ source "$SCRIPT_DIR/build-common.sh"
 cd "$SCRIPT_DIR/.."
 
 check_windows_env() {
+    if ! command -v cargo.exe &> /dev/null; then
+        error "cargo.exe 未找到。请安装 Windows Rust 工具链。"
+        return 1
+    fi
     if [ "${CHECK_ONLY:-false}" = true ]; then
         info "正在检查 Windows 编译环境..."
     fi
     success "Windows 编译环境检查通过"
-    return 0
 }
 
 terminate_running_process() {
@@ -52,10 +55,10 @@ build_windows() {
     local SRC_PATH
 
     if [ "$BUILD_TYPE" = "debug" ]; then
-        SRC_PATH="src-tauri/target/x86_64-pc-windows-msvc/debug/$OUTPUT_NAME"
+        SRC_PATH="src-tauri/target/$TARGET_WINDOWS_TRIPLE/debug/$OUTPUT_NAME"
         DEST_NAME="CameraFTP_v${VERSION}-debug.exe"
     else
-        SRC_PATH="src-tauri/target/x86_64-pc-windows-msvc/release/$OUTPUT_NAME"
+        SRC_PATH="src-tauri/target/$TARGET_WINDOWS_TRIPLE/release/$OUTPUT_NAME"
         DEST_NAME="CameraFTP_v${VERSION}.exe"
     fi
 

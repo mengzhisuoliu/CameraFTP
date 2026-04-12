@@ -114,13 +114,8 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
         return next;
       });
 
-      if (result.status === 'failed') {
-        if (isRetryable(result.errorCode)) {
-          // Retryable: will be re-enqueued on next viewport tick
-        } else {
-          // Permanent failure: track so we don't re-enqueue
-          failedMediaRef.current.add(result.mediaId);
-        }
+      if (result.status === 'failed' && !isRetryable(result.errorCode)) {
+        failedMediaRef.current.add(result.mediaId);
       }
     };
 

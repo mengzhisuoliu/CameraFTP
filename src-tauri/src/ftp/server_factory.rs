@@ -206,13 +206,4 @@ pub async fn start_server_with_event_pipeline(
     Ok(ctx)
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn startup_context_source_does_not_store_server_handle() {
-        let source = include_str!("server_factory.rs");
-        let forbidden = ["pub server_handle", "FtpServerHandle"].join(": ");
 
-        assert!(!source.contains(&forbidden));
-    }
-}

@@ -133,7 +133,7 @@ class ThumbnailCacheV2(
         // Delete L2 files by mediaId prefix
         val root = cacheRoot ?: return
         for (mediaId in mediaIds) {
-            val prefix = "$mediaId" + "_"
+            val prefix = "${mediaId}_"
             root.walkTopDown()
                 .filter { it.isFile && it.name.startsWith(prefix) && it.extension == "jpg" }
                 .forEach {

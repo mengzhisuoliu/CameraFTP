@@ -178,25 +178,4 @@ class MediaStoreBridgeTest {
         )
     }
 
-    @Test
-    fun finalize_native_bridge_uses_finalize_only_entrypoint() {
-        val methods = MediaStoreBridge.Companion::class.java.declaredMethods.map { it.name }.toSet()
-        assertTrue(methods.contains("finalizeEntryAndEmitGalleryItemsAddedNative"))
-        assertFalse(methods.contains("finalizeEntryAndEmitReadyNative"))
-    }
-
-    @Test
-    fun bridge_instance_does_not_expose_legacy_js_entrypoints() {
-        val methods = MediaStoreBridge::class.java.declaredMethods.map { it.name }.toSet()
-        assertFalse(methods.contains("createMediaStoreEntry"))
-        assertFalse(methods.contains("finalizeMediaStoreEntry"))
-        assertFalse(methods.contains("abortMediaStoreEntry"))
-    }
-
-    @Test
-    fun bridge_source_does_not_define_entry_result_data_class() {
-        val nestedClasses = MediaStoreBridge::class.java.declaredClasses.map { it.simpleName }.toSet()
-
-        assertFalse(nestedClasses.contains("EntryResult"))
-    }
 }

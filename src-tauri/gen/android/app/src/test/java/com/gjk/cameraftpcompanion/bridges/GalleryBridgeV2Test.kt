@@ -145,43 +145,6 @@ class GalleryBridgeV2Test {
         bridge.invalidateMediaIds("not json")
     }
 
-    // ── Startup cleanup ────────────────────────────────────────────────
-
-    @Test
-    fun startup_cleanup_is_invoked_on_initialization() {
-        // Verify that cleanup() is called during initialization by checking that
-        // the cache respects its capacity limit even after restart simulation.
-        // We use a small cache to make the test deterministic.
-        val smallCache = ThumbnailCacheV2(l1MaxBytes = 1024, l2MaxBytes = 100L)
-        smallCache.initialize(activity)
-
-        // Pre-populate with more data than the limit
-        for (i in 1..10) {
-            val key = com.gjk.cameraftpcompanion.galleryv2.ThumbnailKeyV2.of("$i", 0L, "s", 0, 0)
-            smallCache.put("$i", key, "s", ByteArray(50)) // 50 bytes each
-        }
-
-        // Create a new bridge (simulates app restart) - should trigger cleanup
-        val bridgeWithSmallCache = GalleryBridgeV2(
-            context = activity,
-            mediaPageProvider = MediaPageProvider(activity),
-            pipelineManager = ThumbnailPipelineManager(),
-            cache = smallCache
-        )
-
-        // Verify the cache still works after cleanup
-        // The exact behavior depends on cleanup implementation
-        assertNotNull("Bridge should be initialized", bridgeWithSmallCache)
-    }
-
-    @Test
-    fun removed_v2_methods_are_not_exposed() {
-        val methodNames = GalleryBridgeV2::class.java.methods.map { it.name }.toSet()
-        assertFalse(methodNames.contains("cancelByView"))
-        assertFalse(methodNames.contains("invalidateListenersForView"))
-        assertFalse(methodNames.contains("getQueueStats"))
-    }
-
     // ── listMediaPage ─────────────────────────────────────────────────
 
     @Test

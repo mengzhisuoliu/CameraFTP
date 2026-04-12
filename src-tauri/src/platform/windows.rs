@@ -233,28 +233,17 @@ impl PlatformService for WindowsPlatform {
         let config = load_config_from_service(app)?;
         let save_path = config.save_path.clone();
 
-        // 确保目录存在
         if !save_path.exists() {
             std::fs::create_dir_all(&save_path).map_err(|e| {
                 format!("无法创建保存目录 '{}': {}", save_path.display(), e)
             })?;
         }
 
-        // 验证可写性
-        let test_file = save_path.join(".write_test");
-        match std::fs::write(&test_file, b"test") {
-            Ok(_) => {
-                let _ = std::fs::remove_file(&test_file);
-                Ok(save_path.to_string_lossy().to_string())
-            }
-            Err(e) => {
-                Err(format!(
-                    "保存目录 '{}' 没有写入权限 ({})",
-                    save_path.display(),
-                    e
-                ))
-            }
+        if !crate::utils::fs::is_path_writable(&save_path) {
+            return Err(format!("保存目录 '{}' 没有写入权限", save_path.display()));
         }
+
+        Ok(save_path.to_string_lossy().to_string())
     }
     
     fn on_server_started(&self, app: &AppHandle) {

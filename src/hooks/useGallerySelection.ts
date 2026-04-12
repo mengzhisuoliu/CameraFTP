@@ -53,6 +53,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
 
   const handleCancelSelection = useCallback(() => {
     setIsSelectionMode(false);
+    isSelectionModeRef.current = false;
     setSelectedIds(new Set());
     clearTransientSelectionUiState();
   }, [clearTransientSelectionUiState]);
@@ -67,6 +68,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       next.has(imagePath) ? next.delete(imagePath) : next.add(imagePath);
       if (next.size === 0) {
         setIsSelectionMode(false);
+        isSelectionModeRef.current = false;
         clearTransientSelectionUiState();
       }
       return next;
@@ -97,6 +99,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       // Double-check that this touch didn't start during scrolling
       if (!wasScrollingAtTouchStartRef.current) {
         setIsSelectionMode(true);
+        isSelectionModeRef.current = true;
         setSelectedIds(new Set([imagePath]));
       }
     }, LONG_PRESS_DURATION);
@@ -195,6 +198,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       setSelectedIds(remainingSelected);
       if (remainingSelected.size === 0) {
         setIsSelectionMode(false);
+        isSelectionModeRef.current = false;
       }
     } catch (err) {
       console.error('Delete failed:', err);
@@ -234,10 +238,6 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       }
     };
   }, []);
-
-  useEffect(() => {
-    isSelectionModeRef.current = isSelectionMode;
-  }, [isSelectionMode]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

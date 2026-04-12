@@ -76,7 +76,7 @@ check_toolchain() {
         
         SELECTED_PATHS[user_configured]="true"
         
-        check_keytool
+        check_keytool || return 1
         
         success "Android 编译环境检查通过"
         return 0
@@ -112,10 +112,9 @@ check_toolchain() {
         info "  JAVA_HOME: ${java_home:-未找到}"
     fi
 
-    check_keytool
+    check_keytool || return 1
 
     success "Android 编译环境检查通过"
-    return 0
 }
 
 check_keytool() {
@@ -301,7 +300,7 @@ build_android() {
                 "src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk" \
                 "CameraFTP_v${VERSION}-debug.apk" \
                 "Debug APK" \
-                "/mnt/ext1/shared-files/nginx/CameraFTP_v${VERSION}-debug.apk"
+                "${DEPLOY_PATH:+$DEPLOY_PATH/CameraFTP_v${VERSION}-debug.apk}"
             ;;
         "release")
             bun run tauri android build --apk --target aarch64 || {
@@ -312,7 +311,7 @@ build_android() {
                 "src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk" \
                 "CameraFTP_v${VERSION}.apk" \
                 "Release APK" \
-                "/mnt/ext1/shared-files/nginx/CameraFTP_v${VERSION}.apk"
+                "${DEPLOY_PATH:+$DEPLOY_PATH/CameraFTP_v${VERSION}.apk}"
             ;;
     esac
 }

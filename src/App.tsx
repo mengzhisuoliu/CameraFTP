@@ -122,7 +122,7 @@ function App() {
         {/* Footer - 只在主页显示 */}
         {activeTab === 'home' && (
           <footer className="text-center py-6 text-xs text-gray-400">
-            <p>© 2025 CameraFTP by GoldJohnKing</p>
+            <p>© 2026 CameraFTP by GoldJohnKing</p>
           </footer>
         )}
       </div>

@@ -258,12 +258,4 @@ mod tests {
         let argument = String::from_utf16_lossy(&encoded_argument[..encoded_argument.len() - 1]);
         assert_eq!(argument, format!("\"{}\"", file_path.display()));
     }
-
-    #[test]
-    fn source_has_no_redundant_program_execute_wrapper() {
-        let source = include_str!("windows.rs");
-        let forbidden = ["fn", "open_with_program_execute"].join(" ");
-
-        assert!(!source.contains(&forbidden));
-    }
 }

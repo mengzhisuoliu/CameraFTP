@@ -257,14 +257,18 @@ impl AppConfig {
         }
     }
 
-    #[cfg_attr(not(target_os = "android"), allow(unused_mut))]
-    pub fn normalized_for_current_platform(mut self) -> Self {
+    pub fn normalized_for_current_platform(self) -> Self {
         #[cfg(target_os = "android")]
         {
-            self.save_path = PathBuf::from(crate::constants::ANDROID_DEFAULT_STORAGE_PATH);
+            let mut config = self;
+            config.save_path = PathBuf::from(crate::constants::ANDROID_DEFAULT_STORAGE_PATH);
+            config
         }
 
-        self
+        #[cfg(not(target_os = "android"))]
+        {
+            self
+        }
     }
 }
 

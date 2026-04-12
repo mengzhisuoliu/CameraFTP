@@ -35,11 +35,7 @@ while [[ $# -gt 0 ]]; do
             show_build_help "build.sh"
             exit 0
             ;;
-        windows|android)
-            TARGETS+=("$1")
-            shift
-            ;;
-        frontend)
+        windows|android|frontend)
             TARGETS+=("$1")
             shift
             ;;
@@ -81,7 +77,6 @@ build_target() {
     fi
 
     ./scripts/build-$target.sh "--$build_type" $check_arg
-    return $?
 }
 
 # 主流程
@@ -125,7 +120,6 @@ check_common_tools() {
     fi
     
     if ! check_tool "cargo" "Cargo"; then
-        echo "请先安装 Rust: https://rustup.rs"
         failed=true
     fi
     
@@ -139,10 +133,8 @@ check_common_tools() {
 check_common_tools
 
 NEED_BUILD_FRONTEND=false
-if [ "$CHECK_ONLY" = false ]; then
-    if [ -n "$FRONTEND_TARGET" ] || [ ${#BUILD_TARGETS[@]} -gt 0 ]; then
-        NEED_BUILD_FRONTEND=true
-    fi
+if [ "$CHECK_ONLY" = false ] && [ ${#BUILD_TARGETS[@]} -gt 0 -o -n "$FRONTEND_TARGET" ]; then
+    NEED_BUILD_FRONTEND=true
 fi
 
 if [ "$NEED_BUILD_FRONTEND" = true ]; then

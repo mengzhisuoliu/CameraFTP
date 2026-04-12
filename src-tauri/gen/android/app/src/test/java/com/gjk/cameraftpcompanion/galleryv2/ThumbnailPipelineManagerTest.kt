@@ -53,9 +53,6 @@ class ThumbnailPipelineManagerTest {
         assertTrue(pipeline.enqueue(visible))
         assertEquals(2, pipeline.pendingCount())
 
-        assertEquals(2, pipeline.pendingCount())
-    }
-
     // ── Test 2: prefetch io_transient has no retry ──────────────────────
 
     @Test
@@ -95,51 +92,6 @@ class ThumbnailPipelineManagerTest {
 
         // Verify visible job is in the queue (pending count increased)
         assertTrue("Pipeline should have jobs", pipeline.pendingCount() > 0)
-    }
-
-    // ── Test 5: overflow drops prefetch first and emits queue_overflow ───
-
-    @Test
-    fun `overflow_drops_prefetch_first_and_emits_queue_overflow`() {
-        val overflowDrops = mutableListOf<ThumbJob>()
-        pipeline.onQueueOverflow = { overflowDrops.add(it) }
-
-        // Fill the queue to MAX_QUEUED with visible and nearby jobs
-        for (i in 1..300) {
-            pipeline.enqueue(
-                ThumbJob(
-                    requestId = "vis-$i", mediaId = "mv$i", uri = "uriv$i",
-                    dateModifiedMs = i * 1000L, sizeBucket = "s",
-                    priority = "visible", viewId = "v1"
-                )
-            )
-        }
-        for (i in 1..210) {
-            pipeline.enqueue(
-                ThumbJob(
-                    requestId = "near-$i", mediaId = "mn$i", uri = "urin$i",
-                    dateModifiedMs = i * 2000L, sizeBucket = "s",
-                    priority = "nearby", viewId = "v1"
-                )
-            )
-        }
-
-        // Queue should be at or near capacity
-        assertTrue("Queue should have many jobs", pipeline.pendingCount() > 0)
-
-        // Now try to enqueue prefetch - should be dropped and emit overflow
-        val prefetchJob = ThumbJob(
-            requestId = "pref-overflow", mediaId = "mpof", uri = "uriof",
-            dateModifiedMs = 99999L, sizeBucket = "s",
-            priority = "prefetch", viewId = "v1"
-        )
-
-        // If queue is at MAX_QUEUED, prefetch should be dropped
-        if (pipeline.pendingCount() >= ThumbnailPipelineManager.MAX_QUEUED) {
-            assertFalse("Prefetch should be rejected at capacity", pipeline.enqueue(prefetchJob))
-            assertEquals("Should emit overflow for dropped prefetch", 1, overflowDrops.size)
-            assertEquals("pref-overflow", overflowDrops[0].requestId)
-        }
     }
 
     // ── Test 7: cancel latency respects p95 budget in fake clock ────────

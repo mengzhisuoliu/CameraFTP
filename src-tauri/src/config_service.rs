@@ -55,12 +55,6 @@ impl ConfigService {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub fn save(&self) -> Result<(), AppError> {
-        let config = self.get()?;
-        Self::save_to_path(&self.config_path, &config)
-    }
-
     pub fn mutate_and_persist<F, R>(&self, mutate: F) -> Result<R, AppError>
     where
         F: FnOnce(&mut AppConfig) -> R,
@@ -77,8 +71,7 @@ impl ConfigService {
     }
 
     fn load_from_path(path: &Path) -> Result<AppConfig, AppError> {
-        #[cfg_attr(not(target_os = "android"), allow(unused_mut))]
-        let mut config = if path.exists() {
+        let config = if path.exists() {
             match fs::read_to_string(path) {
                 Ok(content) => match serde_json::from_str::<AppConfig>(&content) {
                     Ok(config) => config,
@@ -96,7 +89,7 @@ impl ConfigService {
             AppConfig::default()
         };
 
-        config = config.normalized_for_current_platform();
+        let config = config.normalized_for_current_platform();
 
         if !path.exists() {
             Self::save_to_path(path, &config)?;
@@ -153,23 +146,6 @@ mod tests {
         service.update(updated).expect("failed to update config");
 
         assert_eq!(service.get().expect("failed to get config").port, 5050);
-    }
-
-    #[test]
-    fn save_persists_updates_for_new_service_instances() {
-        let temp_dir = tempdir().expect("failed to create temp dir");
-        let config_path = temp_dir.path().join("config.json");
-
-        let service = ConfigService::new_with_path(config_path.clone());
-        service.load().expect("failed to load config");
-        let mut updated = service.get().expect("failed to get config");
-        updated.port = 6060;
-        service.update(updated).expect("failed to update config");
-        service.save().expect("failed to save config");
-
-        let reloaded_service = ConfigService::new_with_path(config_path);
-        let reloaded = reloaded_service.load().expect("failed to reload config");
-        assert_eq!(reloaded.port, 6060);
     }
 
     #[test]

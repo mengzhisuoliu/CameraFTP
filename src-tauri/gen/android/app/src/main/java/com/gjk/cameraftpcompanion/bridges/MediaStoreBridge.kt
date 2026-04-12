@@ -68,16 +68,6 @@ class MediaStoreBridge(activity: MainActivity) : BaseJsBridge(activity) {
         }
 
         /**
-         * Query Android's MimeTypeMap for a file extension.
-         * Returns null if the extension is not recognized.
-         */
-        @JvmStatic
-        fun mimeTypeFromExtension(extension: String): String? {
-            return android.webkit.MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(extension.lowercase())
-        }
-
-        /**
          * Retry with exponential backoff
          */
         @JvmStatic

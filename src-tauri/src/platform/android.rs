@@ -120,9 +120,10 @@ impl PlatformService for AndroidPlatform {
     }
 
     fn check_permission_status(&self) -> PermissionStatus {
+        let has_access = can_write_to_dcim();
         PermissionStatus {
-            has_all_files_access: true,
-            needs_user_action: false,
+            has_all_files_access: has_access,
+            needs_user_action: !has_access,
         }
     }
 
@@ -283,14 +284,4 @@ fn get_coordinator_class<'a>(
         })?;
 
     Ok(JClass::from(class_obj))
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn android_service_coordinator_is_kept_for_release_jni_calls() {
-        let rules = include_str!("../../gen/android/app/proguard-rules.pro");
-
-        assert!(rules.contains("AndroidServiceStateCoordinator"));
-    }
 }

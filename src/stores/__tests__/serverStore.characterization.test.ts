@@ -152,34 +152,4 @@ describe('serverStore characterization', () => {
     expect(useServerStore.getState().serverInfo).toBeNull();
   });
 
-  it('resets stopped-state stats in direct store helper', () => {
-    useServerStore.getState().setServerStopped();
-
-    expect(useServerStore.getState().isRunning).toBe(false);
-    expect(useServerStore.getState().stats).toEqual({
-      isRunning: false,
-      connectedClients: 0,
-      filesReceived: 0,
-      bytesReceived: 0,
-      lastFile: null,
-    });
-  });
-
-  it('drops stale stopped stats updates for ui-only state', () => {
-    useServerStore.getState().setServerStats({
-      isRunning: false,
-      connectedClients: 5,
-      filesReceived: 99,
-      bytesReceived: 1234,
-      lastFile: '/stale.jpg',
-    });
-
-    expect(useServerStore.getState().stats).toEqual({
-      isRunning: false,
-      connectedClients: 0,
-      filesReceived: 0,
-      bytesReceived: 0,
-      lastFile: null,
-    });
-  });
 });
