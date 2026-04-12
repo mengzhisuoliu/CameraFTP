@@ -196,12 +196,18 @@ impl AndroidMediaStoreBackend {
         collection: MediaStoreCollection,
         relative_path: &str,
         parent_path: &str,
+        base_relative_path: &str,
     ) -> String {
         if collection == MediaStoreCollection::Downloads {
             if relative_path.starts_with(DOWNLOADS_RELATIVE_PATH) {
                 parent_path.to_string()
             } else {
-                DOWNLOADS_RELATIVE_PATH.to_string()
+                // Preserve virtual subdirectories: DCIM/CameraFTP/subdir/file.txt → Download/CameraFTP/subdir/
+                let suffix = relative_path
+                    .strip_prefix(base_relative_path)
+                    .and_then(|remainder| remainder.rfind('/').map(|pos| &remainder[..=pos]))
+                    .unwrap_or("");
+                format!("{DOWNLOADS_RELATIVE_PATH}{suffix}")
             }
         } else {
             parent_path.to_string()
@@ -218,10 +224,10 @@ impl AndroidMediaStoreBackend {
                 "Path contains null bytes",
             )));
         }
-        
-        if path_str.contains("..") {
-            let normalized = self.normalize_path(path);
-            if normalized.to_string_lossy().contains("..") {
+
+        // Reject if any path component is exactly ".."
+        for component in path_str.split('/') {
+            if component == ".." {
                 return Err(StorageError::from(std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "Path traversal attempt detected",
@@ -781,6 +787,7 @@ impl StorageBackend<DefaultUser> for AndroidMediaStoreBackend {
             collection,
             &relative_path,
             &parent_path,
+            &self.base_relative_path,
         );
 
         debug!(
@@ -1018,9 +1025,16 @@ mod tests {
         
         assert!(backend.validate_path(Path::new("test.jpg")).is_ok());
         assert!(backend.validate_path(Path::new("DCIM/test.jpg")).is_ok());
+        // Benign names containing ".." as a substring should be allowed
+        assert!(backend.validate_path(Path::new("photo..jpg")).is_ok());
+        assert!(backend.validate_path(Path::new("my..backup.tar")).is_ok());
         
         // Null bytes should fail
         assert!(backend.validate_path(Path::new("test\0.jpg")).is_err());
+        // ".." as a path component should fail
+        assert!(backend.validate_path(Path::new("../secret")).is_err());
+        assert!(backend.validate_path(Path::new("foo/../bar")).is_err());
+        assert!(backend.validate_path(Path::new("/../../etc/passwd")).is_err());
     }
 
     #[test]
@@ -1165,12 +1179,15 @@ mod tests {
 
     #[test]
     fn test_effective_parent_path_for_downloads_preserves_explicit_subdirectory() {
+        let base = default_relative_path();
+
         let explicit_relative_path = "Download/CameraFTP/subdir/notes.txt";
         let explicit_parent_path = "Download/CameraFTP/subdir/";
         let effective = AndroidMediaStoreBackend::effective_parent_path_for_upload(
             MediaStoreCollection::Downloads,
             explicit_relative_path,
             explicit_parent_path,
+            base,
         );
         assert_eq!(effective, explicit_parent_path);
 
@@ -1180,8 +1197,20 @@ mod tests {
             MediaStoreCollection::Downloads,
             non_explicit_relative_path,
             non_explicit_parent_path,
+            base,
         );
         assert_eq!(effective, DOWNLOADS_RELATIVE_PATH);
+
+        // Virtual subdir from base-relative path should be preserved
+        let subdir_relative_path = "DCIM/CameraFTP/subdir/notes.txt";
+        let subdir_parent_path = "DCIM/CameraFTP/subdir/";
+        let effective = AndroidMediaStoreBackend::effective_parent_path_for_upload(
+            MediaStoreCollection::Downloads,
+            subdir_relative_path,
+            subdir_parent_path,
+            base,
+        );
+        assert_eq!(effective, "Download/CameraFTP/subdir/");
     }
 
     #[cfg(not(target_os = "android"))]

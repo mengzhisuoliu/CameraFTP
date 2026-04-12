@@ -32,6 +32,7 @@ const listeners = new Set<StoreListener>();
 let isInitialized = false;
 let teardownFn: (() => void) | null = null;
 let inFlightRefresh: Promise<LatestPhotoFile | null> | null = null;
+let needsFollowUpRefresh = false;
 
 function emit(): void {
   listeners.forEach((listener) => listener());
@@ -78,7 +79,13 @@ function refreshLatestPhoto(): Promise<LatestPhotoFile | null> {
   if (!inFlightRefresh) {
     inFlightRefresh = runRefreshLatestPhoto().finally(() => {
       inFlightRefresh = null;
+      if (needsFollowUpRefresh) {
+        needsFollowUpRefresh = false;
+        void refreshLatestPhoto();
+      }
     });
+  } else {
+    needsFollowUpRefresh = true;
   }
 
   return inFlightRefresh;

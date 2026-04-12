@@ -270,7 +270,7 @@ describe('useLatestPhoto', () => {
     expect(filenames).toEqual(['latest.jpg', 'latest.jpg']);
   });
 
-  it('deduplicates in-flight refreshes across multiple consumers and events', async () => {
+  it('deduplicates in-flight refreshes and triggers follow-up when events arrive during fetch', async () => {
     let resolveFetch: ((value: { filename: string; path: string }) => void) | null = null;
     fetchLatestPhotoFileMock.mockImplementationOnce(
       () =>
@@ -297,7 +297,13 @@ describe('useLatestPhoto', () => {
       await Promise.resolve();
     });
 
+    // Still only 1 call — deduplicated while in-flight
     expect(fetchLatestPhotoFileMock).toHaveBeenCalledTimes(1);
+
+    fetchLatestPhotoFileMock.mockResolvedValueOnce({
+      filename: 'follow-up.jpg',
+      path: 'content://follow-up',
+    });
 
     await act(async () => {
       resolveFetch?.({
@@ -307,10 +313,11 @@ describe('useLatestPhoto', () => {
       await flush();
     });
 
-    expect(fetchLatestPhotoFileMock).toHaveBeenCalledTimes(1);
+    // Follow-up refresh triggered because events arrived during in-flight fetch
+    expect(fetchLatestPhotoFileMock).toHaveBeenCalledTimes(2);
     const filenames = Array.from(container.querySelectorAll('[data-testid="filename"]')).map(
       (node) => node.textContent,
     );
-    expect(filenames).toEqual(['from-event.jpg', 'from-event.jpg']);
+    expect(filenames).toEqual(['follow-up.jpg', 'follow-up.jpg']);
   });
 });
