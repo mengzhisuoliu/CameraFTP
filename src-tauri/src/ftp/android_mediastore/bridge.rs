@@ -22,13 +22,23 @@ use serde::Deserialize;
 use tracing::debug;
 
 #[cfg(not(target_os = "android"))]
-use super::types::{mime_type_from_filename, relative_path_from_full_path};
+use super::types::{display_name_from_path, mime_type_from_filename, relative_path_from_full_path};
 
 #[cfg(target_os = "android")]
 const MEDIASTORE_BRIDGE_CLASS: &str = "com.gjk.cameraftpcompanion.bridges.MediaStoreBridge";
 
 #[cfg(any(target_os = "android", test))]
 const FINALIZE_ENTRY_METHOD_NAME: &str = "finalizeEntryAndEmitGalleryItemsAddedNative";
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn normalize_relative_path_for_match(relative_path: &str) -> String {
+    let trimmed = relative_path.trim_matches('/');
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("{trimmed}/")
+    }
+}
 
 #[cfg(target_os = "android")]
 const FINALIZE_ENTRY_METHOD_SIGNATURE: &str =
@@ -276,6 +286,51 @@ impl JniMediaStoreBridge {
                 MediaStoreError::BridgeError(format!("{method} call failed: {e}"))
             })
     }
+
+    /// Queries Android's MimeTypeMap for the given file extension.
+    /// Returns None if the extension is not recognized by the system.
+    pub fn query_system_mime_type(extension: &str) -> Option<String> {
+        Self::with_env(|env| {
+            let class = Self::get_bridge_class(env)?;
+            let j_ext = Self::new_jstring(env, extension)?;
+
+            let result = env
+                .call_static_method(
+                    &class,
+                    "mimeTypeFromExtension",
+                    "(Ljava/lang/String;)Ljava/lang/String;",
+                    &[JValue::Object(&j_ext)],
+                )
+                .map_err(|e| {
+                    Self::clear_pending_exception(env);
+                    MediaStoreError::BridgeError(format!("mimeTypeFromExtension call failed: {e}"))
+                })?;
+
+            let obj = result.l().map_err(|e| {
+                Self::clear_pending_exception(env);
+                MediaStoreError::BridgeError(format!("mimeTypeFromExtension result extraction failed: {e}"))
+            })?;
+
+            if obj.is_null() {
+                Ok(None)
+            } else {
+                let s = JString::from(obj);
+                let mime: String = env.get_string(&s)
+                    .map_err(|e| {
+                        Self::clear_pending_exception(env);
+                        MediaStoreError::BridgeError(format!("mimeTypeFromExtension string extraction failed: {e}"))
+                    })?
+                    .into();
+                if mime.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(mime))
+                }
+            }
+        })
+        .ok()
+        .flatten()
+    }
 }
 
 #[cfg(target_os = "android")]
@@ -450,12 +505,15 @@ impl MediaStoreBridgeClient for JniMediaStoreBridge {
         debug!(path, "Querying single file");
 
         let display_name = display_name_from_path(path);
-        let relative_path = relative_path_from_full_path(path);
+        let relative_path = normalize_relative_path_for_match(&relative_path_from_full_path(path));
 
         let files = self.query_files(&relative_path).await?;
         files
             .into_iter()
-            .find(|f| f.display_name == display_name)
+            .find(|f| {
+                f.display_name == display_name
+                    && normalize_relative_path_for_match(&f.relative_path) == relative_path
+            })
             .ok_or_else(|| MediaStoreError::NotFound(path.to_string()))
     }
 
@@ -689,6 +747,12 @@ impl MediaStoreBridgeClient for MockMediaStoreBridge {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
 
+        let expected_display_name = display_name_from_path(path);
+
+        if name != expected_display_name {
+            return Err(MediaStoreError::NotFound(path.to_string()));
+        }
+
         Ok(QueryResult {
             content_uri: format!("content://mock/media/{}", path.trim_start_matches('/')),
             display_name: name.clone(),
@@ -751,6 +815,14 @@ mod tests {
             FINALIZE_ENTRY_METHOD_NAME,
             "finalizeEntryAndEmitGalleryItemsAddedNative"
         );
+    }
+
+    #[test]
+    fn test_normalize_relative_path_for_match() {
+        assert_eq!(normalize_relative_path_for_match(""), "");
+        assert_eq!(normalize_relative_path_for_match("DCIM/CameraFTP"), "DCIM/CameraFTP/");
+        assert_eq!(normalize_relative_path_for_match("DCIM/CameraFTP/"), "DCIM/CameraFTP/");
+        assert_eq!(normalize_relative_path_for_match("/DCIM/CameraFTP//"), "DCIM/CameraFTP/");
     }
 
     #[cfg(all(not(target_os = "android"), unix))]

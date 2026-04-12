@@ -11,6 +11,7 @@ import {
   fetchLatestPhotoFile,
   type LatestPhotoFile,
 } from '../services/latest-photo';
+import { isGalleryV2Available } from '../services/gallery-media-v2';
 
 interface FileIndexChangedEvent {
   count: number;
@@ -30,7 +31,27 @@ let snapshot: LatestPhotoSnapshot = {
 const listeners = new Set<StoreListener>();
 let isInitialized = false;
 let teardownFn: (() => void) | null = null;
-let inFlightRefresh: Promise<LatestPhotoFile | null> | null = null;
+
+/** Encapsulates in-flight refresh state with a dirty flag for follow-up. */
+const refreshCoordinator = {
+  _inFlight: null as Promise<LatestPhotoFile | null> | null,
+  _dirty: false,
+
+  trigger(): Promise<LatestPhotoFile | null> {
+    if (!this._inFlight) {
+      this._inFlight = runRefreshLatestPhoto().finally(() => {
+        this._inFlight = null;
+        if (this._dirty) {
+          this._dirty = false;
+          void this.trigger();
+        }
+      });
+    } else {
+      this._dirty = true;
+    }
+    return this._inFlight;
+  },
+};
 
 function emit(): void {
   listeners.forEach((listener) => listener());
@@ -74,13 +95,7 @@ async function runRefreshLatestPhoto(): Promise<LatestPhotoFile | null> {
 }
 
 function refreshLatestPhoto(): Promise<LatestPhotoFile | null> {
-  if (!inFlightRefresh) {
-    inFlightRefresh = runRefreshLatestPhoto().finally(() => {
-      inFlightRefresh = null;
-    });
-  }
-
-  return inFlightRefresh;
+  return refreshCoordinator.trigger();
 }
 
 function initializeStore(): void {
@@ -93,8 +108,15 @@ function initializeStore(): void {
   const handleRefreshRequest = () => {
     void refreshLatestPhoto();
   };
+  const handleGalleryItemsAdded = () => {
+    void refreshLatestPhoto();
+  };
+  const galleryV2Available = isGalleryV2Available();
 
   window.addEventListener(LATEST_PHOTO_REFRESH_REQUESTED_EVENT, handleRefreshRequest);
+  if (galleryV2Available) {
+    window.addEventListener('gallery-items-added', handleGalleryItemsAdded);
+  }
 
   const unlistenPromise = listen<FileIndexChangedEvent>('file-index-changed', (event) => {
     if (event.payload.count === 0) {
@@ -107,6 +129,9 @@ function initializeStore(): void {
 
   teardownFn = () => {
     window.removeEventListener(LATEST_PHOTO_REFRESH_REQUESTED_EVENT, handleRefreshRequest);
+    if (galleryV2Available) {
+      window.removeEventListener('gallery-items-added', handleGalleryItemsAdded);
+    }
     void unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
   };
 

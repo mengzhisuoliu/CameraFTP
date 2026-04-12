@@ -16,6 +16,20 @@ pub const MIME_TYPE_HEIF: &str = "image/heif";
 pub const MIME_TYPE_MP4: &str = "video/mp4";
 pub const MIME_TYPE_MOV: &str = "video/quicktime";
 
+/// RAW image MIME types for camera photo formats.
+pub const MIME_TYPE_DNG: &str = "image/x-adobe-dng";
+pub const MIME_TYPE_NEF: &str = "image/x-nikon-nef";
+pub const MIME_TYPE_NRW: &str = "image/x-nikon-nrw";
+pub const MIME_TYPE_CR2: &str = "image/x-canon-cr2";
+pub const MIME_TYPE_CR3: &str = "image/x-canon-cr3";
+pub const MIME_TYPE_ARW: &str = "image/x-sony-arw";
+pub const MIME_TYPE_SR2: &str = "image/x-sony-sr2";
+pub const MIME_TYPE_RAF: &str = "image/x-fuji-raf";
+pub const MIME_TYPE_ORF: &str = "image/x-olympus-orf";
+pub const MIME_TYPE_RW2: &str = "image/x-panasonic-rw2";
+pub const MIME_TYPE_PEF: &str = "image/x-pentax-pef";
+pub const MIME_TYPE_X3F: &str = "image/x-sigma-x3f";
+
 /// Default MIME type for unknown files.
 pub const MIME_TYPE_DEFAULT: &str = "application/octet-stream";
 
@@ -34,6 +48,81 @@ impl MediaStoreCollection {
             MediaStoreCollection::Videos => "videos",
             MediaStoreCollection::Downloads => "downloads",
         }
+    }
+}
+
+/// Classification of a file based on MIME type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaFileClass {
+    /// Image file (image/*)
+    Image,
+    /// Video file (video/*)
+    Video,
+    /// Non-media file (anything else)
+    NonMedia,
+}
+
+/// Queries the Android system MimeTypeMap for the given file extension.
+/// Returns `None` if the extension is not recognized.
+///
+/// On Android, this calls `MimeTypeMap.getMimeTypeFromExtension()` via JNI.
+/// On non-Android, returns `None` (tests use the fallback mapping instead).
+pub fn system_mime_from_extension(extension: &str) -> Option<String> {
+    #[cfg(target_os = "android")]
+    {
+        super::bridge::JniMediaStoreBridge::query_system_mime_type(extension)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = extension;
+        None
+    }
+}
+
+/// Classifies a MIME type string into a media file class.
+fn classify_from_system_mime(mime: &str) -> MediaFileClass {
+    let lower = mime.to_lowercase();
+    if lower.starts_with("image/") {
+        MediaFileClass::Image
+    } else if lower.starts_with("video/") {
+        MediaFileClass::Video
+    } else {
+        MediaFileClass::NonMedia
+    }
+}
+
+/// Classifies a file by querying the Android system MimeTypeMap.
+///
+/// Returns a `(mime_type, class)` tuple. On Android, queries the system's
+/// `MimeTypeMap` via JNI for accurate MIME detection. On non-Android (tests,
+/// Windows build), `system_mime_from_extension` returns `None` and everything
+/// is classified as `(application/octet-stream, NonMedia)`.
+///
+/// This is only meaningful on Android because `AndroidMediaStoreBackend::put()`
+/// is the sole consumer. Windows uses a different storage backend entirely.
+///
+/// Replaces the old hardcoded `collection_from_filename()` for Android uploads.
+pub fn classify_file(filename: &str) -> (String, MediaFileClass) {
+    let extension = filename.rsplit('.').next().unwrap_or("");
+    if extension.is_empty() {
+        return (MIME_TYPE_DEFAULT.to_string(), MediaFileClass::NonMedia);
+    }
+
+    match system_mime_from_extension(extension) {
+        Some(mime) => {
+            let class = classify_from_system_mime(&mime);
+            (mime, class)
+        }
+        None => (MIME_TYPE_DEFAULT.to_string(), MediaFileClass::NonMedia),
+    }
+}
+
+/// Determines the MediaStore collection from a MediaFileClass.
+pub fn collection_from_class(class: MediaFileClass) -> MediaStoreCollection {
+    match class {
+        MediaFileClass::Image => MediaStoreCollection::Images,
+        MediaFileClass::Video => MediaStoreCollection::Videos,
+        MediaFileClass::NonMedia => MediaStoreCollection::Downloads,
     }
 }
 
@@ -187,6 +276,23 @@ pub fn relative_path_from_full_path(path: &str) -> String {
     }
 }
 
+/// Checks if a lowercase filename ends with a supported RAW photo extension.
+#[deprecated(note = "Use classify_file() + collection_from_class() instead of hardcoded extension lists")]
+fn is_raw_extension(lower: &str) -> bool {
+    lower.ends_with(".dng")
+        || lower.ends_with(".nef")
+        || lower.ends_with(".nrw")
+        || lower.ends_with(".cr2")
+        || lower.ends_with(".cr3")
+        || lower.ends_with(".arw")
+        || lower.ends_with(".sr2")
+        || lower.ends_with(".raf")
+        || lower.ends_with(".orf")
+        || lower.ends_with(".rw2")
+        || lower.ends_with(".pef")
+        || lower.ends_with(".x3f")
+}
+
 /// Determines the MIME type from a file extension.
 pub fn mime_type_from_filename(filename: &str) -> &'static str {
     let lower = filename.to_lowercase();
@@ -194,6 +300,30 @@ pub fn mime_type_from_filename(filename: &str) -> &'static str {
         MIME_TYPE_JPEG
     } else if lower.ends_with(".heif") || lower.ends_with(".heic") || lower.ends_with(".hif") {
         MIME_TYPE_HEIF
+    } else if lower.ends_with(".dng") {
+        MIME_TYPE_DNG
+    } else if lower.ends_with(".nef") {
+        MIME_TYPE_NEF
+    } else if lower.ends_with(".nrw") {
+        MIME_TYPE_NRW
+    } else if lower.ends_with(".cr2") {
+        MIME_TYPE_CR2
+    } else if lower.ends_with(".cr3") {
+        MIME_TYPE_CR3
+    } else if lower.ends_with(".arw") {
+        MIME_TYPE_ARW
+    } else if lower.ends_with(".sr2") {
+        MIME_TYPE_SR2
+    } else if lower.ends_with(".raf") {
+        MIME_TYPE_RAF
+    } else if lower.ends_with(".orf") {
+        MIME_TYPE_ORF
+    } else if lower.ends_with(".rw2") {
+        MIME_TYPE_RW2
+    } else if lower.ends_with(".pef") {
+        MIME_TYPE_PEF
+    } else if lower.ends_with(".x3f") {
+        MIME_TYPE_X3F
     } else if lower.ends_with(".mp4") {
         MIME_TYPE_MP4
     } else if lower.ends_with(".mov") {
@@ -206,14 +336,18 @@ pub fn mime_type_from_filename(filename: &str) -> &'static str {
 /// Routes a filename to a MediaStore collection.
 ///
 /// Media files that need gallery refresh go to images/videos collections,
-/// while all other files (including RAW formats) go to downloads.
+/// while all other files go to downloads.
+#[deprecated(note = "Use classify_file() + collection_from_class() for Android uploads instead")]
+#[allow(deprecated)]
 pub fn collection_from_filename(filename: &str) -> MediaStoreCollection {
     let lower = filename.to_lowercase();
-    if lower.ends_with(".jpg") 
-        || lower.ends_with(".jpeg") 
-        || lower.ends_with(".heif") 
+    if lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".heif")
         || lower.ends_with(".heic")
-        || lower.ends_with(".hif") {
+        || lower.ends_with(".hif")
+        || is_raw_extension(&lower)
+    {
         MediaStoreCollection::Images
     } else if lower.ends_with(".mp4") || lower.ends_with(".mov") {
         MediaStoreCollection::Videos
@@ -257,12 +391,12 @@ mod tests {
         assert_eq!(mime_type_from_filename("photo.hif"), MIME_TYPE_HEIF);
         assert_eq!(mime_type_from_filename("video.mp4"), MIME_TYPE_MP4);
         assert_eq!(mime_type_from_filename("video.mov"), MIME_TYPE_MOV);
-        assert_eq!(mime_type_from_filename("photo.dng"), MIME_TYPE_DEFAULT);
-        assert_eq!(mime_type_from_filename("photo.cr2"), MIME_TYPE_DEFAULT);
+        assert_eq!(mime_type_from_filename("photo.xyz"), MIME_TYPE_DEFAULT);
         assert_eq!(mime_type_from_filename("photo.unknown"), MIME_TYPE_DEFAULT);
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_collection_from_filename() {
         assert_eq!(collection_from_filename("a.jpg"), MediaStoreCollection::Images);
         assert_eq!(collection_from_filename("a.jpeg"), MediaStoreCollection::Images);
@@ -276,8 +410,6 @@ mod tests {
         assert_eq!(collection_from_filename("a.HIF"), MediaStoreCollection::Images);
         assert_eq!(collection_from_filename("a.mp4"), MediaStoreCollection::Videos);
         assert_eq!(collection_from_filename("a.mov"), MediaStoreCollection::Videos);
-        assert_eq!(collection_from_filename("a.dng"), MediaStoreCollection::Downloads);
-        assert_eq!(collection_from_filename("a.nef"), MediaStoreCollection::Downloads);
         assert_eq!(collection_from_filename("a.r3d"), MediaStoreCollection::Downloads);
         assert_eq!(collection_from_filename("a.bin"), MediaStoreCollection::Downloads);
     }
