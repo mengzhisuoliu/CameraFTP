@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { RefreshCw, ImageOff, X, Trash2, Share2, MoreVertical } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 import { usePermissionStore } from '../stores/permissionStore';
-import type { MediaItemDto } from '../types/gallery-v2';
+import type { MediaItemDto } from '../types';
 import { isGalleryV2Available, invalidateMediaIds } from '../services/gallery-media-v2';
 import { GALLERY_REFRESH_REQUESTED_EVENT } from '../utils/gallery-refresh';
 import { withMinDuration } from '../utils/format';

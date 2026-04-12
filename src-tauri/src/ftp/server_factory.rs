@@ -29,22 +29,8 @@ pub struct ServerStartupContext {
     pub display_credentials: (Option<String>, Option<String>),
 }
 
-#[derive(Debug, Clone)]
-pub struct ServerStartupOptions {
-    pub min_port: u16,
-}
-
-impl Default for ServerStartupOptions {
-    fn default() -> Self {
-        Self {
-            min_port: MIN_PORT,
-        }
-    }
-}
-
 pub async fn start_ftp_server(
     state: &Arc<Mutex<Option<FtpServerHandle>>>,
-    options: ServerStartupOptions,
     app_handle: AppHandle,
 ) -> Result<ServerStartupContext, AppError> {
     // 检查是否已在运行
@@ -92,7 +78,7 @@ pub async fn start_ftp_server(
             requested_port = requested_port,
             "Port not available, searching for alternative"
         );
-        NetworkManager::find_available_port(options.min_port)
+        NetworkManager::find_available_port(MIN_PORT)
             .await
             .ok_or_else(|| {
                 error!("No available port found");
@@ -206,7 +192,7 @@ pub async fn start_server_with_event_pipeline(
     app_handle: AppHandle,
     ready_timeout: std::time::Duration,
 ) -> Result<ServerStartupContext, AppError> {
-    let ctx = start_ftp_server(state, Default::default(), app_handle.clone()).await?;
+    let ctx = start_ftp_server(state, app_handle.clone()).await?;
 
     let ready_rx = spawn_event_processor(app_handle.clone(), &ctx.event_bus);
 

@@ -19,7 +19,7 @@ import type {
   MediaPageResponse,
   ThumbRequest,
   ThumbResult,
-} from '../../types/gallery-v2';
+} from '../../types';
 
 function createMockBridge() {
   return {

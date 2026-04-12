@@ -31,7 +31,7 @@ impl EventBus {
     }
 
     /// 订阅事件
-    pub fn subscribe(&self) -> broadcast::Receiver<DomainEvent> {
+    pub(crate) fn subscribe(&self) -> broadcast::Receiver<DomainEvent> {
         self.tx.subscribe()
     }
 
@@ -67,7 +67,7 @@ impl EventBus {
     }
 
     /// 发布统计更新
-    pub async fn emit_stats_updated(&self, stats: ServerStats) {
+    pub(crate) async fn emit_stats_updated(&self, stats: ServerStats) {
         self.runtime_state().record_stats(stats).await;
     }
 
@@ -87,7 +87,7 @@ impl Default for EventBus {
 
 /// 事件处理器trait
 #[async_trait::async_trait]
-pub trait EventHandler: Send + Sync {
+pub(crate) trait EventHandler: Send + Sync {
     /// 处理事件
     async fn handle(&mut self, event: &DomainEvent);
 
@@ -131,7 +131,7 @@ impl EventProcessor {
     /// 从组件创建事件处理器
     ///
     /// 用于当 EventBus 被提前丢弃，但需要保持状态监听的情况
-    pub fn from_parts(
+    pub(crate) fn from_parts(
         transient_rx: broadcast::Receiver<DomainEvent>,
         state_rx: watch::Receiver<ServerRuntimeSnapshot>,
         runtime_state: Option<crate::ftp::types::ServerRuntimeState>,
@@ -145,7 +145,7 @@ impl EventProcessor {
         }
     }
 
-    pub fn register_runtime_state_handler<H: RuntimeStateHandler + 'static>(
+    pub(crate) fn register_runtime_state_handler<H: RuntimeStateHandler + 'static>(
         mut self,
         handler: H,
     ) -> Self {
@@ -154,7 +154,7 @@ impl EventProcessor {
     }
 
     /// 注册处理器
-    pub fn register<H: EventHandler + 'static>(
+    pub(crate) fn register<H: EventHandler + 'static>(
         mut self,
         handler: H,
     ) -> Self {
@@ -376,7 +376,7 @@ impl RuntimeStateHandler for StatsEventHandler {
     }
 }
 
-pub struct FrontendTransientEventHandler {
+pub(crate) struct FrontendTransientEventHandler {
     app_handle: tauri::AppHandle,
 }
 

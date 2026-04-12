@@ -77,7 +77,7 @@ impl Authenticator for CustomAuthenticator {
 }
 
 #[derive(Debug)]
-pub enum ServerCommand {
+pub(crate) enum ServerCommand {
     Start {
         config: ServerConfig,
         respond_to: oneshot::Sender<AppResult<SocketAddr>>,
@@ -111,7 +111,7 @@ impl FtpServerHandle {
 
     /// 启动服务器
     #[instrument(skip(self))]
-    pub async fn start(
+    pub(crate) async fn start(
         &self,
         config: ServerConfig,
     ) -> AppResult<SocketAddr> {
