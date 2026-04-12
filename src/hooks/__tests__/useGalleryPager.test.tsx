@@ -179,7 +179,10 @@ describe('useGalleryPager', () => {
     expect(container.querySelector('[data-testid="revision"]')?.textContent).toBe('rev-2');
   });
 
-  it('deduplicates by seenMediaIds during stale cursor rebuild', async () => {
+  it.each([
+    { nextCursor: null, description: 'null cursor (end of data)' },
+    { nextCursor: 'cursor-2', description: 'non-null cursor (more pages)' },
+  ])('deduplicates by seenMediaIds during stale cursor rebuild ($description)', async ({ nextCursor }) => {
     listMediaPageMock.mockResolvedValueOnce(
       makePage([makeItem('media-1'), makeItem('media-2')], 'cursor-1', 'rev-1'),
     );
@@ -193,34 +196,7 @@ describe('useGalleryPager', () => {
     listMediaPageMock.mockResolvedValueOnce(
       makePage(
         [makeItem('media-1'), makeItem('media-2'), makeItem('media-3')],
-        null,
-        'rev-2',
-      ),
-    );
-
-    await clickLoadNext();
-
-    expect(listMediaPageMock).toHaveBeenCalledTimes(3);
-    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('1');
-    expect(latestResult!.items.map((i) => i.mediaId)).toEqual(['media-3']);
-    expect(container.querySelector('[data-testid="error"]')?.textContent).toBe('');
-  });
-
-  it('deduplicates items when stale_cursor rebuild returns overlapping data', async () => {
-    listMediaPageMock.mockResolvedValueOnce(
-      makePage([makeItem('media-1'), makeItem('media-2')], 'cursor-1', 'rev-1'),
-    );
-
-    await renderHarness();
-    await clickLoadNext();
-
-    expect(container.querySelector('[data-testid="count"]')?.textContent).toBe('2');
-
-    listMediaPageMock.mockRejectedValueOnce(new Error('stale_cursor'));
-    listMediaPageMock.mockResolvedValueOnce(
-      makePage(
-        [makeItem('media-1'), makeItem('media-2'), makeItem('media-3')],
-        'cursor-2',
+        nextCursor,
         'rev-2',
       ),
     );
@@ -232,7 +208,7 @@ describe('useGalleryPager', () => {
     expect(latestResult!.items.map((i) => i.mediaId)).toEqual(['media-3']);
     expect(container.querySelector('[data-testid="error"]')?.textContent).toBe('');
     expect(container.querySelector('[data-testid="revision"]')?.textContent).toBe('rev-2');
-    expect(container.querySelector('[data-testid="cursor"]')?.textContent).toBe('cursor-2');
+    expect(container.querySelector('[data-testid="cursor"]')?.textContent).toBe(nextCursor ?? 'null');
   });
 
   it('resets everything on reload', async () => {

@@ -19,6 +19,8 @@ import type {
   ThumbResultListener,
 } from '../types';
 
+export const GALLERY_PAGE_SIZE = 120;
+
 /** Internal listener registry keyed by listenerId */
 const listeners = new Map<string, ThumbResultListener>();
 

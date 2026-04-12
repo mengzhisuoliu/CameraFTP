@@ -6,17 +6,13 @@
 
 import { useEffect, useRef } from 'react';
 import type { AndroidImageOpenMethod } from '../types';
-import type { MediaItemDto } from '../types';
+import type { MediaItemDto, GalleryItemsAddedEvent } from '../types';
 import { openImagePreview } from '../services/image-open';
 
 interface UseAndroidAutoOpenLatestPhotoParams {
   galleryItems: MediaItemDto[];
   openMethod?: AndroidImageOpenMethod;
   autoOpenLatestWhenVisible?: boolean;
-}
-
-interface GalleryItemsAddedEvent extends CustomEvent {
-  detail: { items: MediaItemDto[]; timestamp: number };
 }
 
 export function useAndroidAutoOpenLatestPhoto({

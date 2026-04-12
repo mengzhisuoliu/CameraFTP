@@ -26,6 +26,7 @@ pub enum StatsCommand {
 pub struct StatsActor {
     tx: mpsc::Sender<StatsCommand>,
     /// 共享状态引用，用于直接读取（不经过 channel）
+    #[cfg(test)]
     stats: Arc<RwLock<ServerStats>>,
 }
 
@@ -36,12 +37,12 @@ impl StatsActor {
         let (tx, rx) = mpsc::channel(100);
         let stats = Arc::new(RwLock::new(ServerStats::default()));
         let worker = StatsActorWorker::new(rx, stats.clone(), event_bus);
-        (Self { tx, stats }, worker)
+        (Self { tx, #[cfg(test)] stats }, worker)
     }
 
     /// 直接获取当前统计（从共享状态读取，不经过 channel）
     /// 这是更可靠的方式，避免 channel 竞争问题
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) async fn get_stats_direct(&self) -> ServerStats {
         self.stats.read().await.clone()
     }

@@ -73,6 +73,8 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
   const pendingRef = useRef<{ visibleIds: string[]; nearbyIds: string[] } | null>(null);
   const debounceMsRef = useRef(debounceMs);
   debounceMsRef.current = debounceMs;
+  const thumbnailsRef = useRef(thumbnails);
+  thumbnailsRef.current = thumbnails;
 
   /**
    * Register media metadata so the scheduler can build ThumbRequests.
@@ -176,7 +178,7 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
         }
 
         // Already have a thumbnail loaded
-        if (thumbnails.has(mediaId)) return;
+        if (thumbnailsRef.current.has(mediaId)) return;
 
         const requestId = `${mediaId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         activeRequestsRef.current.set(requestId, { requestId, mediaId, wantedKey });
@@ -210,7 +212,7 @@ export function useThumbnailScheduler(opts?: UseThumbnailSchedulerOptions) {
         void enqueueThumbnails(newReqs).catch(() => {});
       }
     },
-    [thumbnails],
+    [],
   );
 
   // ---- public actions ----

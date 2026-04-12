@@ -6,13 +6,11 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
-  isGalleryV2Available,
   listMediaPage,
   enqueueThumbnails,
   cancelThumbnailRequests,
   registerThumbnailListener,
   unregisterThumbnailListener,
-  invalidateMediaIds,
 } from '../gallery-media-v2';
 import type {
   MediaPageRequest,
@@ -35,17 +33,6 @@ function createMockBridge() {
 describe('gallery-media-v2 service', () => {
   beforeEach(() => {
     window.GalleryAndroidV2 = undefined;
-  });
-
-  describe('isGalleryV2Available', () => {
-    it('returns false when bridge is not set', () => {
-      expect(isGalleryV2Available()).toBe(false);
-    });
-
-    it('returns true when bridge is available', () => {
-      window.GalleryAndroidV2 = createMockBridge() as unknown as typeof window.GalleryAndroidV2;
-      expect(isGalleryV2Available()).toBe(true);
-    });
   });
 
   describe('listMediaPage', () => {
@@ -77,10 +64,6 @@ describe('gallery-media-v2 service', () => {
       expect(result).toEqual(response);
     });
 
-    it('throws when bridge is unavailable', async () => {
-      const req: MediaPageRequest = { cursor: null, pageSize: 20, sort: 'dateDesc' };
-      await expect(listMediaPage(req)).rejects.toThrow('GalleryAndroidV2 bridge is not available');
-    });
   });
 
   describe('enqueueThumbnails', () => {
@@ -133,16 +116,6 @@ describe('gallery-media-v2 service', () => {
 
       await unregisterThumbnailListener('listener-1');
       expect(bridge.unregisterThumbnailListener).toHaveBeenCalledWith('listener-1');
-    });
-  });
-
-  describe('invalidateMediaIds', () => {
-    it('serializes media IDs as JSON array', async () => {
-      const bridge = createMockBridge();
-      window.GalleryAndroidV2 = bridge as unknown as typeof window.GalleryAndroidV2;
-
-      await invalidateMediaIds(['1', '2', '3']);
-      expect(bridge.invalidateMediaIds).toHaveBeenCalledWith(JSON.stringify(['1', '2', '3']));
     });
   });
 

@@ -10,9 +10,7 @@ import { useServerStore } from '../stores/serverStore';
 import { IconContainer } from './ui';
 import { useImagePreviewOpener } from '../hooks/useImagePreviewOpener';
 import { useLatestPhoto } from '../hooks/useLatestPhoto';
-import { isGalleryV2Available, listMediaPage } from '../services/gallery-media-v2';
-
-const GALLERY_PAGE_SIZE = 120;
+import { isGalleryV2Available, listMediaPage, GALLERY_PAGE_SIZE } from '../services/gallery-media-v2';
 
 async function getAllUrisFromGalleryV2(): Promise<string[]> {
   if (!isGalleryV2Available()) {

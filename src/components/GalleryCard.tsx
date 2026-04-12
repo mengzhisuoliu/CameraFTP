@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { RefreshCw, ImageOff, X, Trash2, Share2, MoreVertical } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 import { usePermissionStore } from '../stores/permissionStore';
-import type { MediaItemDto } from '../types';
+import type { MediaItemDto, GalleryItemsAddedEvent, GalleryItemsDeletedEvent } from '../types';
 import { isGalleryV2Available, invalidateMediaIds } from '../services/gallery-media-v2';
 import { GALLERY_REFRESH_REQUESTED_EVENT } from '../utils/gallery-refresh';
 import { withMinDuration } from '../utils/format';
@@ -146,10 +146,6 @@ export const GalleryCard = memo(function GalleryCard() {
 
   // Listen for incremental delete events from ImageViewerActivity (preserves scroll position)
   useEffect(() => {
-    interface GalleryItemsDeletedEvent extends CustomEvent {
-      detail: { mediaIds: string[]; timestamp: number };
-    }
-
     const handleItemsDeleted = (event: GalleryItemsDeletedEvent) => {
       const { mediaIds } = event.detail;
       if (mediaIds?.length > 0) {
@@ -169,10 +165,6 @@ export const GalleryCard = memo(function GalleryCard() {
 
   // Listen for incremental add events from FTP upload (preserves scroll position)
   useEffect(() => {
-    interface GalleryItemsAddedEvent extends CustomEvent {
-      detail: { items: MediaItemDto[]; timestamp: number };
-    }
-
     const handleItemsAdded = (event: GalleryItemsAddedEvent) => {
       const { items } = event.detail;
       if (items?.length > 0) {

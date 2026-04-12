@@ -6,9 +6,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import type { MediaItemDto, MediaCursor } from '../types';
-import { listMediaPage } from '../services/gallery-media-v2';
-
-const PAGE_SIZE = 120;
+import { listMediaPage, GALLERY_PAGE_SIZE } from '../services/gallery-media-v2';
 
 interface UseGalleryPagerResult {
   items: MediaItemDto[];
@@ -41,7 +39,7 @@ export function useGalleryPager(): UseGalleryPagerResult {
   const fetchPage = useCallback(async (pageCursor: MediaCursor): Promise<void> => {
     const response = await listMediaPage({
       cursor: pageCursor,
-      pageSize: PAGE_SIZE,
+      pageSize: GALLERY_PAGE_SIZE,
       sort: 'dateDesc',
     });
 
