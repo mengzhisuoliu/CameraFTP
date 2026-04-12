@@ -101,7 +101,7 @@ fn classify_from_system_mime(mime: &str) -> MediaFileClass {
 /// This is only meaningful on Android because `AndroidMediaStoreBackend::put()`
 /// is the sole consumer. Windows uses a different storage backend entirely.
 ///
-/// Replaces the old hardcoded `collection_from_filename()` for Android uploads.
+/// Replaces the old hardcoded extension-list approach for Android uploads.
 pub fn classify_file(filename: &str) -> (String, MediaFileClass) {
     let extension = filename.rsplit('.').next().unwrap_or("");
     if extension.is_empty() {
@@ -276,24 +276,12 @@ pub fn relative_path_from_full_path(path: &str) -> String {
     }
 }
 
-/// Checks if a lowercase filename ends with a supported RAW photo extension.
-#[deprecated(note = "Use classify_file() + collection_from_class() instead of hardcoded extension lists")]
-fn is_raw_extension(lower: &str) -> bool {
-    lower.ends_with(".dng")
-        || lower.ends_with(".nef")
-        || lower.ends_with(".nrw")
-        || lower.ends_with(".cr2")
-        || lower.ends_with(".cr3")
-        || lower.ends_with(".arw")
-        || lower.ends_with(".sr2")
-        || lower.ends_with(".raf")
-        || lower.ends_with(".orf")
-        || lower.ends_with(".rw2")
-        || lower.ends_with(".pef")
-        || lower.ends_with(".x3f")
-}
-
 /// Determines the MIME type from a file extension.
+///
+/// This static mapping serves as the fallback MIME source for non-Android builds
+/// (e.g., mock bridge tests) and is the reference mapping for the Kotlin
+/// `MediaStoreBridge.determineMime`. On Android at runtime, `classify_file()`
+/// queries the system MimeTypeMap via JNI instead.
 pub fn mime_type_from_filename(filename: &str) -> &'static str {
     let lower = filename.to_lowercase();
     if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
@@ -330,29 +318,6 @@ pub fn mime_type_from_filename(filename: &str) -> &'static str {
         MIME_TYPE_MOV
     } else {
         MIME_TYPE_DEFAULT
-    }
-}
-
-/// Routes a filename to a MediaStore collection.
-///
-/// Media files that need gallery refresh go to images/videos collections,
-/// while all other files go to downloads.
-#[deprecated(note = "Use classify_file() + collection_from_class() for Android uploads instead")]
-#[allow(deprecated)]
-pub fn collection_from_filename(filename: &str) -> MediaStoreCollection {
-    let lower = filename.to_lowercase();
-    if lower.ends_with(".jpg")
-        || lower.ends_with(".jpeg")
-        || lower.ends_with(".heif")
-        || lower.ends_with(".heic")
-        || lower.ends_with(".hif")
-        || is_raw_extension(&lower)
-    {
-        MediaStoreCollection::Images
-    } else if lower.ends_with(".mp4") || lower.ends_with(".mov") {
-        MediaStoreCollection::Videos
-    } else {
-        MediaStoreCollection::Downloads
     }
 }
 
@@ -393,25 +358,6 @@ mod tests {
         assert_eq!(mime_type_from_filename("video.mov"), MIME_TYPE_MOV);
         assert_eq!(mime_type_from_filename("photo.xyz"), MIME_TYPE_DEFAULT);
         assert_eq!(mime_type_from_filename("photo.unknown"), MIME_TYPE_DEFAULT);
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn test_collection_from_filename() {
-        assert_eq!(collection_from_filename("a.jpg"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.jpeg"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.JPG"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.JPEG"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.heif"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.HEIF"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.heic"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.HEIC"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.hif"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.HIF"), MediaStoreCollection::Images);
-        assert_eq!(collection_from_filename("a.mp4"), MediaStoreCollection::Videos);
-        assert_eq!(collection_from_filename("a.mov"), MediaStoreCollection::Videos);
-        assert_eq!(collection_from_filename("a.r3d"), MediaStoreCollection::Downloads);
-        assert_eq!(collection_from_filename("a.bin"), MediaStoreCollection::Downloads);
     }
 
     #[test]

@@ -264,6 +264,11 @@ impl AndroidMediaStoreBackend {
         roots
     }
 
+    /// Checks whether `path` is equal to or a descendant of `root`.
+    ///
+    /// Callers must pass `root` **without** a trailing slash (e.g., `"DCIM/CameraFTP"`);
+    /// this is ensured by `listing_virtual_roots()` which trims before calling.
+    /// Byte comparison is correct here because all MediaStore paths are ASCII.
     fn is_within_virtual_root(path: &str, root: &str) -> bool {
         if path == root {
             return true;
@@ -330,7 +335,7 @@ impl AndroidMediaStoreBackend {
 
         // Query all file candidates in parallel to reduce latency
         let results: Vec<(usize, String, Result<QueryResult, MediaStoreError>)> =
-            futures::future::join_all(file_candidates.into_iter().enumerate().map(|(index, candidate_path)| {
+            join_all(file_candidates.into_iter().enumerate().map(|(index, candidate_path)| {
                 let bridge = self.bridge.clone();
                 let retry_config = self.retry_config.clone();
                 async move {
