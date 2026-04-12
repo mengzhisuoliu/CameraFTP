@@ -35,7 +35,10 @@ fn can_write_to_dcim() -> bool {
         debug!("DCIM path does not exist");
         return false;
     }
-    let writable = is_path_writable(dcim_path).unwrap_or(false);
+    let writable = is_path_writable(dcim_path).unwrap_or_else(|e| {
+        debug!("DCIM writable check failed: {}", e);
+        false
+    });
     if writable {
         debug!("All files access permission: granted (DCIM writable)");
     } else {
@@ -69,7 +72,10 @@ fn validate_path_writable(path: &str) -> bool {
     }
 
     // 使用共享辅助函数检查可写性
-    let writable = is_path_writable(&path_buf).unwrap_or(false);
+    let writable = is_path_writable(&path_buf).unwrap_or_else(|e| {
+        error!("Path writable check failed for {:?}: {}", path_buf, e);
+        false
+    });
     if writable {
         debug!("Path is writable: {:?}", path_buf);
     } else {

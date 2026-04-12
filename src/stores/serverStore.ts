@@ -46,6 +46,20 @@ function createRunningStats(stats?: ServerStateSnapshot): ServerStateSnapshot {
   };
 }
 
+async function doStartServer(set: (fn: (state: ServerState) => ServerState) => void, get: () => ServerState): Promise<void> {
+  await executeAsync({
+    operation: () => invoke<ServerInfo>('start_server'),
+    onSuccess: (info) => {
+      const currentState = get();
+      get().setServerRunning(info, {
+        stats: currentState.isRunning ? currentState.stats : undefined,
+      });
+    },
+    errorPrefix: 'Failed to start server',
+    rethrow: true,
+  }, set);
+}
+
 export const useServerStore = create<ServerState>((set, get) => ({
   isRunning: false,
   serverInfo: null,
@@ -65,17 +79,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       }
     }
 
-    await executeAsync({
-      operation: () => invoke<ServerInfo>('start_server'),
-      onSuccess: (info) => {
-        const currentState = get();
-        get().setServerRunning(info, {
-          stats: currentState.isRunning ? currentState.stats : undefined,
-        });
-      },
-      errorPrefix: 'Failed to start server',
-      rethrow: true,
-    }, set);
+    await doStartServer(set, get);
     return true;
   },
 
@@ -94,17 +98,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
 
   continueAfterPermissionsGranted: async () => {
     set({ showPermissionDialog: false, pendingServerStart: false });
-    await executeAsync({
-      operation: () => invoke<ServerInfo>('start_server'),
-      onSuccess: (info) => {
-        const currentState = get();
-        get().setServerRunning(info, {
-          stats: currentState.isRunning ? currentState.stats : undefined,
-        });
-      },
-      errorPrefix: 'Failed to start server',
-      rethrow: true,
-    }, set);
+    await doStartServer(set, get);
   },
 
   setServerRunning: (serverInfo, options) => {
