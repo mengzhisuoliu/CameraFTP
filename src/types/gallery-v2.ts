@@ -86,3 +86,15 @@ type ThumbErrorCode =
 
 /** Callback type for thumbnail results */
 export type ThumbResultListener = (result: ThumbResult) => void;
+
+// ===== Gallery Custom Events =====
+
+/** Custom event for gallery items added (e.g. from FTP upload) */
+export interface GalleryItemsAddedEvent extends CustomEvent {
+  detail: { items: MediaItemDto[]; timestamp: number };
+}
+
+/** Custom event for gallery items deleted (e.g. from ImageViewerActivity) */
+export interface GalleryItemsDeletedEvent extends CustomEvent {
+  detail: { mediaIds: string[]; timestamp: number };
+}

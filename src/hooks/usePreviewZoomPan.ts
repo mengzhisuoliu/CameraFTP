@@ -14,7 +14,13 @@ export function usePreviewZoomPan(imagePath: string | null) {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const scaleRef = useRef(1);
   const appWindow = getCurrentWindow();
+
+  // Keep refs in sync with state for stable callbacks
+  isDraggingRef.current = isDragging;
+  scaleRef.current = scale;
 
   const resetZoom = useCallback(() => {
     setScale(1);
@@ -94,11 +100,11 @@ export function usePreviewZoomPan(imagePath: string | null) {
   }, [scale, panX, panY]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging && scale > 1) {
+    if (isDraggingRef.current && scaleRef.current > 1) {
       setPanX(e.clientX - dragStartRef.current.x);
       setPanY(e.clientY - dragStartRef.current.y);
     }
-  }, [isDragging, scale]);
+  }, []);
 
   const stopDragging = useCallback(() => {
     setIsDragging(false);

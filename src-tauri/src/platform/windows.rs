@@ -361,17 +361,6 @@ impl PlatformService for WindowsPlatform {
         }
     }
 
-    fn show_main_window(&self, app: &AppHandle) -> Result<(), String> {
-        tracing::info!("Showing and focusing main window");
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.set_skip_taskbar(false);
-            let _ = window.unminimize();
-            let _ = window.show();
-            let _ = window.set_focus();
-        }
-        Ok(())
-    }
-
     fn select_save_directory(&self, _app: &AppHandle) -> Result<Option<String>, String> {
         // Windows 平台通过前端对话框选择，这里返回 None 表示使用前端选择
         Ok(None)
