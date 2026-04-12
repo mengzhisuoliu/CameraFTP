@@ -6,7 +6,6 @@ use tauri::{command, AppHandle, Manager, State};
 use tracing::{error, info, instrument};
 
 use crate::commands::FtpServerState;
-use crate::config_service::ConfigService;
 use crate::error::AppError;
 use crate::file_index::FileIndexService;
 use crate::ftp::types::{ServerInfo, ServerRuntimeView, ServerStateSnapshot};
@@ -61,17 +60,7 @@ pub async fn start_server(
         "FTP server started successfully"
     );
 
-    // 加载配置获取认证信息
-    let config_service = app.state::<Arc<ConfigService>>();
-    let app_config = config_service
-        .get()
-        .map_err(|e| AppError::Other(format!("Failed to read config from service: {}", e)))?;
-    let auth_config = if app_config.advanced_connection.enabled {
-        crate::ftp::types::FtpAuthConfig::from(&app_config.advanced_connection.auth)
-    } else {
-        crate::ftp::types::FtpAuthConfig::Anonymous
-    };
-    let (username, password_info) = auth_config.to_display_credentials();
+    let (username, password_info) = ctx.display_credentials;
 
     Ok(ServerInfo::new(ctx.ip.clone(), ctx.port, username, password_info))
 }

@@ -12,8 +12,9 @@ use crate::constants::{
 use crate::error::AppError;
 use crate::ftp::{
     create_ftp_server, EventBus, EventProcessor, FtpServerHandle, FtpAuthConfig,
-    FrontendTransientEventHandler, ServerConfig, StatsEventHandler, TrayUpdateHandler,
+    FrontendTransientEventHandler, StatsEventHandler, TrayUpdateHandler,
 };
+use crate::ftp::types::ServerConfig;
 use crate::network::NetworkManager;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -25,6 +26,7 @@ pub struct ServerStartupContext {
     pub port: u16,
     pub ip: String,
     pub event_bus: EventBus,
+    pub display_credentials: (Option<String>, Option<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +121,8 @@ pub async fn start_ftp_server(
         },
     };
 
+    let display_credentials = server_config.auth.to_display_credentials();
+
     // 创建FTP服务器Actor
     let (server_handle, server_actor, stats_worker, event_bus) = create_ftp_server(Some(app_handle));
 
@@ -152,6 +156,7 @@ pub async fn start_ftp_server(
                 port,
                 ip,
                 event_bus,
+                display_credentials,
             })
         }
         Err(e) => {

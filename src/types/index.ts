@@ -27,5 +27,8 @@ export type { AndroidImageOpenMethod } from '../../src-tauri/bindings/AndroidIma
 // ===== Re-export from global.ts =====
 export * from './global';
 
+// ===== Re-export from events.ts =====
+export type { ConfigChangedEvent } from './events';
+
 // ===== Re-export from gallery-v2.ts =====
 export type { MediaItemDto } from './gallery-v2';

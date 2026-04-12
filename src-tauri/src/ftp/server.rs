@@ -85,9 +85,6 @@ pub enum ServerCommand {
     Stop {
         respond_to: oneshot::Sender<AppResult<()>>,
     },
-    GetSnapshot {
-        respond_to: oneshot::Sender<ServerStateSnapshot>,
-    },
     GetServerInfo {
         respond_to: oneshot::Sender<Option<ServerInfo>>,
     },
@@ -151,6 +148,7 @@ pub struct FtpServerActor {
     event_bus: EventBus,
     sessions: Arc<DashSet<String>>,
     bind_addr: Option<SocketAddr>,
+    advertised_ip: Option<String>,
     app_handle: Option<AppHandle>,
 }
 
@@ -178,6 +176,7 @@ impl FtpServerActor {
             event_bus,
             sessions: Arc::new(DashSet::new()),
             bind_addr: None,
+            advertised_ip: None,
             app_handle,
         };
 
@@ -210,10 +209,6 @@ impl FtpServerActor {
                 let _ = respond_to.send(result);
             }
 
-            ServerCommand::GetSnapshot { respond_to } => {
-                let snapshot = self.get_current_snapshot().await;
-                let _ = respond_to.send(snapshot);
-            }
             ServerCommand::GetServerInfo { respond_to } => {
                 let info = self.get_server_info().await;
                 let _ = respond_to.send(info);
@@ -486,11 +481,13 @@ impl FtpServerActor {
         self.bind_addr = Some(bind_addr);
         self.server_task = Some(spawned_server.server_task);
 
-        let advertised_addr = advertised_server_addr(
-            bind_addr,
-            crate::network::NetworkManager::recommended_ip(),
+        let recommended_ip = crate::network::NetworkManager::recommended_ip();
+        let ip = normalize_ipv4_host(
+            &recommended_ip.clone().unwrap_or_else(|| "127.0.0.1".to_string()),
         );
+        self.advertised_ip = Some(ip);
 
+        let advertised_addr = advertised_server_addr(bind_addr, recommended_ip);
         self.event_bus
             .emit_server_started(advertised_addr)
             .await;
@@ -507,6 +504,7 @@ impl FtpServerActor {
 
         self.config = None;
         self.bind_addr = None;
+        self.advertised_ip = None;
         self.server_task = None;
         self.set_status(ServerStatus::Stopped).await;
     }
@@ -515,6 +513,7 @@ impl FtpServerActor {
         self.shutdown_tx = None;
         self.config = None;
         self.bind_addr = None;
+        self.advertised_ip = None;
         self.server_task = None;
         self.set_status(ServerStatus::Stopped).await;
     }
@@ -596,6 +595,7 @@ impl FtpServerActor {
     }
 
     /// 获取当前快照
+    #[allow(dead_code)]
     async fn get_current_snapshot(&self) -> ServerStateSnapshot {
         let status = self.get_current_status().await;
         let stats = self.stats_actor.get_stats_direct().await;
@@ -610,10 +610,7 @@ impl FtpServerActor {
         }
 
         let bind_addr = self.bind_addr?;
-        let ip = normalize_ipv4_host(
-            &crate::network::NetworkManager::recommended_ip()
-                .unwrap_or_else(|| "127.0.0.1".to_string()),
-        );
+        let ip = self.advertised_ip.clone()?;
         let port = bind_addr.port();
 
         // 获取认证信息
@@ -636,6 +633,7 @@ fn advertised_server_addr(bind_addr: SocketAddr, recommended_ip: Option<String>)
     format_ipv4_socket_addr(&ip, bind_addr.port())
 }
 
+#[allow(dead_code)]
 fn build_server_snapshot(
     status: ServerStatus,
     stats: &crate::ftp::types::ServerStats,
