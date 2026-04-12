@@ -35,6 +35,8 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         private const val TAG = "PermissionBridge"
         // Request code for notification permission - shared with MainActivity
         const val REQUEST_POST_NOTIFICATIONS = 1001
+        // Request code for storage permission request
+        const val REQUEST_STORAGE_PERMISSIONS = 1002
         // Limits for ClipData to prevent Intent size issues
         private const val MAX_URIS_IN_CLIP_DATA = 100
 
@@ -159,7 +161,7 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
         ActivityCompat.requestPermissions(
             activity,
             get_required_permissions().toTypedArray(),
-            REQUEST_POST_NOTIFICATIONS
+            REQUEST_STORAGE_PERMISSIONS
         )
     }
 

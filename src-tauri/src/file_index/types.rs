@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct FileIndex {
+    /// IMPORTANT: After any mutation, call `refresh_arc()` to keep `files_arc` in sync.
     pub files: Vec<FileInfo>,
     pub files_arc: Arc<Vec<FileInfo>>,
     pub current_index: Option<usize>,

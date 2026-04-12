@@ -99,9 +99,6 @@ function createEventRegistrations(): EventRegistration<any>[] {
       name: 'stats-update',
       handler: (event: Event<ServerStateSnapshot>) => {
         useServerStore.getState().setServerStats(event.payload);
-
-        // Runtime upload refresh is handled via incremental gallery-items-added.
-        // Full refresh is not part of the upload runtime chain.
       },
     },
     {

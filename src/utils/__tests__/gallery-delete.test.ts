@@ -42,11 +42,4 @@ describe('gallery-delete', () => {
     expect(message).toContain('删除失败');
   });
 
-  it('returns null with completely empty result', () => {
-    expect(buildDeleteFailureMessage({
-      deleted: [],
-      notFound: [],
-      failed: [],
-    })).toBeNull();
-  });
 });

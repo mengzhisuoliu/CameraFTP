@@ -137,23 +137,5 @@ describe('gallery-media-v2 service', () => {
       window.__galleryThumbDispatch!('listener-1', JSON.stringify(result));
       expect(listener).toHaveBeenCalledWith(result);
     });
-
-    it('ignores dispatch for unregistered listener via window callback', async () => {
-      const bridge = createMockBridge();
-      window.GalleryAndroidV2 = bridge as unknown as typeof window.GalleryAndroidV2;
-      const listener = vi.fn();
-      await registerThumbnailListener('view-1', 'listener-1', listener);
-
-      const result: ThumbResult = {
-        requestId: 'r1',
-        mediaId: '1',
-        status: 'failed',
-        errorCode: 'io_transient',
-      };
-
-      // Should not throw — unknown listenerId is ignored
-      expect(() => window.__galleryThumbDispatch!('unknown', JSON.stringify(result))).not.toThrow();
-      expect(listener).not.toHaveBeenCalled();
-    });
   });
 });

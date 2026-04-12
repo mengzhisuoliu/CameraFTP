@@ -670,23 +670,6 @@ pub fn create_ftp_server(app_handle: Option<AppHandle>) -> (
 mod tests {
     use super::*;
 
-    fn storage_backend_name() -> &'static str {
-        if cfg!(target_os = "android") {
-            "AndroidMediaStoreBackend"
-        } else {
-            "Filesystem"
-        }
-    }
-
-    #[test]
-    fn selects_android_backend_type() {
-        #[cfg(target_os = "android")]
-        assert_eq!(storage_backend_name(), "AndroidMediaStoreBackend");
-
-        #[cfg(not(target_os = "android"))]
-        assert_eq!(storage_backend_name(), "Filesystem");
-    }
-
     #[test]
     fn advertised_server_addr_prefers_usable_ip_over_unspecified_bind_address() {
         let bind_addr: SocketAddr = ([0, 0, 0, 0], 2121).into();

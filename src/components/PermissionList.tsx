@@ -153,12 +153,10 @@ export function PermissionList({
     batteryOptimization: requestBatteryOptimization,
   };
 
-  const visiblePermissions = PERMISSION_CONFIGS;
-
   if (variant === 'compact') {
     return (
       <div className="space-y-3">
-        {visiblePermissions.map(config => (
+        {PERMISSION_CONFIGS.map(config => (
           <PermissionItemCompact
             key={config.key}
             label={config.label}
@@ -172,7 +170,7 @@ export function PermissionList({
 
   return (
     <div className="space-y-4">
-      {visiblePermissions.map(config => (
+      {PERMISSION_CONFIGS.map(config => (
         <PermissionItemDetailed
           key={config.key}
           title={config.label}

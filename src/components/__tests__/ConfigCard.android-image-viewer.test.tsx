@@ -39,7 +39,6 @@ vi.mock('../PathSelector', () => ({ PathSelector: () => <div>PathSelector</div> 
 vi.mock('../AdvancedConnectionConfig', () => ({
   AdvancedConnectionConfigPanel: () => <div>AdvancedConnectionConfigPanel</div>,
 }));
-vi.mock('../AutoStartToggle', () => ({ AutoStartToggle: () => <div>AutoStartToggle</div> }));
 vi.mock('../PreviewConfigCard', () => ({ PreviewConfigCard: () => <div>PreviewConfigCard</div> }));
 vi.mock('../AboutCard', () => ({ AboutCard: () => <div>AboutCard</div> }));
 

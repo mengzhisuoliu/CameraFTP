@@ -28,13 +28,6 @@ class GalleryBridge(activity: MainActivity) : BaseJsBridge(activity) {
             }.toString()
         }
 
-        @JvmStatic
-        fun shouldRequestDeleteConfirmation(
-            isSecurityException: Boolean,
-        ): Boolean {
-            return isSecurityException
-        }
-
         /**
          * Build share intent using MediaStore URIs
          * Follows Android 10+ best practices:
@@ -99,7 +92,7 @@ class GalleryBridge(activity: MainActivity) : BaseJsBridge(activity) {
                     val rowsDeleted = activity.contentResolver.delete(uri, null, null)
                     classifyDeleteResult(uriString, rowsDeleted, deleted, notFound, failed)
                 } catch (e: Exception) {
-                    if (shouldRequestDeleteConfirmation(e is SecurityException)) {
+                    if (e is SecurityException) {
                         pendingConfirmationUris.add(Uri.parse(uriString))
                         Log.w(TAG, "deleteImages: delete confirmation required for uri=$uriString", e)
                     } else {
@@ -151,7 +144,7 @@ class GalleryBridge(activity: MainActivity) : BaseJsBridge(activity) {
         failed: MutableList<String>,
     ) {
         val stillExists = try {
-            val cursor = activity.contentResolver.query(Uri.parse(uriString), null, null, null, null)
+            val cursor = activity.contentResolver.query(Uri.parse(uriString), arrayOf(MediaStore.Images.Media._ID), null, null, null)
             cursor?.use { it.count > 0 } ?: false
         } catch (_: Exception) {
             false

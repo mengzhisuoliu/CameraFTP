@@ -85,7 +85,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     onBeforeNavigation: () => {
       setImageError(false);
     },
-    onNavigationSettled: () => {},
+    onNavigationSettled: () => {}, // Required by usePreviewNavigation; no-op for this component
   });
 
   usePreviewConfigListener(

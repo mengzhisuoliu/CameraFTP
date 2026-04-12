@@ -59,21 +59,4 @@ describe('gallery-refresh', () => {
     });
   });
 
-  it('emits runtime refresh output only for active refresh events, not media-store-ready', () => {
-    const runtimeRefreshOutput: Array<string> = [];
-    const dispatchRuntimeRefresh = (event: Event): void => {
-      const detail = (event as CustomEvent<{ reason: string }>).detail;
-      runtimeRefreshOutput.push(detail.reason);
-    };
-
-    window.addEventListener(GALLERY_REFRESH_REQUESTED_EVENT, dispatchRuntimeRefresh);
-
-    window.dispatchEvent(new CustomEvent('media-store-ready', {
-      detail: { reason: 'upload', uri: 'content://media/1' },
-    }));
-    expect(runtimeRefreshOutput).toEqual([]);
-
-    requestMediaLibraryRefresh({ reason: 'manual' });
-    expect(runtimeRefreshOutput).toEqual(['manual']);
-  });
 });

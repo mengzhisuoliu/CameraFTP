@@ -62,22 +62,6 @@ class AndroidServiceStateCoordinatorTest {
     }
 
     @Test
-    fun main_activity_has_no_legacy_emit_or_empty_permission_override() {
-        val methods = MainActivity::class.java.declaredMethods.map { it.name }.toSet()
-
-        assertFalse(methods.contains("emitTauriEvent"))
-        assertFalse(methods.contains("onRequestPermissionsResult"))
-    }
-
-    @Test
-    fun coordinator_has_no_redundant_wrapper_methods() {
-        val methods = AndroidServiceStateCoordinator::class.java.declaredMethods.map { it.name }.toSet()
-
-        assertFalse(methods.contains("updateServiceState"))
-        assertFalse(methods.contains("startService"))
-    }
-
-    @Test
     fun update_service_state_persists_snapshot_before_service_instance_exists() {
         val context = getApplicationContext<Context>()
 

@@ -33,14 +33,6 @@ pub(crate) struct ServerStats {
     pub last_uploaded_file: Option<String>,
 }
 
-impl ServerStats {
-    #[cfg(test)]
-    pub fn with_connected_clients(mut self, connected_clients: u64) -> Self {
-        self.active_connections = connected_clients;
-        self
-    }
-}
-
 /// FTP 认证配置 - 使用枚举确保类型安全
 /// 两种互斥状态：匿名访问 或 认证访问
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -267,7 +259,7 @@ mod tests {
             .await;
         runtime_state.record_server_stopped().await;
         runtime_state
-            .record_stats(ServerStats::default().with_connected_clients(2))
+            .record_stats(ServerStats { active_connections: 2, ..Default::default() })
             .await;
 
         let snapshot = runtime_state.current_snapshot().await;

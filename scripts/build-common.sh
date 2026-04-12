@@ -28,7 +28,6 @@ readonly TARGET_ANDROID_COLOR="35"
 readonly TARGET_WINDOWS_NAME="Windows"
 readonly TARGET_ANDROID_NAME="Android"
 readonly TARGET_WINDOWS_TRIPLE="x86_64-pc-windows-msvc"
-readonly TARGET_ANDROID_TRIPLE="aarch64-linux-android"
 
 info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -115,17 +114,14 @@ get_tool_platform() {
         return 1
     fi
 
-    if command -v "${tool_name}.exe" &> /dev/null; then
+    local cmd
+    cmd=$(get_tool_cmd "$tool_name") || return 1
+
+    if [[ "$cmd" == *.exe ]]; then
         echo "windows"
-        return 0
-    fi
-
-    if command -v "$tool_name" &> /dev/null; then
+    else
         echo "linux"
-        return 0
     fi
-
-    return 1
 }
 
 # 检查工具是否存在
@@ -341,8 +337,6 @@ check_bun() {
 
 generate_ts_types() {
     task "生成 TypeScript 类型绑定..."
-
-    mkdir -p dist
 
     local cargo_cmd
     cargo_cmd=$(get_tool_cmd "cargo")

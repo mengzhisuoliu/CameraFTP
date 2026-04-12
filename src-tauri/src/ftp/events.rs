@@ -478,10 +478,6 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
-    fn parse_bind_addr_future_contract_view(bind_addr: &str) -> Option<(String, u16)> {
-        parse_bind_addr(bind_addr)
-    }
-
     #[derive(Clone, Default)]
     struct RecordingHandler {
         events: Arc<Mutex<Vec<DomainEvent>>>,
@@ -759,7 +755,7 @@ mod tests {
             .record_server_started("192.168.1.8:2121".into())
             .await;
         runtime_state
-            .record_stats(ServerStats::default().with_connected_clients(3))
+            .record_stats(ServerStats { active_connections: 3, ..Default::default() })
             .await;
         runtime_state.record_server_stopped().await;
 
@@ -773,7 +769,7 @@ mod tests {
         let bus = EventBus::new();
 
         bus.emit_server_started("192.168.1.8:2121").await;
-        bus.emit_stats_updated(ServerStats::default().with_connected_clients(3))
+        bus.emit_stats_updated(ServerStats { active_connections: 3, ..Default::default() })
             .await;
 
         let snapshot = bus.runtime_state().current_snapshot().await;
@@ -923,7 +919,7 @@ mod tests {
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         bus.emit_server_started("127.0.0.1:2121").await;
-        bus.emit_stats_updated(ServerStats::default().with_connected_clients(2))
+        bus.emit_stats_updated(ServerStats { active_connections: 2, ..Default::default() })
             .await;
         bus.emit_file_uploaded("after-start.jpg", 12);
 
@@ -950,7 +946,7 @@ mod tests {
         let mut rx = bus.subscribe();
 
         bus.emit_server_started("127.0.0.1:2121").await;
-        bus.emit_stats_updated(ServerStats::default().with_connected_clients(2))
+        bus.emit_stats_updated(ServerStats { active_connections: 2, ..Default::default() })
             .await;
         bus.emit_server_stopped().await;
 
@@ -1132,22 +1128,22 @@ mod tests {
     #[test]
     fn future_parse_bind_addr_contract_reads_ipv4_host_and_port() {
         assert_eq!(
-            parse_bind_addr_future_contract_view("192.168.1.8:2121"),
+            parse_bind_addr("192.168.1.8:2121"),
             Some(("192.168.1.8".to_string(), 2121))
         );
     }
 
     #[test]
     fn future_parse_bind_addr_contract_rejects_ipv6_like_values() {
-        assert_eq!(parse_bind_addr_future_contract_view("::1:2121"), None);
-        assert_eq!(parse_bind_addr_future_contract_view("[::1]:2121"), None);
+        assert_eq!(parse_bind_addr("::1:2121"), None);
+        assert_eq!(parse_bind_addr("[::1]:2121"), None);
     }
 
     #[test]
     fn future_parse_bind_addr_contract_rejects_malformed_values() {
-        assert_eq!(parse_bind_addr_future_contract_view("192.168.1.8"), None);
-        assert_eq!(parse_bind_addr_future_contract_view("192.168.1.8:not-a-port"), None);
-        assert_eq!(parse_bind_addr_future_contract_view("not-an-ip:2121"), None);
+        assert_eq!(parse_bind_addr("192.168.1.8"), None);
+        assert_eq!(parse_bind_addr("192.168.1.8:not-a-port"), None);
+        assert_eq!(parse_bind_addr("not-an-ip:2121"), None);
     }
 
     #[test]

@@ -16,7 +16,6 @@ import android.database.Cursor
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
-import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import android.view.View
@@ -574,8 +573,10 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        if (instance == this) isViewerVisible = false
-        if (instance == this) instance = null
+        if (instance == this) {
+            isViewerVisible = false
+            instance = null
+        }
         super.onDestroy()
     }
 }

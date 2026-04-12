@@ -46,7 +46,7 @@ function createRunningStats(stats?: ServerStateSnapshot): ServerStateSnapshot {
   };
 }
 
-const doStartServer = async (set: (fn: (state: ServerState) => ServerState) => void, get: () => ServerState): Promise<void> => {
+async function doStartServer(set: (fn: (state: ServerState) => ServerState) => void, get: () => ServerState): Promise<void> {
   await executeAsync({
     operation: () => invoke<ServerInfo>('start_server'),
     onSuccess: (info) => {
@@ -58,7 +58,7 @@ const doStartServer = async (set: (fn: (state: ServerState) => ServerState) => v
     errorPrefix: 'Failed to start server',
     rethrow: true,
   }, set);
-};
+}
 
 export const useServerStore = create<ServerState>((set, get) => ({
   isRunning: false,

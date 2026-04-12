@@ -93,9 +93,7 @@ class MainActivity : TauriActivity() {
      * Helper to add a JavaScript bridge to WebView with logging
      */
     private fun addJsBridge(webView: WebView, bridge: Any?, name: String) {
-        bridge?.let {
-            webView.addJavascriptInterface(it, name)
-        }
+        bridge?.let { webView.addJavascriptInterface(it, name) }
     }
 
     @SuppressLint("SetJavaScriptEnabled")

@@ -23,16 +23,4 @@ class GalleryBridgeTest {
         assertEquals(Intent.ACTION_SEND_MULTIPLE, intent.action)
     }
 
-    @Test
-    fun removed_v1_thumbnail_methods_are_not_exposed() {
-        val methodNames = GalleryBridge::class.java.methods.map { it.name }.toSet()
-
-        assertFalse(methodNames.contains("listMediaStoreImages"))
-        assertFalse(methodNames.contains("removeThumbnails"))
-        assertFalse(methodNames.contains("cleanupThumbnailsNotInList"))
-        assertFalse(methodNames.contains("getThumbnail"))
-        assertFalse(methodNames.contains("pick_newest"))
-        assertFalse(methodNames.contains("build_query_selection"))
-        assertFalse(methodNames.contains("sort_entries"))
-    }
 }

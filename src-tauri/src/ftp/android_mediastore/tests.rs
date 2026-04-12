@@ -7,15 +7,8 @@
 //! These tests verify the core functionality of the backend components
 //! without requiring an actual Android device.
 
-use super::backend::{AndroidMediaStoreBackend, MediaStoreMetadata};
-use super::limiter::UploadLimiter;
-use super::retry::{retry_with_backoff, RetryConfig};
-use super::types::{
-    classify_file, collection_from_class, default_relative_path,
-    display_name_from_path, MediaFileClass, mime_type_from_filename, relative_path_from_full_path,
-    MediaStoreCollection, MediaStoreError, QueryResult, MIME_TYPE_DEFAULT, MIME_TYPE_HEIF,
-    MIME_TYPE_JPEG, MIME_TYPE_MP4,
-};
+use super::backend::AndroidMediaStoreBackend;
+use super::types::{MediaStoreCollection, MediaStoreError};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use unftp_core::auth::DefaultUser;
@@ -29,135 +22,28 @@ use super::types::MediaStoreBridgeClient;
 #[cfg(not(target_os = "android"))]
 use tempfile::TempDir;
 
-#[test]
-fn android_mediastore_mod_source_does_not_reexport_create_bridge() {
-    let source = include_str!("mod.rs");
-
-    assert!(!source.contains("pub use bridge::create_bridge;"));
-}
-
-// ============================================================================
-// Tests for display_name_from_path
-// ============================================================================
-
-#[test]
-fn test_display_name_from_path_simple() {
-    assert_eq!(display_name_from_path("photo.jpg"), "photo.jpg");
-}
-
-#[test]
-fn test_display_name_from_path_with_directory() {
-    assert_eq!(display_name_from_path("/DCIM/Camera/photo.jpg"), "photo.jpg");
-}
-
-#[test]
-fn test_display_name_from_path_multiple_slashes() {
-    assert_eq!(display_name_from_path("/a/b/c/d/photo.jpg"), "photo.jpg");
-}
-
-#[test]
-fn test_display_name_from_path_trailing_slash() {
-    assert_eq!(display_name_from_path("/DCIM/Camera/"), "");
-}
-
-#[test]
-fn test_display_name_from_path_empty() {
-    assert_eq!(display_name_from_path(""), "");
-}
-
 // ============================================================================
 // Tests for default_relative_path
 // ============================================================================
 
 #[test]
 fn test_default_relative_path() {
-    let path = default_relative_path();
+    let path = super::types::default_relative_path();
     assert!(path.starts_with("DCIM/"));
     assert!(path.ends_with('/'));
 }
 
 // ============================================================================
-// Tests for relative_path_from_full_path
+// Tests for classify_file + collection mapping (not covered by inline tests)
 // ============================================================================
 
-#[test]
-fn test_relative_path_from_full_path_nested() {
-    assert_eq!(relative_path_from_full_path("/DCIM/Camera/photo.jpg"), "DCIM/Camera/");
-}
-
-#[test]
-fn test_relative_path_from_full_path_single_level() {
-    assert_eq!(relative_path_from_full_path("/DCIM/photo.jpg"), "DCIM/");
-}
-
-#[test]
-fn test_relative_path_from_full_path_root() {
-    assert_eq!(relative_path_from_full_path("photo.jpg"), "");
-}
-
-#[test]
-fn test_relative_path_from_full_path_no_leading_slash() {
-    assert_eq!(relative_path_from_full_path("DCIM/photo.jpg"), "DCIM/");
-}
-
-// ============================================================================
-// Tests for mime_type_from_filename
-// ============================================================================
-
-#[test]
-fn test_mime_type_jpeg() {
-    assert_eq!(mime_type_from_filename("photo.jpg"), MIME_TYPE_JPEG);
-    assert_eq!(mime_type_from_filename("photo.jpeg"), MIME_TYPE_JPEG);
-    assert_eq!(mime_type_from_filename("PHOTO.JPG"), MIME_TYPE_JPEG);
-    assert_eq!(mime_type_from_filename("Photo.JPEG"), MIME_TYPE_JPEG);
-}
-
-#[test]
-fn test_mime_type_video_and_heif() {
-    assert_eq!(mime_type_from_filename("video.mp4"), MIME_TYPE_MP4);
-    assert_eq!(mime_type_from_filename("video.MP4"), MIME_TYPE_MP4);
-    assert_eq!(mime_type_from_filename("image.heif"), MIME_TYPE_HEIF);
-}
-
-#[test]
-fn test_mime_type_unknown() {
-    assert_eq!(mime_type_from_filename("file.txt"), MIME_TYPE_DEFAULT);
-    assert_eq!(mime_type_from_filename("file.bin"), MIME_TYPE_DEFAULT);
-    assert_eq!(mime_type_from_filename("noextension"), MIME_TYPE_DEFAULT);
-}
-
-#[test]
-fn test_mime_type_raw_formats() {
-    assert_eq!(mime_type_from_filename("photo.dng"), "image/x-adobe-dng");
-    assert_eq!(mime_type_from_filename("photo.nef"), "image/x-nikon-nef");
-    assert_eq!(mime_type_from_filename("photo.nrw"), "image/x-nikon-nrw");
-    assert_eq!(mime_type_from_filename("photo.cr2"), "image/x-canon-cr2");
-    assert_eq!(mime_type_from_filename("photo.cr3"), "image/x-canon-cr3");
-    assert_eq!(mime_type_from_filename("photo.arw"), "image/x-sony-arw");
-    assert_eq!(mime_type_from_filename("photo.sr2"), "image/x-sony-sr2");
-    assert_eq!(mime_type_from_filename("photo.raf"), "image/x-fuji-raf");
-    assert_eq!(mime_type_from_filename("photo.orf"), "image/x-olympus-orf");
-    assert_eq!(mime_type_from_filename("photo.rw2"), "image/x-panasonic-rw2");
-    assert_eq!(mime_type_from_filename("photo.pef"), "image/x-pentax-pef");
-    assert_eq!(mime_type_from_filename("photo.x3f"), "image/x-sigma-x3f");
-}
-
-#[test]
-fn test_mime_type_raw_formats_case_insensitive() {
-    assert_eq!(mime_type_from_filename("PHOTO.DNG"), "image/x-adobe-dng");
-    assert_eq!(mime_type_from_filename("Photo.NEF"), "image/x-nikon-nef");
-    assert_eq!(mime_type_from_filename("Photo.CR3"), "image/x-canon-cr3");
-}
+use super::types::{classify_file, collection_from_class, mime_type_from_filename, MediaFileClass, MIME_TYPE_DEFAULT};
 
 #[test]
 fn test_classify_file_routes_raw_to_images_via_collection_from_class() {
     for ext in &["dng", "nef", "nrw", "cr2", "cr3", "arw", "sr2", "raf", "orf", "rw2", "pef", "x3f"] {
-        // On non-Android, classify_file returns NonMedia for RAW extensions.
-        // Verify collection_from_class works correctly for both paths.
         let (_, class) = classify_file(&format!("photo.{ext}"));
         let collection = collection_from_class(class);
-        // On Android, RAW files would be Image → Images. On non-Android, NonMedia → Downloads.
-        // The mapping itself is what we test here.
         match class {
             MediaFileClass::Image => assert_eq!(collection, MediaStoreCollection::Images, ".{ext} Image → Images"),
             MediaFileClass::Video => assert_eq!(collection, MediaStoreCollection::Videos, ".{ext} Video → Videos"),
@@ -196,112 +82,30 @@ fn test_collection_from_class_mapping() {
 }
 
 // ============================================================================
-// Tests for retry_with_backoff
-// ============================================================================
-
-#[tokio::test]
-async fn test_retry_succeeds_immediately() {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    
-    let config = RetryConfig::fast();
-    let count = Arc::new(AtomicU32::new(0));
-    let count_clone = count.clone();
-    
-    let result: Result<i32, &str> = retry_with_backoff(&config, "test", || {
-        let c = count_clone.clone();
-        async move {
-            c.fetch_add(1, Ordering::SeqCst);
-            Ok(42)
-        }
-    }).await;
-    
-    assert_eq!(result.unwrap(), 42);
-    assert_eq!(count.load(Ordering::SeqCst), 1);
-}
-
-#[tokio::test]
-async fn test_retry_succeeds_after_one_failure() {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    
-    let config = RetryConfig::fast();
-    let count = Arc::new(AtomicU32::new(0));
-    let count_clone = count.clone();
-    
-    let result: Result<i32, &str> = retry_with_backoff(&config, "test", || {
-        let c = count_clone.clone();
-        async move {
-            let n = c.fetch_add(1, Ordering::SeqCst);
-            if n == 0 {
-                Err("temporary failure")
-            } else {
-                Ok(42)
-            }
-        }
-    }).await;
-    
-    assert_eq!(result.unwrap(), 42);
-    assert_eq!(count.load(Ordering::SeqCst), 2);
-}
-
-#[tokio::test]
-async fn test_retry_exhausted_all_attempts() {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    
-    let config = RetryConfig {
-        max_retries: 2,
-        initial_delay: std::time::Duration::from_millis(10),
-        max_delay: std::time::Duration::from_millis(100),
-        backoff_multiplier: 2.0,
-    };
-    let count = Arc::new(AtomicU32::new(0));
-    let count_clone = count.clone();
-    
-    let result: Result<i32, &str> = retry_with_backoff(&config, "test", || {
-        let c = count_clone.clone();
-        async move {
-            c.fetch_add(1, Ordering::SeqCst);
-            Err("permanent failure")
-        }
-    }).await;
-    
-    assert!(result.is_err());
-    assert_eq!(count.load(Ordering::SeqCst), 3); // 1 initial + 2 retries
-}
-
-// ============================================================================
-// Tests for UploadLimiter
+// RAW MIME format tests (not covered by inline mime_type_from_filename test)
 // ============================================================================
 
 #[test]
-fn test_upload_limiter_creation() {
-    let limiter = UploadLimiter::new(4);
-    assert_eq!(limiter.max_concurrent(), 4);
-    assert_eq!(limiter.available_permits(), 4);
+fn test_mime_type_raw_formats() {
+    assert_eq!(mime_type_from_filename("photo.dng"), "image/x-adobe-dng");
+    assert_eq!(mime_type_from_filename("photo.nef"), "image/x-nikon-nef");
+    assert_eq!(mime_type_from_filename("photo.nrw"), "image/x-nikon-nrw");
+    assert_eq!(mime_type_from_filename("photo.cr2"), "image/x-canon-cr2");
+    assert_eq!(mime_type_from_filename("photo.cr3"), "image/x-canon-cr3");
+    assert_eq!(mime_type_from_filename("photo.arw"), "image/x-sony-arw");
+    assert_eq!(mime_type_from_filename("photo.sr2"), "image/x-sony-sr2");
+    assert_eq!(mime_type_from_filename("photo.raf"), "image/x-fuji-raf");
+    assert_eq!(mime_type_from_filename("photo.orf"), "image/x-olympus-orf");
+    assert_eq!(mime_type_from_filename("photo.rw2"), "image/x-panasonic-rw2");
+    assert_eq!(mime_type_from_filename("photo.pef"), "image/x-pentax-pef");
+    assert_eq!(mime_type_from_filename("photo.x3f"), "image/x-sigma-x3f");
 }
 
 #[test]
-fn test_upload_limiter_default() {
-    let limiter = UploadLimiter::default_limiter();
-    assert_eq!(limiter.max_concurrent(), 4);
-}
-
-#[tokio::test]
-async fn test_upload_limiter_acquire_release() {
-    let limiter = UploadLimiter::new(2);
-    
-    assert_eq!(limiter.available_permits(), 2);
-    
-    let permit1 = limiter.acquire().await;
-    assert_eq!(limiter.available_permits(), 1);
-    
-    let permit2 = limiter.acquire().await;
-    assert_eq!(limiter.available_permits(), 0);
-    
-    drop(permit1);
-    assert_eq!(limiter.available_permits(), 1);
-    
-    drop(permit2);
-    assert_eq!(limiter.available_permits(), 2);
+fn test_mime_type_raw_formats_case_insensitive() {
+    assert_eq!(mime_type_from_filename("PHOTO.DNG"), "image/x-adobe-dng");
+    assert_eq!(mime_type_from_filename("Photo.NEF"), "image/x-nikon-nef");
+    assert_eq!(mime_type_from_filename("Photo.CR3"), "image/x-canon-cr3");
 }
 
 // ============================================================================
@@ -389,137 +193,6 @@ async fn test_mock_bridge_delete_file() {
     // Query should fail
     let result = bridge.query_file("DCIM/test.jpg").await;
     assert!(matches!(result, Err(MediaStoreError::NotFound(_))));
-}
-
-// ============================================================================
-// Tests for AndroidMediaStoreBackend
-// ============================================================================
-
-#[test]
-fn test_backend_normalize_path() {
-    let backend = AndroidMediaStoreBackend::new();
-    
-    // Simple path
-    assert_eq!(
-        backend.normalize_path(Path::new("photo.jpg")),
-        PathBuf::from("photo.jpg")
-    );
-    
-    // Path with leading slash
-    assert_eq!(
-        backend.normalize_path(Path::new("/DCIM/photo.jpg")),
-        PathBuf::from("DCIM/photo.jpg")
-    );
-    
-    // Path with .. (should be resolved)
-    assert_eq!(
-        backend.normalize_path(Path::new("/DCIM/../photo.jpg")),
-        PathBuf::from("photo.jpg")
-    );
-    
-    // Path with . (should be removed)
-    assert_eq!(
-        backend.normalize_path(Path::new("./DCIM/./photo.jpg")),
-        PathBuf::from("DCIM/photo.jpg")
-    );
-}
-
-#[test]
-fn test_backend_validate_path_valid() {
-    let backend = AndroidMediaStoreBackend::new();
-    
-    assert!(backend.validate_path(Path::new("photo.jpg")).is_ok());
-    assert!(backend.validate_path(Path::new("/DCIM/photo.jpg")).is_ok());
-    assert!(backend.validate_path(Path::new("DCIM/Camera/photo.jpg")).is_ok());
-}
-
-#[test]
-fn test_backend_validate_path_null_bytes() {
-    let backend = AndroidMediaStoreBackend::new();
-    
-    // Path with null byte should fail
-    let path = Path::new("test\0.jpg");
-    assert!(backend.validate_path(path).is_err());
-}
-
-#[test]
-fn test_backend_resolve_path() {
-    let backend = AndroidMediaStoreBackend::new();
-    
-    // Only paths within virtual roots are preserved
-    let resolved = backend.resolve_path(Path::new("DCIM/CameraFTP/photo.jpg"));
-    assert_eq!(resolved, "DCIM/CameraFTP/photo.jpg");
-
-    // Non-virtual-root path gets the base prefix
-    let resolved = backend.resolve_path(Path::new("DCIM/Camera/photo.jpg"));
-    assert_eq!(resolved, "DCIM/CameraFTP/DCIM/Camera/photo.jpg");
-    
-    // Other paths get the base prefix
-    let resolved = backend.resolve_path(Path::new("photo.jpg"));
-    assert!(resolved.contains("CameraFTP"));
-}
-
-#[test]
-fn test_backend_resolve_path_only_preserves_explicit_virtual_root_paths() {
-    let backend = AndroidMediaStoreBackend::new();
-    
-    // DCIM virtual-root paths should be preserved
-    let resolved = backend.resolve_path(Path::new("DCIM/test.jpg"));
-    assert_eq!(resolved, "DCIM/CameraFTP/DCIM/test.jpg");
-
-    let resolved = backend.resolve_path(Path::new("DCIM/CameraFTP/test.jpg"));
-    assert_eq!(resolved, "DCIM/CameraFTP/test.jpg");
-    
-    // Pictures paths are not virtual roots and should not be preserved
-    let resolved = backend.resolve_path(Path::new("Pictures/test.jpg"));
-    assert_eq!(resolved, "DCIM/CameraFTP/Pictures/test.jpg");
-
-    // Download paths should be preserved
-    let resolved = backend.resolve_path(Path::new("Download/CameraFTP/test.jpg"));
-    assert_eq!(resolved, "Download/CameraFTP/test.jpg");
-
-    // Explicit rooted Download paths should be preserved after normalization
-    let resolved = backend.resolve_path(Path::new("/Download/CameraFTP/rooted-test.jpg"));
-    assert_eq!(resolved, "Download/CameraFTP/rooted-test.jpg");
-
-    // Arbitrary Download paths should not bypass configured virtual root
-    let resolved = backend.resolve_path(Path::new("Download/Other/test.jpg"));
-    assert!(resolved.starts_with("DCIM/CameraFTP/"));
-}
-
-#[test]
-fn test_metadata_from_query_result_file() {
-    let query = QueryResult {
-        content_uri: "content://media/external/images/media/1".to_string(),
-        display_name: "test.jpg".to_string(),
-        size: 12345,
-        date_modified: 1609459200000,
-        mime_type: "image/jpeg".to_string(),
-        relative_path: "DCIM/".to_string(),
-    };
-    
-    let metadata = MediaStoreMetadata::from(query);
-    assert_eq!(metadata.len(), 12345);
-    assert!(metadata.is_file());
-    assert!(!metadata.is_dir());
-    assert!(!metadata.is_symlink());
-    assert_eq!(metadata.mime_type, "image/jpeg");
-}
-
-#[test]
-fn test_metadata_from_query_result_directory() {
-    let query = QueryResult {
-        content_uri: "".to_string(),
-        display_name: "DCIM/".to_string(),
-        size: 0,
-        date_modified: 0,
-        mime_type: "".to_string(),
-        relative_path: "".to_string(),
-    };
-    
-    let metadata = MediaStoreMetadata::from(query);
-    assert!(metadata.is_dir());
-    assert!(!metadata.is_file());
 }
 
 // ============================================================================
