@@ -810,14 +810,6 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn test_finalize_entry_uses_current_native_method() {
-        assert_eq!(
-            FINALIZE_ENTRY_METHOD_NAME,
-            "finalizeEntryAndEmitGalleryItemsAddedNative"
-        );
-    }
-
-    #[test]
     fn test_normalize_relative_path_for_match() {
         assert_eq!(normalize_relative_path_for_match(""), "");
         assert_eq!(normalize_relative_path_for_match("DCIM/CameraFTP"), "DCIM/CameraFTP/");

@@ -241,17 +241,11 @@ function DonateDialog({ isOpen, onClose }: DonateDialogProps) {
 interface AboutDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  version: string;
 }
 
-function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
-  const [version, setVersion] = useState<string>('');
+function AboutDialog({ isOpen, onClose, version }: AboutDialogProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (isOpen) {
-      getVersion().then(setVersion).catch(() => setVersion(''));
-    }
-  }, [isOpen]);
 
   const toggleGroup = (title: string) => {
     const newSet = new Set(expandedGroups);
@@ -456,7 +450,7 @@ export function AboutCard() {
 
       {/* 关于对话框 - 使用 Portal 渲染到 body 下 */}
       {createPortal(
-        <AboutDialog isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />,
+        <AboutDialog isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} version={version} />,
         document.body
       )}
 

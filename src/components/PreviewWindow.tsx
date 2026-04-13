@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useConfigStore } from '../stores/configStore';
@@ -68,7 +68,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     handleMouseMove,
     stopDragging,
   } = usePreviewZoomPan(imagePath);
-  const appWindow = getCurrentWindow();
+  const appWindow = useMemo(() => getCurrentWindow(), []);
 
   const {
     currentIndex,
@@ -207,7 +207,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   // 使用 convertFileSrc 将文件路径转换为可用的 URL
   const imageSrc = convertFileSrc(imagePath);
 
-  const fileName = imagePath ? imagePath.split(/[/\\]/).pop() || '' : '';
+  const fileName = imagePath.split(/[/\\]/).pop() || '';
 
   return (
     <div

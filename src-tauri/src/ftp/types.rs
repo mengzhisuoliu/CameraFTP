@@ -242,6 +242,15 @@ mod tests {
         ServerRuntimeState, ServerStats,
     };
 
+    fn test_stats(active: u64, uploads: u64, bytes: u64, last_file: Option<&str>) -> ServerStats {
+        ServerStats {
+            active_connections: active,
+            total_uploads: uploads,
+            total_bytes_received: bytes,
+            last_uploaded_file: last_file.map(String::from),
+        }
+    }
+
     #[test]
     fn normalize_ipv4_helpers_enforce_ipv4_contract() {
         assert_eq!(normalize_ipv4_host("192.168.1.8"), "192.168.1.8");
@@ -258,8 +267,9 @@ mod tests {
             .record_server_started("192.168.1.8:2121".to_string())
             .await;
         runtime_state.record_server_stopped().await;
+        // late-arriving stats after stop should be silently discarded
         runtime_state
-            .record_stats(ServerStats { active_connections: 2, ..Default::default() })
+            .record_stats(test_stats(2, 0, 0, None))
             .await;
 
         let snapshot = runtime_state.current_snapshot().await;
@@ -276,13 +286,9 @@ mod tests {
             .record_server_started("192.168.1.8:2121".to_string())
             .await;
         runtime_state.record_server_stopped().await;
+        // all fields in this late stats update should be ignored
         runtime_state
-            .record_stats(ServerStats {
-                active_connections: 3,
-                total_uploads: 7,
-                total_bytes_received: 1024,
-                last_uploaded_file: Some("late.jpg".to_string()),
-            })
+            .record_stats(test_stats(3, 7, 1024, Some("late.jpg")))
             .await;
 
         let snapshot = runtime_state.current_snapshot().await;
@@ -299,13 +305,9 @@ mod tests {
         runtime_state
             .record_server_started("192.168.1.8:2121".to_string())
             .await;
+        // 3 active connections, 7 completed uploads, 1 KiB received
         runtime_state
-            .record_stats(ServerStats {
-                active_connections: 3,
-                total_uploads: 7,
-                total_bytes_received: 1024,
-                last_uploaded_file: Some("latest.jpg".to_string()),
-            })
+            .record_stats(test_stats(3, 7, 1024, Some("latest.jpg")))
             .await;
 
         let runtime_snapshot = runtime_state.current_runtime_snapshot().await;
@@ -315,12 +317,7 @@ mod tests {
             super::ServerRuntimeSnapshot {
                 bind_addr: Some("192.168.1.8:2121".to_string()),
                 is_running: true,
-                stats: Some(ServerStats {
-                    active_connections: 3,
-                    total_uploads: 7,
-                    total_bytes_received: 1024,
-                    last_uploaded_file: Some("latest.jpg".to_string()),
-                }),
+                stats: Some(test_stats(3, 7, 1024, Some("latest.jpg"))),
             }
         );
     }

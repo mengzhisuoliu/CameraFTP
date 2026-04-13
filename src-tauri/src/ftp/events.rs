@@ -267,16 +267,6 @@ impl StatsEventHandler {
             last_state: None,
         }
     }
-
-    fn sync_android_service_state(&self, snapshot: &ServerStateSnapshot) {
-        crate::platform::get_platform().sync_android_service_state(&self.app_handle, snapshot);
-    }
-
-    fn emit_frontend_json(&self, event_name: &str, payload: serde_json::Value) {
-        if let Err(e) = self.app_handle.emit(event_name, payload) {
-            warn!(event = event_name, error = %e, "Failed to emit frontend event");
-        }
-    }
 }
 
 trait ServerEventFanout {
@@ -292,11 +282,13 @@ struct RuntimeStateView {
 
 impl ServerEventFanout for StatsEventHandler {
     fn emit_frontend_json(&mut self, event_name: &str, payload: serde_json::Value) {
-        StatsEventHandler::emit_frontend_json(self, event_name, payload);
+        if let Err(e) = self.app_handle.emit(event_name, payload) {
+            warn!(event = event_name, error = %e, "Failed to emit frontend event");
+        }
     }
 
     fn sync_android_service_state(&mut self, snapshot: &ServerStateSnapshot) {
-        StatsEventHandler::sync_android_service_state(self, snapshot);
+        crate::platform::get_platform().sync_android_service_state(&self.app_handle, snapshot);
     }
 }
 

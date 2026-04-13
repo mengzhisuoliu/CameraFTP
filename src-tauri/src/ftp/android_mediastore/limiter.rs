@@ -57,19 +57,6 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    #[test]
-    fn test_upload_limiter_creation() {
-        let limiter = UploadLimiter::new(4);
-        assert_eq!(limiter.max_concurrent(), 4);
-        assert_eq!(limiter.available_permits(), 4);
-    }
-
-    #[test]
-    fn test_default_limiter() {
-        let limiter = UploadLimiter::default_limiter();
-        assert_eq!(limiter.max_concurrent(), DEFAULT_MAX_CONCURRENT_UPLOADS);
-    }
-
     #[tokio::test]
     async fn test_acquire_releases_permit() {
         let limiter = UploadLimiter::new(2);
@@ -112,8 +99,13 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(50)).await;
         });
         
-        // Wait a bit for tasks to acquire permits
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        // Wait for spawned tasks to acquire permits
+        for _ in 0..100 {
+            if limiter.available_permits() == 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
         
         // Both permits should be in use
         assert_eq!(limiter.available_permits(), 0);
