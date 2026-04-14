@@ -40,7 +40,7 @@ impl AiEditService {
         let (auto_sender, auto_receiver) = mpsc::channel::<AiEditTask>(AUTO_QUEUE_CAPACITY);
         let config_service_clone = config_service.clone();
 
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             worker_loop(manual_receiver, auto_receiver, app_handle, config_service_clone).await;
         });
 
