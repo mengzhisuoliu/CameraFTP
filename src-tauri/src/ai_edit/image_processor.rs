@@ -29,7 +29,7 @@ pub fn prepare_for_upload(file_path: &Path) -> Result<String, AppError> {
             resized.as_bytes(),
             resized.width(),
             resized.height(),
-            resized.color(),
+            resized.color().into(),
         )
         .map_err(|e| AppError::AiEditError(format!("Failed to encode JPEG: {}", e)))?;
 

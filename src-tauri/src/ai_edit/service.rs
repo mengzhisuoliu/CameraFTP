@@ -96,10 +96,9 @@ async fn process_task(file_path: &Path, config_service: &ConfigService) -> Resul
         return Err(AppError::AiEditError("AI edit is disabled".to_string()));
     }
 
-    if let super::config::ProviderConfig::SeedEdit(ref seed_config) = ai_config.provider {
-        if seed_config.api_key.is_empty() {
-            return Err(AppError::AiEditError("API Key is not configured".to_string()));
-        }
+    let super::config::ProviderConfig::SeedEdit(ref seed_config) = ai_config.provider;
+    if seed_config.api_key.is_empty() {
+        return Err(AppError::AiEditError("API Key is not configured".to_string()));
     }
 
     let base64_image = image_processor::prepare_for_upload(file_path)

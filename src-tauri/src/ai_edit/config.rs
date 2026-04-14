@@ -34,7 +34,6 @@ impl Default for AiEditConfig {
 /// Provider 配置枚举（预留扩展）
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase")]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ProviderConfig {
     SeedEdit(SeedEditConfig),

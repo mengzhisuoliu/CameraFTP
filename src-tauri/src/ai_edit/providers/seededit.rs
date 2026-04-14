@@ -101,8 +101,8 @@ impl AiEditProvider for SeedEditProvider {
 
             Ok(image_bytes.to_vec())
         } else if let Some(b64) = image_data.b64_json {
-            use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-            BASE64::decode(&b64)
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD.decode(&b64)
                 .map_err(|e| AppError::AiEditError(format!("Failed to decode base64 image: {}", e)))
         } else {
             Err(AppError::AiEditError("API returned neither URL nor base64 data".to_string()))

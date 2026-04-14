@@ -144,7 +144,7 @@ pub fn run() {
             app.manage(Arc::new(FileIndexService::new(Arc::clone(&config_service))));
 
             // 在 setup 中管理 AutoOpenService
-            app.manage(AutoOpenService::new(app.handle().clone(), config_service));
+            app.manage(AutoOpenService::new(app.handle().clone(), Arc::clone(&config_service)));
             app.manage(ai_edit::AiEditService::new(config_service));
 
             // 开机自启模式：隐藏窗口
