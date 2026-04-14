@@ -2,7 +2,7 @@
 // Copyright (C) 2026 GoldJohnKing <GoldJohnKing@Live.cn>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use chrono::Local;
+use chrono::Utc;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
@@ -89,6 +89,8 @@ async fn worker_loop(mut receiver: mpsc::Receiver<AiEditTask>, app_handle: AppHa
             Err(ref e) => {
                 if task.result_tx.is_some() {
                     warn!(input = %task.file_path.display(), error = %e, "AI edit failed");
+                } else {
+                    debug!(input = %task.file_path.display(), error = %e, "Auto AI edit failed");
                 }
             }
         }
@@ -151,5 +153,5 @@ async fn process_task(task: &AiEditTask, config_service: &ConfigService) -> Resu
 }
 
 fn chrono_now_string() -> String {
-    Local::now().format("%Y%m%d_%H%M%S").to_string()
+    Utc::now().format("%Y%m%d_%H%M%S").to_string()
 }
