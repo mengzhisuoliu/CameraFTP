@@ -97,6 +97,20 @@ impl DataListener for FtpDataListener {
                             });
                         }
                     }
+
+                    // AI修图处理（所有平台，配置中 enabled + auto_edit 控制开关）
+                    if is_image {
+                        if let Some(handle) = app_handle.as_ref() {
+                            let full_path = save_path.join(&path);
+                            let handle_clone = handle.clone();
+                            tokio::spawn(async move {
+                                if wait_for_file_ready(&full_path, Duration::from_secs(FILE_READY_TIMEOUT_SECS)).await {
+                                    let ai_edit: tauri::State<'_, crate::ai_edit::AiEditService> = handle_clone.state();
+                                    ai_edit.on_file_uploaded(full_path).await;
+                                }
+                            });
+                        }
+                    }
                 }
                 DataEvent::Got { path, bytes } => {
                     info!(file = %path, size = bytes, "File downloaded");

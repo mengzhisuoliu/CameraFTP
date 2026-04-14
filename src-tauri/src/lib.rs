@@ -144,6 +144,7 @@ pub fn run() {
 
             // 在 setup 中管理 AutoOpenService
             app.manage(AutoOpenService::new(app.handle().clone(), config_service));
+            app.manage(ai_edit::AiEditService::new(config_service));
 
             // 开机自启模式：隐藏窗口
             if is_autostart {
