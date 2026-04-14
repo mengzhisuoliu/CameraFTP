@@ -61,3 +61,78 @@ impl Default for SeedEditConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_has_ai_edit_enabled_false() {
+        let config = AiEditConfig::default();
+        assert!(!config.enabled);
+    }
+
+    #[test]
+    fn default_config_has_empty_prompt() {
+        let config = AiEditConfig::default();
+        assert!(config.prompt.is_empty());
+    }
+
+    #[test]
+    fn default_config_has_seed_edit_provider() {
+        let config = AiEditConfig::default();
+        assert!(matches!(config.provider, ProviderConfig::SeedEdit(_)));
+    }
+
+    #[test]
+    fn serde_roundtrip_config() {
+        let original = AiEditConfig::default();
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: AiEditConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(original.enabled, deserialized.enabled);
+        assert_eq!(original.auto_edit, deserialized.auto_edit);
+        assert_eq!(original.prompt, deserialized.prompt);
+    }
+
+    #[test]
+    fn serde_roundtrip_provider_config() {
+        let original = ProviderConfig::SeedEdit(SeedEditConfig {
+            api_key: "test-key".to_string(),
+        });
+        let json = serde_json::to_string(&original).unwrap();
+        assert!(json.contains(r#""type":"seed-edit""#));
+
+        let deserialized: ProviderConfig = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, ProviderConfig::SeedEdit(_)));
+    }
+
+    #[test]
+    fn serde_seed_edit_config_camel_case() {
+        let config = SeedEditConfig {
+            api_key: "my-secret-key".to_string(),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains(r#""apiKey""#));
+        assert!(!json.contains("api_key"));
+    }
+
+    #[test]
+    fn config_with_custom_values() {
+        let config = AiEditConfig {
+            enabled: true,
+            auto_edit: false,
+            prompt: "enhance colors".to_string(),
+            provider: ProviderConfig::SeedEdit(SeedEditConfig {
+                api_key: "sk-test-123".to_string(),
+            }),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let back: AiEditConfig = serde_json::from_str(&json).unwrap();
+
+        assert!(back.enabled);
+        assert!(!back.auto_edit);
+        assert_eq!(back.prompt, "enhance colors");
+        let ProviderConfig::SeedEdit(ref se) = back.provider;
+        assert_eq!(se.api_key, "sk-test-123");
+    }
+}

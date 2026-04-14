@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { ToggleSwitch } from './ui';
 import type { AppConfig } from '../types';
@@ -30,6 +30,17 @@ export function AiEditConfigPanel({
     }
   );
   const [promptInput, setPromptInput] = useState(() => config.aiEdit.prompt);
+
+  useEffect(() => {
+    const key = config.aiEdit.provider.type === 'seed-edit'
+      ? config.aiEdit.provider.apiKey
+      : '';
+    setApiKeyInput(key);
+  }, [config.aiEdit.provider]);
+
+  useEffect(() => {
+    setPromptInput(config.aiEdit.prompt);
+  }, [config.aiEdit.prompt]);
 
   const seedEditConfig = config.aiEdit.provider.type === 'seed-edit'
     ? config.aiEdit.provider : null;

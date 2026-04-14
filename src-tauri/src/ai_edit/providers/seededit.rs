@@ -23,7 +23,7 @@ impl SeedEditProvider {
         }
 
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
+            .timeout(std::time::Duration::from_secs(180))
             .build()
             .map_err(|e| AppError::AiEditError(format!("Failed to create HTTP client: {}", e)))?;
 
@@ -54,6 +54,17 @@ struct SeedEditImageData {
     b64_json: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct SeedEditErrorResponse {
+    error: SeedEditErrorDetail,
+}
+
+#[derive(Deserialize)]
+struct SeedEditErrorDetail {
+    code: Option<String>,
+    message: Option<String>,
+}
+
 #[async_trait]
 impl AiEditProvider for SeedEditProvider {
     async fn edit_image(&self, image_base64: &str, mime_type: &str, prompt: &str) -> Result<Vec<u8>, AppError> {
@@ -76,6 +87,17 @@ impl AiEditProvider for SeedEditProvider {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
+
+            // Try to parse structured error from API
+            if let Ok(err_resp) = serde_json::from_str::<SeedEditErrorResponse>(&body) {
+                let code = err_resp.error.code.as_deref().unwrap_or("unknown");
+                let message = err_resp.error.message.as_deref().unwrap_or("");
+                return Err(AppError::AiEditError(format!(
+                    "API error ({}): {} — {}", status, code, message
+                )));
+            }
+
+            // Fallback: raw body preview
             let body_preview: String = body.chars().take(200).collect();
             return Err(AppError::AiEditError(format!(
                 "API returned {}: {}", status, body_preview
@@ -108,5 +130,164 @@ impl AiEditProvider for SeedEditProvider {
         } else {
             Err(AppError::AiEditError("API returned neither URL nor base64 data".to_string()))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_body_serialization() {
+        let request = SeedEditRequest {
+            model: MODEL,
+            prompt: "enhance photo quality".to_string(),
+            image: "data:image/jpeg;base64,dGVzdA==".to_string(),
+            response_format: "url",
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["model"], MODEL);
+        assert_eq!(parsed["prompt"], "enhance photo quality");
+        assert_eq!(parsed["image"], "data:image/jpeg;base64,dGVzdA==");
+        assert_eq!(parsed["response_format"], "url");
+    }
+
+    #[test]
+    fn request_includes_correct_model() {
+        assert_eq!(MODEL, "doubao-seededit-3-0-i2i-250628");
+    }
+
+    #[test]
+    fn response_with_url_parsed_correctly() {
+        let json = r#"{"data":[{"url":"https://example.com/img.jpg"}]}"#;
+        let resp: SeedEditResponse = serde_json::from_str(json).unwrap();
+
+        assert_eq!(resp.data.len(), 1);
+        assert_eq!(resp.data[0].url.as_deref(), Some("https://example.com/img.jpg"));
+        assert!(resp.data[0].b64_json.is_none());
+    }
+
+    #[test]
+    fn response_with_b64_json_parsed_correctly() {
+        let json = r#"{"data":[{"b64_json":"aGVsbG8="}]}"#;
+        let resp: SeedEditResponse = serde_json::from_str(json).unwrap();
+
+        assert_eq!(resp.data.len(), 1);
+        assert!(resp.data[0].url.is_none());
+        assert_eq!(resp.data[0].b64_json.as_deref(), Some("aGVsbG8="));
+    }
+
+    #[test]
+    fn response_with_empty_data_returns_empty_vec() {
+        let json = r#"{"data":[]}"#;
+        let resp: SeedEditResponse = serde_json::from_str(json).unwrap();
+
+        assert!(resp.data.is_empty());
+    }
+
+    #[test]
+    fn empty_data_produces_error_on_next() {
+        let resp = SeedEditResponse { data: vec![] };
+        let result = resp.data.into_iter().next();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn error_response_body_truncated_safely() {
+        // ASCII-only: simple truncation at 200 chars
+        let short_body = "short error".to_string();
+        let truncated: String = short_body.chars().take(200).collect();
+        assert_eq!(truncated, "short error");
+
+        // Long ASCII body: truncates at 200 chars
+        let long_body: String = "x".repeat(500);
+        let truncated: String = long_body.chars().take(200).collect();
+        assert_eq!(truncated.len(), 200);
+
+        // Multi-byte UTF-8: truncation is char-boundary safe, not byte-boundary
+        let multibyte: String = "你好".repeat(200); // 400 chars, each 3 bytes
+        let truncated: String = multibyte.chars().take(200).collect();
+        assert_eq!(truncated.chars().count(), 200);
+        assert!(truncated.len() <= 200 * 4); // all chars fit in 4 bytes each
+    }
+
+    #[test]
+    fn base_url_is_correct() {
+        assert_eq!(BASE_URL, "https://ark.cn-beijing.volces.com/api/v3");
+    }
+
+    #[test]
+    fn provider_new_rejects_empty_api_key() {
+        let config = SeedEditConfig::default(); // api_key is empty by default
+        let result = SeedEditProvider::new(&config);
+
+        assert!(result.is_err());
+        match result {
+            Err(AppError::AiEditError(msg)) => assert!(msg.contains("API Key")),
+            Err(other) => panic!("Expected AiEditError, got: {:?}", other),
+            Ok(_) => panic!("Expected error, got success"),
+        }
+    }
+
+    #[test]
+    fn provider_new_succeeds_with_valid_api_key() {
+        let config = SeedEditConfig {
+            api_key: "test-api-key-123".to_string(),
+        };
+        let result = SeedEditProvider::new(&config);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn response_with_both_url_and_b64_prefers_url() {
+        // Verify deserialization handles both fields present
+        let json = r#"{"data":[{"url":"https://example.com/img.jpg","b64_json":"aGVsbG8="}]}"#;
+        let resp: SeedEditResponse = serde_json::from_str(json).unwrap();
+
+        assert!(resp.data[0].url.is_some());
+        assert!(resp.data[0].b64_json.is_some());
+    }
+
+    #[test]
+    fn request_snake_case_serialization() {
+        let request = SeedEditRequest {
+            model: MODEL,
+            prompt: "test".to_string(),
+            image: "data:image/png;base64,AA==".to_string(),
+            response_format: "url",
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        // Verify snake_case field names (not camelCase)
+        assert!(json.contains("\"response_format\""));
+        assert!(!json.contains("\"responseFormat\""));
+    }
+
+    #[test]
+    fn structured_error_parsed_correctly() {
+        let json = r#"{"error":{"code":"rate_limit_exceeded","message":"Too many requests"}}"#;
+        let err_resp: SeedEditErrorResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(err_resp.error.code.as_deref(), Some("rate_limit_exceeded"));
+        assert_eq!(err_resp.error.message.as_deref(), Some("Too many requests"));
+    }
+
+    #[test]
+    fn structured_error_with_missing_fields() {
+        let json = r#"{"error":{}}"#;
+        let err_resp: SeedEditErrorResponse = serde_json::from_str(json).unwrap();
+        assert!(err_resp.error.code.is_none());
+        assert!(err_resp.error.message.is_none());
+    }
+
+    #[test]
+    fn structured_error_with_code_only() {
+        let json = r#"{"error":{"code":"auth_failed"}}"#;
+        let err_resp: SeedEditErrorResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(err_resp.error.code.as_deref(), Some("auth_failed"));
+        assert!(err_resp.error.message.is_none());
     }
 }

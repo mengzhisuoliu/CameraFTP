@@ -11,18 +11,34 @@ use crate::error::AppError;
 const MAX_LONG_SIDE: u32 = 4096;
 /// JPEG 重编码质量
 const JPEG_QUALITY: u8 = 85;
+/// Maximum input file size — lower on Android to prevent OOM from large HEIC decode
+#[cfg(not(target_os = "android"))]
+const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024;
+#[cfg(target_os = "android")]
+const MAX_FILE_SIZE: u64 = 20 * 1024 * 1024;
 
 /// Result of preparing an image for upload to the AI edit API.
+#[derive(Debug)]
 pub struct PreparedImage {
     /// Base64 encoded image data
     pub base64_data: String,
-    /// MIME type for the data URI prefix (e.g., "image/jpeg" or "image/heic")
+    /// MIME type for the data URI prefix (always "image/jpeg")
     pub mime_type: &'static str,
 }
 
 /// 读取图片文件，可选缩放并重编码为 JPEG。
-/// HEIC/HEIF 文件直接发送原始字节（API 服务端解码）；JPG/PNG 文件在本地缩放后重编码为 JPEG。
+/// ALL images (including HEIC/HEIF) are decoded, resized, and re-encoded as JPEG.
 pub fn prepare_for_upload(file_path: &Path) -> Result<PreparedImage, AppError> {
+    let metadata = std::fs::metadata(file_path)
+        .map_err(|e| AppError::AiEditError(format!("Failed to read file metadata: {}", e)))?;
+    if metadata.len() > MAX_FILE_SIZE {
+        return Err(AppError::AiEditError(format!(
+            "File too large: {} bytes (max {} bytes)",
+            metadata.len(),
+            MAX_FILE_SIZE
+        )));
+    }
+
     let ext = file_path
         .extension()
         .and_then(|e| e.to_str())
@@ -39,27 +55,41 @@ pub fn prepare_for_upload(file_path: &Path) -> Result<PreparedImage, AppError> {
 fn prepare_heic(file_path: &Path) -> Result<PreparedImage, AppError> {
     let bytes = std::fs::read(file_path)
         .map_err(|e| AppError::AiEditError(format!("Failed to read HEIC file: {}", e)))?;
-    Ok(PreparedImage {
-        base64_data: BASE64.encode(&bytes),
-        mime_type: "image/heic",
-    })
+
+    let output = heic::DecoderConfig::new()
+        .decode(&bytes, heic::PixelLayout::Rgba8)
+        .map_err(|e| AppError::AiEditError(format!("Failed to decode HEIC: {:?}", e)))?;
+
+    let rgba_image = image::RgbaImage::from_raw(output.width, output.height, output.data)
+        .ok_or_else(|| {
+            AppError::AiEditError("Failed to create image from HEIC decode output".to_string())
+        })?;
+
+    let img = image::DynamicImage::ImageRgba8(rgba_image);
+    encode_as_jpeg(img)
 }
 
 fn prepare_raster(file_path: &Path) -> Result<PreparedImage, AppError> {
     let img = image::open(file_path)
         .map_err(|e| AppError::AiEditError(format!("Failed to open image: {}", e)))?;
+    encode_as_jpeg(img)
+}
 
+fn encode_as_jpeg(img: image::DynamicImage) -> Result<PreparedImage, AppError> {
     let resized = resize_if_needed(img);
+
+    // JPEG does not support alpha — convert RGBA to RGB before encoding
+    let rgb_img = resized.to_rgb8();
 
     let mut jpeg_bytes = Vec::new();
     let mut encoder =
         image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg_bytes, JPEG_QUALITY);
     encoder
         .encode(
-            resized.as_bytes(),
-            resized.width(),
-            resized.height(),
-            resized.color().into(),
+            rgb_img.as_raw(),
+            rgb_img.width(),
+            rgb_img.height(),
+            image::ColorType::Rgb8.into(),
         )
         .map_err(|e| AppError::AiEditError(format!("Failed to encode JPEG: {}", e)))?;
 
@@ -81,4 +111,147 @@ fn resize_if_needed(img: image::DynamicImage) -> image::DynamicImage {
     let new_w = (w as f64 * scale).round() as u32;
     let new_h = (h as f64 * scale).round() as u32;
     img.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+    use image::{ImageFormat, RgbImage};
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn create_test_jpeg(dir: &TempDir, name: &str, width: u32, height: u32) -> PathBuf {
+        let path = dir.path().join(name);
+        let img = RgbImage::from_pixel(width, height, image::Rgb([128u8, 128, 128]));
+        img.save_with_format(&path, ImageFormat::Jpeg).unwrap();
+        path
+    }
+
+    fn create_test_png(dir: &TempDir, name: &str, width: u32, height: u32) -> PathBuf {
+        let path = dir.path().join(name);
+        let img = RgbImage::from_pixel(width, height, image::Rgb([128u8, 128, 128]));
+        img.save_with_format(&path, ImageFormat::Png).unwrap();
+        path
+    }
+
+    fn decode_jpeg_dimensions(base64_data: &str) -> (u32, u32) {
+        let bytes = BASE64.decode(base64_data).unwrap();
+        let img = image::load_from_memory(&bytes).unwrap();
+        (img.width(), img.height())
+    }
+
+    #[test]
+    fn jpeg_below_max_size_not_resized() {
+        let dir = TempDir::new().unwrap();
+        let path = create_test_jpeg(&dir, "small.jpg", 100, 100);
+
+        let result = prepare_for_upload(&path).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+
+        let (w, h) = decode_jpeg_dimensions(&result.base64_data);
+        assert_eq!(w, 100);
+        assert_eq!(h, 100);
+    }
+
+    #[test]
+    fn jpeg_above_max_size_resized_proportionally() {
+        let dir = TempDir::new().unwrap();
+        let path = create_test_jpeg(&dir, "large.jpg", 5000, 3000);
+
+        let result = prepare_for_upload(&path).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+
+        let (w, h) = decode_jpeg_dimensions(&result.base64_data);
+        assert_eq!(w, 4096);
+        assert_eq!(h, 2458);
+    }
+
+    #[test]
+    fn portrait_image_resized_correctly() {
+        let dir = TempDir::new().unwrap();
+        let path = create_test_jpeg(&dir, "portrait.jpg", 3000, 5000);
+
+        let result = prepare_for_upload(&path).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+
+        let (w, h) = decode_jpeg_dimensions(&result.base64_data);
+        assert_eq!(w, 2458);
+        assert_eq!(h, 4096);
+    }
+
+    #[test]
+    fn heic_file_decoded_as_jpeg() {
+        let dir = TempDir::new().unwrap();
+        let fake_bytes = b"fake-heic-data-for-test";
+        let path = dir.path().join("photo.heic");
+        std::fs::write(&path, fake_bytes).unwrap();
+
+        let result = prepare_for_upload(&path);
+        assert!(result.is_err());
+        let err_msg = format!("{:?}", result.unwrap_err());
+        assert!(
+            err_msg.contains("HEIC"),
+            "Error message should mention HEIC: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn max_file_size_constant() {
+        #[cfg(not(target_os = "android"))]
+        assert_eq!(MAX_FILE_SIZE, 50 * 1024 * 1024);
+        #[cfg(target_os = "android")]
+        assert_eq!(MAX_FILE_SIZE, 20 * 1024 * 1024);
+    }
+
+    #[test]
+    fn all_outputs_have_jpeg_mime_type() {
+        let dir = TempDir::new().unwrap();
+
+        let jpg_path = create_test_jpeg(&dir, "photo.jpg", 100, 100);
+        let jpg_result = prepare_for_upload(&jpg_path).unwrap();
+        assert_eq!(jpg_result.mime_type, "image/jpeg");
+
+        let png_path = create_test_png(&dir, "photo.png", 100, 100);
+        let png_result = prepare_for_upload(&png_path).unwrap();
+        assert_eq!(png_result.mime_type, "image/jpeg");
+    }
+
+    #[test]
+    fn nonexistent_file_returns_error() {
+        let path = PathBuf::from("/nonexistent/path/image.jpg");
+        let result = prepare_for_upload(&path);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), AppError::AiEditError(_)));
+    }
+
+    #[test]
+    fn output_base64_is_valid_jpeg_for_raster_input() {
+        let dir = TempDir::new().unwrap();
+        let path = create_test_png(&dir, "input.png", 100, 100);
+
+        let result = prepare_for_upload(&path).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+
+        let bytes = BASE64.decode(&result.base64_data).unwrap();
+        // JPEG magic bytes: 0xFF 0xD8
+        assert_eq!(bytes[0], 0xFF);
+        assert_eq!(bytes[1], 0xD8);
+    }
+
+    #[test]
+    fn encode_as_jpeg_produces_valid_output() {
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            10,
+            10,
+            image::Rgba([128, 128, 128, 255]),
+        ));
+        let result = encode_as_jpeg(img).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+        let bytes = BASE64.decode(&result.base64_data).unwrap();
+        // JPEG magic bytes
+        assert_eq!(bytes[0], 0xFF);
+        assert_eq!(bytes[1], 0xD8);
+    }
 }
