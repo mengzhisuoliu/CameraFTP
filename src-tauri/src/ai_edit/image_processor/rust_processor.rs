@@ -5,37 +5,25 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use std::path::Path;
 
+use super::{ImagePreprocessor, PreparedImage, JPEG_QUALITY, MAX_LONG_SIDE};
 use crate::error::AppError;
 
-/// 图片长边最大像素（硬编码常量）
-const MAX_LONG_SIDE: u32 = 4096;
-/// JPEG 重编码质量
-const JPEG_QUALITY: u8 = 85;
+pub struct RustImagePreprocessor;
 
-/// Result of preparing an image for upload to the AI edit API.
-#[derive(Debug)]
-pub struct PreparedImage {
-    /// Base64 encoded image data
-    pub base64_data: String,
-    /// MIME type for the data URI prefix (always "image/jpeg")
-    pub mime_type: &'static str,
-}
+impl ImagePreprocessor for RustImagePreprocessor {
+    fn prepare(&self, file_path: &Path) -> Result<PreparedImage, AppError> {
+        let ext = file_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
 
-/// 读取图片文件，可选缩放并重编码为 JPEG。
-/// ALL images (including HEIC/HEIF) are decoded, resized, and re-encoded as JPEG.
-/// Uses catch_unwind to gracefully handle OOM from very large images.
-pub fn prepare_for_upload(file_path: &Path) -> Result<PreparedImage, AppError> {
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
-        .unwrap_or_default();
+        if matches!(ext.as_str(), "heic" | "heif" | "hif") {
+            return prepare_heic(file_path);
+        }
 
-    if matches!(ext.as_str(), "heic" | "heif" | "hif") {
-        return prepare_heic(file_path);
+        prepare_raster(file_path)
     }
-
-    prepare_raster(file_path)
 }
 
 fn prepare_raster(file_path: &Path) -> Result<PreparedImage, AppError> {
@@ -150,12 +138,16 @@ mod tests {
         (img.width(), img.height())
     }
 
+    fn preprocessor() -> RustImagePreprocessor {
+        RustImagePreprocessor
+    }
+
     #[test]
     fn jpeg_below_max_size_not_resized() {
         let dir = TempDir::new().unwrap();
         let path = create_test_jpeg(&dir, "small.jpg", 100, 100);
 
-        let result = prepare_for_upload(&path).unwrap();
+        let result = preprocessor().prepare(&path).unwrap();
         assert_eq!(result.mime_type, "image/jpeg");
 
         let (w, h) = decode_jpeg_dimensions(&result.base64_data);
@@ -168,7 +160,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = create_test_jpeg(&dir, "large.jpg", 5000, 3000);
 
-        let result = prepare_for_upload(&path).unwrap();
+        let result = preprocessor().prepare(&path).unwrap();
         assert_eq!(result.mime_type, "image/jpeg");
 
         let (w, h) = decode_jpeg_dimensions(&result.base64_data);
@@ -181,7 +173,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = create_test_jpeg(&dir, "portrait.jpg", 3000, 5000);
 
-        let result = prepare_for_upload(&path).unwrap();
+        let result = preprocessor().prepare(&path).unwrap();
         assert_eq!(result.mime_type, "image/jpeg");
 
         let (w, h) = decode_jpeg_dimensions(&result.base64_data);
@@ -196,7 +188,7 @@ mod tests {
         let path = dir.path().join("photo.heic");
         std::fs::write(&path, fake_bytes).unwrap();
 
-        let result = prepare_for_upload(&path);
+        let result = preprocessor().prepare(&path);
         assert!(result.is_err());
         let err_msg = format!("{:?}", result.unwrap_err());
         assert!(
@@ -211,18 +203,18 @@ mod tests {
         let dir = TempDir::new().unwrap();
 
         let jpg_path = create_test_jpeg(&dir, "photo.jpg", 100, 100);
-        let jpg_result = prepare_for_upload(&jpg_path).unwrap();
+        let jpg_result = preprocessor().prepare(&jpg_path).unwrap();
         assert_eq!(jpg_result.mime_type, "image/jpeg");
 
         let png_path = create_test_png(&dir, "photo.png", 100, 100);
-        let png_result = prepare_for_upload(&png_path).unwrap();
+        let png_result = preprocessor().prepare(&png_path).unwrap();
         assert_eq!(png_result.mime_type, "image/jpeg");
     }
 
     #[test]
     fn nonexistent_file_returns_error() {
         let path = PathBuf::from("/nonexistent/path/image.jpg");
-        let result = prepare_for_upload(&path);
+        let result = preprocessor().prepare(&path);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AppError::AiEditError(_)));
     }
@@ -232,7 +224,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = create_test_png(&dir, "input.png", 100, 100);
 
-        let result = prepare_for_upload(&path).unwrap();
+        let result = preprocessor().prepare(&path).unwrap();
         assert_eq!(result.mime_type, "image/jpeg");
 
         let bytes = BASE64.decode(&result.base64_data).unwrap();

@@ -177,7 +177,8 @@ async fn process_task(
 
     let file_path_clone = task.file_path.clone();
     let prepared = tokio::task::spawn_blocking(move || {
-        image_processor::prepare_for_upload(&file_path_clone)
+        let preprocessor = image_processor::create_preprocessor();
+        preprocessor.prepare(&file_path_clone)
     }).await
         .map_err(|e| AppError::AiEditError(format!("Preprocessing task panicked: {}", e)))?
         .map_err(|e| AppError::AiEditError(format!("Image preprocessing failed: {}", e)))?;

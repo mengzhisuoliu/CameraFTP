@@ -9,7 +9,7 @@ use super::AiEditProvider;
 use super::super::config::SeedEditConfig;
 
 const BASE_URL: &str = "https://ark.cn-beijing.volces.com/api/v3";
-const MODEL: &str = "doubao-seededit-3-0-i2i-250628";
+const MODEL: &str = "doubao-seededit-3-0-i2i";
 
 pub struct SeedEditProvider {
     client: reqwest::Client,
@@ -40,6 +40,7 @@ struct SeedEditRequest {
     model: &'static str,
     prompt: String,
     image: String,
+    size: &'static str,
     response_format: &'static str,
 }
 
@@ -72,11 +73,12 @@ impl AiEditProvider for SeedEditProvider {
             model: MODEL,
             prompt: prompt.to_string(),
             image: format!("data:{};base64,{}", mime_type, image_base64),
+            size: "adaptive",
             response_format: "url",
         };
 
         let response = self.client
-            .post(format!("{}/v1/images/generations", BASE_URL))
+            .post(format!("{}/images/generations", BASE_URL))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&request)
@@ -143,6 +145,7 @@ mod tests {
             model: MODEL,
             prompt: "enhance photo quality".to_string(),
             image: "data:image/jpeg;base64,dGVzdA==".to_string(),
+            size: "adaptive",
             response_format: "url",
         };
 
@@ -152,12 +155,13 @@ mod tests {
         assert_eq!(parsed["model"], MODEL);
         assert_eq!(parsed["prompt"], "enhance photo quality");
         assert_eq!(parsed["image"], "data:image/jpeg;base64,dGVzdA==");
+        assert_eq!(parsed["size"], "adaptive");
         assert_eq!(parsed["response_format"], "url");
     }
 
     #[test]
     fn request_includes_correct_model() {
-        assert_eq!(MODEL, "doubao-seededit-3-0-i2i-250628");
+        assert_eq!(MODEL, "doubao-seededit-3-0-i2i");
     }
 
     #[test]
@@ -220,6 +224,14 @@ mod tests {
     }
 
     #[test]
+    fn endpoint_url_is_correct() {
+        assert_eq!(
+            format!("{}/images/generations", BASE_URL),
+            "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+        );
+    }
+
+    #[test]
     fn provider_new_rejects_empty_api_key() {
         let config = SeedEditConfig::default(); // api_key is empty by default
         let result = SeedEditProvider::new(&config);
@@ -258,6 +270,7 @@ mod tests {
             model: MODEL,
             prompt: "test".to_string(),
             image: "data:image/png;base64,AA==".to_string(),
+            size: "adaptive",
             response_format: "url",
         };
 
