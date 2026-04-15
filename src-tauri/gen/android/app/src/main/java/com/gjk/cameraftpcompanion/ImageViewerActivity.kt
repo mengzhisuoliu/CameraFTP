@@ -45,6 +45,7 @@ class ImageViewerActivity : AppCompatActivity() {
         private const val TAG = "ImageViewerActivity"
         const val EXTRA_URIS = "uris"
         const val EXTRA_TARGET_INDEX = "target_index"
+        const val EXTRA_AI_EDIT_ENABLED = "ai_edit_enabled"
         /** Active instance, set by onResume/cleared by onDestroy for bridge access */
         var instance: ImageViewerActivity? = null
             private set
@@ -53,10 +54,11 @@ class ImageViewerActivity : AppCompatActivity() {
         var isViewerVisible: Boolean = false
             private set
 
-        fun start(context: Context, uris: List<String>, targetIndex: Int) {
+        fun start(context: Context, uris: List<String>, targetIndex: Int, aiEditEnabled: Boolean = false) {
             val intent = Intent(context, ImageViewerActivity::class.java).apply {
                 putExtra(EXTRA_URIS, JSONArray(uris).toString())
                 putExtra(EXTRA_TARGET_INDEX, targetIndex)
+                putExtra(EXTRA_AI_EDIT_ENABLED, aiEditEnabled)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
@@ -101,7 +103,7 @@ class ImageViewerActivity : AppCompatActivity() {
         }
 
         @JvmStatic
-        fun navigateOrStart(context: Context, uris: List<String>, targetIndex: Int) {
+        fun navigateOrStart(context: Context, uris: List<String>, targetIndex: Int, aiEditEnabled: Boolean = false) {
             val active = instance
             val hasVisibleReusableViewer = active != null && isViewerVisible && !active.isFinishing && !active.isDestroyed
             val plan = buildReuseNavigationPlan(hasVisibleReusableViewer, uris, targetIndex) ?: return
@@ -111,7 +113,7 @@ class ImageViewerActivity : AppCompatActivity() {
                 return
             }
 
-            start(context, plan.uris, plan.safeTargetIndex)
+            start(context, plan.uris, plan.safeTargetIndex, aiEditEnabled)
         }
     }
 
@@ -120,6 +122,7 @@ class ImageViewerActivity : AppCompatActivity() {
     private lateinit var filenameView: TextView
     private lateinit var exifParams: TextView
     private lateinit var exifDatetime: TextView
+    private lateinit var btnAiEdit: ImageButton
     private lateinit var btnRotate: ImageButton
     private lateinit var btnDelete: ImageButton
     private var uris: MutableList<String> = mutableListOf()
@@ -127,6 +130,16 @@ class ImageViewerActivity : AppCompatActivity() {
     private var isLandscape = false
     private var isBottomBarVisible = true
     private var pendingDeleteUri: String? = null
+    private var isAiEditing = false
+        set(value) {
+            field = value
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    btnAiEdit.isEnabled = !value
+                    btnAiEdit.alpha = if (value) 0.5f else 1f
+                }
+            }
+        }
 
     private val deleteRequestLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -149,14 +162,18 @@ class ImageViewerActivity : AppCompatActivity() {
 
         uris = parseUrisFromIntent().toMutableList()
         currentIndex = intent.getIntExtra(EXTRA_TARGET_INDEX, 0)
+        val aiEditEnabled = intent.getBooleanExtra(EXTRA_AI_EDIT_ENABLED, false)
 
         viewPager = findViewById(R.id.view_pager)
         bottomBar = findViewById(R.id.bottom_bar)
         filenameView = findViewById(R.id.filename)
         exifParams = findViewById(R.id.exif_params)
         exifDatetime = findViewById(R.id.exif_datetime)
+        btnAiEdit = findViewById(R.id.btn_ai_edit)
         btnRotate = findViewById(R.id.btn_rotate)
         btnDelete = findViewById(R.id.btn_delete)
+
+        btnAiEdit.visibility = if (aiEditEnabled) View.VISIBLE else View.GONE
 
         setupViewPager()
         setupButtons()
@@ -222,6 +239,12 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        btnAiEdit.setOnClickListener {
+            if (!isAiEditing && uris.isNotEmpty() && currentIndex in uris.indices) {
+                triggerAiEditForCurrentImage()
+            }
+        }
+
         btnRotate.setOnClickListener {
             isLandscape = !isLandscape
             requestedOrientation = if (isLandscape) {
@@ -369,6 +392,82 @@ class ImageViewerActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse EXIF result", e)
             }
+        }
+    }
+
+    private fun triggerAiEditForCurrentImage() {
+        val uriString = uris.getOrNull(currentIndex) ?: return
+        val filePath = resolveUriToFilePath(uriString)
+
+        if (filePath == null) {
+            Toast.makeText(this, "无法获取文件路径", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isAiEditing = true
+        Toast.makeText(this, "正在修图…", Toast.LENGTH_SHORT).show()
+
+        val mainActivity = MainActivity.instance
+        if (mainActivity == null) {
+            Toast.makeText(this, "修图失败：应用未就绪", Toast.LENGTH_SHORT).show()
+            isAiEditing = false
+            return
+        }
+
+        // Dispatch to WebView which calls Tauri trigger_ai_edit command
+        val escapedPath = filePath.replace("\\", "\\\\").replace("'", "\\'")
+        val js = """
+            (function() {
+                if (window.__tauriAiEditFromNative) {
+                    window.__tauriAiEditFromNative('$escapedPath');
+                    return 'ok';
+                }
+                return 'no_handler';
+            })();
+        """.trimIndent()
+
+        mainActivity.runOnUiThread {
+            mainActivity.getWebView()?.evaluateJavascript(js) { result ->
+                if (result?.trim()?.removeSurrounding("\"") == "no_handler") {
+                    runOnUiThread {
+                        Toast.makeText(this@ImageViewerActivity, "修图失败：前端未就绪", Toast.LENGTH_SHORT).show()
+                        isAiEditing = false
+                    }
+                }
+            }
+        }
+    }
+
+    private fun resolveUriToFilePath(uriString: String): String? {
+        return try {
+            val uri = Uri.parse(uriString)
+            if (uri.scheme == "file") {
+                uri.path
+            } else if (uri.scheme == "content") {
+                contentResolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val idx = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                        if (idx >= 0) cursor.getString(idx) else null
+                    } else null
+                }
+            } else {
+                uriString
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "resolveUriToFilePath failed for $uriString", e)
+            null
+        }
+    }
+
+    /**
+     * Called from JS bridge when AI edit completes (success or failure)
+     */
+    fun onAiEditComplete(success: Boolean, message: String?) {
+        runOnUiThread {
+            isAiEditing = false
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            val text = if (success) "修图完成" else (message ?: "修图失败")
+            Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -531,6 +630,9 @@ class ImageViewerActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        val wasAiEditVisible = btnAiEdit.visibility
+        val wasAiEditing = isAiEditing
+
         setContentView(R.layout.activity_image_viewer)
 
         viewPager = findViewById(R.id.view_pager)
@@ -538,8 +640,15 @@ class ImageViewerActivity : AppCompatActivity() {
         filenameView = findViewById(R.id.filename)
         exifParams = findViewById(R.id.exif_params)
         exifDatetime = findViewById(R.id.exif_datetime)
+        btnAiEdit = findViewById(R.id.btn_ai_edit)
         btnRotate = findViewById(R.id.btn_rotate)
         btnDelete = findViewById(R.id.btn_delete)
+
+        btnAiEdit.visibility = wasAiEditVisible
+        if (wasAiEditing) {
+            btnAiEdit.isEnabled = false
+            btnAiEdit.alpha = 0.5f
+        }
 
         setupViewPager()
         setupButtons()

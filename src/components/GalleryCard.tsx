@@ -5,7 +5,7 @@
  */
 
 import { memo, useCallback, useEffect, useState } from 'react';
-import { ImageOff, X, Trash2, Share2, MoreVertical } from 'lucide-react';
+import { ImageOff, X, Trash2, Share2, Lightbulb, MoreVertical } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 import { usePermissionStore } from '../stores/permissionStore';
 import type { MediaItemDto, GalleryItemsAddedEvent, GalleryItemsDeletedEvent } from '../types';
@@ -52,6 +52,7 @@ export const GalleryCard = memo(function GalleryCard() {
     handleRefreshStart,
     handleDelete,
     handleShare,
+    handleAiEdit,
     handleCancelSelection,
     toggleMenu,
   } = useGallerySelection({
@@ -216,6 +217,8 @@ export const GalleryCard = memo(function GalleryCard() {
     );
   }
 
+  const aiEditEnabled = draft?.aiEdit?.enabled ?? false;
+
   return (
     <div className="h-full flex flex-col px-4 pt-6 pb-[68px] select-none">
       {/* Header with refresh button */}
@@ -266,6 +269,16 @@ export const GalleryCard = memo(function GalleryCard() {
                 <Share2 className="w-5 h-5 text-blue-500" />
                 <span>分享({selectedIds.size})</span>
               </button>
+              {aiEditEnabled && (
+                <button
+                  onClick={handleAiEdit}
+                  disabled={selectedIds.size === 0}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed border-t border-gray-100"
+                >
+                  <Lightbulb className="w-5 h-5 text-amber-500" />
+                  <span>修图({selectedIds.size})</span>
+                </button>
+              )}
               <button
                 onClick={handleCancelSelection}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 border-t border-gray-100"

@@ -80,6 +80,18 @@
             android:gravity="center_vertical">
 
             <ImageButton
+                android:id="@+id/btn_ai_edit"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:src="@drawable/ic_ai_edit"
+                android:background="@drawable/btn_circle_bg"
+                android:contentDescription="AI修图"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:layout_marginHorizontal="8dp"
+                android:visibility="gone" />
+
+            <ImageButton
                 android:id="@+id/btn_rotate"
                 android:layout_width="44dp"
                 android:layout_height="44dp"

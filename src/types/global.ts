@@ -170,9 +170,10 @@ interface ImageViewerAndroid {
    * Reuse existing viewer if visible, otherwise open viewer
    * @param uri Content URI of the target image
    * @param allUrisJson JSON array of all image URIs for navigation
+   * @param aiEditEnabled Whether AI edit is enabled (shows the button in native viewer)
    * @returns true if navigation/open action succeeded
    */
-  openOrNavigateTo(uri: string, allUrisJson: string): boolean;
+  openOrNavigateTo(uri: string, allUrisJson: string, aiEditEnabled?: boolean): boolean;
 
   /**
    * Check whether image viewer app/activity is currently visible
@@ -192,6 +193,13 @@ interface ImageViewerAndroid {
    * @returns real file path, or null if resolution fails
    */
   resolveFilePath(uri: string): string | null;
+
+  /**
+   * Callback from JS when an AI edit triggered from native viewer completes
+   * @param success Whether the edit succeeded
+   * @param message Error message if failed, null if succeeded
+   */
+  onAiEditComplete?(success: boolean, message: string | null): void;
 }
 
 // ===== 全局窗口扩展 =====

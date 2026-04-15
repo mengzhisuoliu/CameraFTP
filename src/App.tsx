@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import { Camera, X } from 'lucide-react';
 import { ServerCard } from './components/ServerCard';
 import { StatsCard } from './components/StatsCard';
@@ -27,6 +29,22 @@ function App() {
   const { showQuitDialog, closeQuitDialog, handleQuitConfirm } = useQuitFlow({ enabled: !isPreviewWindow });
 
   useAppBootstrap({ isMainWindow: !isPreviewWindow });
+
+  // Register global handler for AI edit requests from native ImageViewerActivity
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__tauriAiEditFromNative = async (filePath: string) => {
+      try {
+        await invoke('trigger_ai_edit', { filePath });
+        window.ImageViewerAndroid?.onAiEditComplete?.(true, null);
+      } catch (e) {
+        window.ImageViewerAndroid?.onAiEditComplete?.(false, String(e));
+      }
+    };
+
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__tauriAiEditFromNative;
+    };
+  }, []);
 
   // 如果是预览窗口，直接渲染预览组件
   if (isPreviewWindow) {

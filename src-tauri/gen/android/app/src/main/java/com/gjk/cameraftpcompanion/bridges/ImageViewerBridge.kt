@@ -25,8 +25,8 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
     }
 
     @android.webkit.JavascriptInterface
-    fun openOrNavigateTo(uri: String, allUrisJson: String): Boolean {
-        Log.d(TAG, "openOrNavigateTo: uri=$uri")
+    fun openOrNavigateTo(uri: String, allUrisJson: String, aiEditEnabled: Boolean = false): Boolean {
+        Log.d(TAG, "openOrNavigateTo: uri=$uri, aiEditEnabled=$aiEditEnabled")
         return try {
             val allUris = JSONArray(allUrisJson).let { json ->
                 (0 until json.length()).map { json.getString(it) }
@@ -40,6 +40,7 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
                 activity,
                 navigationTarget.uris,
                 navigationTarget.targetIndex,
+                aiEditEnabled,
             )
             true
         } catch (e: Exception) {
@@ -65,8 +66,7 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         return try {
             val contentUri = Uri.parse(uri)
             if (contentUri.scheme != "content") return uri
-            val projection = arrayOf(MediaStore.Images.Media.DATA)
-            activity.contentResolver.query(contentUri, projection, null, null, null)?.use { cursor ->
+            activity.contentResolver.query(contentUri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val idx = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
                     if (idx >= 0) cursor.getString(idx) else null
@@ -76,5 +76,14 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
             Log.e(TAG, "resolveFilePath failed for $uri", e)
             null
         }
+    }
+
+    /**
+     * Called from JS when an AI edit triggered from native completes.
+     */
+    @android.webkit.JavascriptInterface
+    fun onAiEditComplete(success: Boolean, message: String?) {
+        val viewer = ImageViewerActivity.instance ?: return
+        viewer.onAiEditComplete(success, message)
     }
 }

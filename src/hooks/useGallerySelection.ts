@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { buildDeleteFailureMessage } from '../utils/gallery-delete';
 import type { DeleteImagesResult } from '../types';
@@ -31,6 +32,7 @@ type UseGallerySelectionResult = {
   handleRefreshStart: () => void;
   handleDelete: () => Promise<void>;
   handleShare: () => Promise<void>;
+  handleAiEdit: () => void;
   handleCancelSelection: () => void;
   toggleMenu: () => void;
 };
@@ -227,6 +229,31 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
     }
   }, [selectedIds, getUriForId]);
 
+  const handleAiEdit = useCallback(() => {
+    if (selectedIds.size === 0) {
+      return;
+    }
+
+    const uris = [...selectedIds]
+      .map((mediaId) => getUriForId(mediaId))
+      .filter((uri): uri is string => uri !== undefined);
+
+    if (uris.length === 0) {
+      return;
+    }
+
+    // Resolve content:// URIs to file paths for Tauri IPC
+    const filePaths = uris
+      .map((uri) => window.ImageViewerAndroid?.resolveFilePath?.(uri) ?? uri);
+
+    setShowMenu(false);
+    toast.success(`已加入修图队列 (${filePaths.length}张)`);
+
+    for (const filePath of filePaths) {
+      void invoke('trigger_ai_edit', { filePath });
+    }
+  }, [selectedIds, getUriForId]);
+
   const toggleMenu = useCallback(() => {
     setShowMenu((prev) => !prev);
   }, []);
@@ -300,6 +327,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
     handleRefreshStart,
     handleDelete,
     handleShare,
+    handleAiEdit,
     handleCancelSelection,
     toggleMenu,
   };
