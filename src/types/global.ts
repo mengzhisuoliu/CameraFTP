@@ -200,6 +200,14 @@ interface ImageViewerAndroid {
    * @param message Error message if failed, null if succeeded
    */
   onAiEditComplete?(success: boolean, message: string | null): void;
+
+  /**
+   * Update AI edit progress in native UI
+   * @param current Current file index being processed
+   * @param total Total number of files to process
+   * @param failedCount Number of files that failed so far
+   */
+  updateAiEditProgress?(current: number, total: number, failedCount: number): void;
 }
 
 // ===== 全局窗口扩展 =====
