@@ -238,6 +238,18 @@ declare global {
      * Set by JS and invoked by Android (not exposed as a bridge instance method).
      */
     __galleryOnBackPressed?: () => void;
+
+    /**
+     * Returns the current AI edit prompt from config store.
+     * Called by native ImageViewerActivity to pre-fill the prompt dialog.
+     */
+    __tauriGetAiEditPrompt?: () => string;
+
+    /**
+     * Triggers AI edit with a specific prompt, optionally saving it to config.
+     * Called by native ImageViewerActivity after user confirms the prompt dialog.
+     */
+    __tauriTriggerAiEditWithPrompt?: (filePath: string, prompt: string, shouldSave: boolean) => Promise<void>;
   }
 }
 

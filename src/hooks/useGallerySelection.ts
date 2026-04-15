@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { buildDeleteFailureMessage } from '../utils/gallery-delete';
+import { useConfigStore } from '../stores/configStore';
 import type { DeleteImagesResult } from '../types';
 
 const LONG_PRESS_DURATION = 400; // Android ViewConfiguration.DEFAULT_LONG_PRESS_TIMEOUT
@@ -24,6 +25,7 @@ type UseGallerySelectionResult = {
   selectedIds: Set<string>;
   showMenu: boolean;
   deletingIds: Set<string>;
+  showAiEditPrompt: boolean;
   menuRef: RefObject<HTMLDivElement>;
   handleTouchStart: (imagePath: string, event: React.TouchEvent, isScrolling: boolean) => void;
   handleTouchMove: (event: React.TouchEvent) => void;
@@ -33,6 +35,8 @@ type UseGallerySelectionResult = {
   handleDelete: () => Promise<void>;
   handleShare: () => Promise<void>;
   handleAiEdit: () => void;
+  handleAiEditPromptConfirm: (prompt: string, shouldSave: boolean) => void;
+  handleCancelAiEditPrompt: () => void;
   handleCancelSelection: () => void;
   toggleMenu: () => void;
 };
@@ -42,6 +46,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showMenu, setShowMenu] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [showAiEditPrompt, setShowAiEditPrompt] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSelectionModeRef = useRef(false);
@@ -233,6 +238,22 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
     if (selectedIds.size === 0) {
       return;
     }
+    setShowMenu(false);
+    setShowAiEditPrompt(true);
+  }, [selectedIds]);
+
+  const handleAiEditPromptConfirm = useCallback((prompt: string, shouldSave: boolean) => {
+    setShowAiEditPrompt(false);
+
+    if (shouldSave) {
+      const draft = useConfigStore.getState().draft;
+      if (draft && prompt !== draft.aiEdit.prompt) {
+        useConfigStore.getState().updateDraft(d => ({
+          ...d,
+          aiEdit: { ...d.aiEdit, prompt },
+        }));
+      }
+    }
 
     const uris = [...selectedIds]
       .map((mediaId) => getUriForId(mediaId))
@@ -242,17 +263,19 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       return;
     }
 
-    // Resolve content:// URIs to file paths for Tauri IPC
     const filePaths = uris
       .map((uri) => window.ImageViewerAndroid?.resolveFilePath?.(uri) ?? uri);
 
-    setShowMenu(false);
     toast.success(`已加入修图队列 (${filePaths.length}张)`);
 
     for (const filePath of filePaths) {
-      void invoke('trigger_ai_edit', { filePath });
+      void invoke('trigger_ai_edit', { filePath, prompt: prompt || null });
     }
   }, [selectedIds, getUriForId]);
+
+  const handleCancelAiEditPrompt = useCallback(() => {
+    setShowAiEditPrompt(false);
+  }, []);
 
   const toggleMenu = useCallback(() => {
     setShowMenu((prev) => !prev);
@@ -319,6 +342,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
     selectedIds,
     showMenu,
     deletingIds,
+    showAiEditPrompt,
     menuRef,
     handleTouchStart,
     handleTouchMove,
@@ -328,6 +352,8 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
     handleDelete,
     handleShare,
     handleAiEdit,
+    handleAiEditPromptConfirm,
+    handleCancelAiEditPrompt,
     handleCancelSelection,
     toggleMenu,
   };

@@ -21,30 +21,47 @@ import { useAppBootstrap } from './bootstrap/useAppBootstrap';
 import { useQuitFlow } from './hooks/useQuitFlow';
 import { useServerStore } from './stores/serverStore';
 import { useConfigStore } from './stores/configStore';
+import { formatError } from './utils/error';
 
 function App() {
   const { showPermissionDialog, closePermissionDialog, continueAfterPermissionsGranted } = useServerStore();
   const { activeTab } = useConfigStore();
+  const updateDraft = useConfigStore(state => state.updateDraft);
   const isPreviewWindow = getCurrentWindow().label === 'preview';
   const { showQuitDialog, closeQuitDialog, handleQuitConfirm } = useQuitFlow({ enabled: !isPreviewWindow });
 
   useAppBootstrap({ isMainWindow: !isPreviewWindow });
 
-  // Register global handler for AI edit requests from native ImageViewerActivity
+  // Register JS functions for native Android ImageViewerActivity prompt dialog integration
   useEffect(() => {
-    (window as unknown as Record<string, unknown>).__tauriAiEditFromNative = async (filePath: string) => {
+    const w = window as unknown as Record<string, unknown>;
+
+    w.__tauriGetAiEditPrompt = () => {
+      return useConfigStore.getState().draft?.aiEdit?.prompt ?? '';
+    };
+
+    w.__tauriTriggerAiEditWithPrompt = async (filePath: string, prompt: string, shouldSave: boolean) => {
+      const draft = useConfigStore.getState().draft;
+      if (shouldSave && draft && prompt !== draft.aiEdit.prompt) {
+        updateDraft(d => ({
+          ...d,
+          aiEdit: { ...d.aiEdit, prompt },
+        }));
+      }
+
       try {
-        await invoke('trigger_ai_edit', { filePath });
+        await invoke('trigger_ai_edit', { filePath, prompt: prompt || null });
         window.ImageViewerAndroid?.onAiEditComplete?.(true, null);
       } catch (e) {
-        window.ImageViewerAndroid?.onAiEditComplete?.(false, String(e));
+        window.ImageViewerAndroid?.onAiEditComplete?.(false, formatError(e));
       }
     };
 
     return () => {
-      delete (window as unknown as Record<string, unknown>).__tauriAiEditFromNative;
+      delete w.__tauriGetAiEditPrompt;
+      delete w.__tauriTriggerAiEditWithPrompt;
     };
-  }, []);
+  }, [updateDraft]);
 
   // 如果是预览窗口，直接渲染预览组件
   if (isPreviewWindow) {

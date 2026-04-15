@@ -11,11 +11,6 @@ use crate::error::AppError;
 const MAX_LONG_SIDE: u32 = 4096;
 /// JPEG 重编码质量
 const JPEG_QUALITY: u8 = 85;
-/// Maximum input file size — lower on Android to prevent OOM from large HEIC decode
-#[cfg(not(target_os = "android"))]
-const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024;
-#[cfg(target_os = "android")]
-const MAX_FILE_SIZE: u64 = 20 * 1024 * 1024;
 
 /// Result of preparing an image for upload to the AI edit API.
 #[derive(Debug)]
@@ -28,17 +23,8 @@ pub struct PreparedImage {
 
 /// 读取图片文件，可选缩放并重编码为 JPEG。
 /// ALL images (including HEIC/HEIF) are decoded, resized, and re-encoded as JPEG.
+/// Uses catch_unwind to gracefully handle OOM from very large images.
 pub fn prepare_for_upload(file_path: &Path) -> Result<PreparedImage, AppError> {
-    let metadata = std::fs::metadata(file_path)
-        .map_err(|e| AppError::AiEditError(format!("Failed to read file metadata: {}", e)))?;
-    if metadata.len() > MAX_FILE_SIZE {
-        return Err(AppError::AiEditError(format!(
-            "File too large: {} bytes (max {} bytes)",
-            metadata.len(),
-            MAX_FILE_SIZE
-        )));
-    }
-
     let ext = file_path
         .extension()
         .and_then(|e| e.to_str())
@@ -52,13 +38,43 @@ pub fn prepare_for_upload(file_path: &Path) -> Result<PreparedImage, AppError> {
     prepare_raster(file_path)
 }
 
+fn prepare_raster(file_path: &Path) -> Result<PreparedImage, AppError> {
+    let file_path_owned = file_path.to_path_buf();
+    let result = std::panic::catch_unwind(move || {
+        let img = image::open(&file_path_owned)
+            .map_err(|e| AppError::AiEditError(format!("Failed to decode image: {}", e)))?;
+        encode_as_jpeg(img)
+    });
+
+    match result {
+        Ok(Ok(prepared)) => Ok(prepared),
+        Ok(Err(app_error)) => Err(app_error),
+        Err(_) => Err(AppError::AiEditError(
+            "Out of memory while decoding image — image dimensions may be too large for this device".to_string(),
+        )),
+    }
+}
+
 fn prepare_heic(file_path: &Path) -> Result<PreparedImage, AppError> {
     let bytes = std::fs::read(file_path)
         .map_err(|e| AppError::AiEditError(format!("Failed to read HEIC file: {}", e)))?;
 
-    let output = heic::DecoderConfig::new()
-        .decode(&bytes, heic::PixelLayout::Rgba8)
-        .map_err(|e| AppError::AiEditError(format!("Failed to decode HEIC: {:?}", e)))?;
+    let result = std::panic::catch_unwind(|| {
+        heic::DecoderConfig::new()
+            .decode(&bytes, heic::PixelLayout::Rgba8)
+            .map_err(|e| AppError::AiEditError(format!("Failed to decode HEIC: {:?}", e)))
+    });
+
+    let output = match result {
+        Ok(Ok(decoder_output)) => decoder_output,
+        Ok(Err(app_error)) => return Err(app_error),
+        Err(_) => {
+            return Err(AppError::AiEditError(
+                "Out of memory while decoding HEIC — file may be too large for this device"
+                    .to_string(),
+            ));
+        }
+    };
 
     let rgba_image = image::RgbaImage::from_raw(output.width, output.height, output.data)
         .ok_or_else(|| {
@@ -69,16 +85,9 @@ fn prepare_heic(file_path: &Path) -> Result<PreparedImage, AppError> {
     encode_as_jpeg(img)
 }
 
-fn prepare_raster(file_path: &Path) -> Result<PreparedImage, AppError> {
-    let img = image::open(file_path)
-        .map_err(|e| AppError::AiEditError(format!("Failed to open image: {}", e)))?;
-    encode_as_jpeg(img)
-}
-
 fn encode_as_jpeg(img: image::DynamicImage) -> Result<PreparedImage, AppError> {
     let resized = resize_if_needed(img);
 
-    // JPEG does not support alpha — convert RGBA to RGB before encoding
     let rgb_img = resized.to_rgb8();
 
     let mut jpeg_bytes = Vec::new();
@@ -195,14 +204,6 @@ mod tests {
             "Error message should mention HEIC: {}",
             err_msg
         );
-    }
-
-    #[test]
-    fn max_file_size_constant() {
-        #[cfg(not(target_os = "android"))]
-        assert_eq!(MAX_FILE_SIZE, 50 * 1024 * 1024);
-        #[cfg(target_os = "android")]
-        assert_eq!(MAX_FILE_SIZE, 20 * 1024 * 1024);
     }
 
     #[test]

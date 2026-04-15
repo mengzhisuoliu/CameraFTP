@@ -20,6 +20,7 @@ import { useImagePreviewOpener } from '../hooks/useImagePreviewOpener';
 import { useAndroidAutoOpenLatestPhoto } from '../hooks/useAndroidAutoOpenLatestPhoto';
 import { VirtualGalleryGrid } from './VirtualGalleryGrid';
 import { RefreshButton } from './ui';
+import { PromptDialog } from './PromptDialog';
 
 export const GalleryCard = memo(function GalleryCard() {
   const { activeTab } = useConfigStore();
@@ -44,6 +45,7 @@ export const GalleryCard = memo(function GalleryCard() {
     selectedIds,
     showMenu,
     deletingIds,
+    showAiEditPrompt,
     menuRef,
     handleTouchStart,
     handleTouchMove,
@@ -53,6 +55,8 @@ export const GalleryCard = memo(function GalleryCard() {
     handleDelete,
     handleShare,
     handleAiEdit,
+    handleAiEditPromptConfirm,
+    handleCancelAiEditPrompt,
     handleCancelSelection,
     toggleMenu,
   } = useGallerySelection({
@@ -305,6 +309,14 @@ export const GalleryCard = memo(function GalleryCard() {
           )}
         </div>
       )}
+
+      {/* AI修图提示词对话框 */}
+      <PromptDialog
+        isOpen={showAiEditPrompt}
+        defaultPrompt={draft?.aiEdit?.prompt ?? ''}
+        onConfirm={handleAiEditPromptConfirm}
+        onCancel={handleCancelAiEditPrompt}
+      />
     </div>
   );
 });

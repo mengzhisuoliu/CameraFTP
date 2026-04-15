@@ -19,6 +19,9 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import android.view.View
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -140,6 +143,7 @@ class ImageViewerActivity : AppCompatActivity() {
                 }
             }
         }
+    private var promptWebView: WebView? = null
 
     private val deleteRequestLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -404,22 +408,200 @@ class ImageViewerActivity : AppCompatActivity() {
             return
         }
 
-        isAiEditing = true
-        Toast.makeText(this, "正在修图…", Toast.LENGTH_SHORT).show()
-
         val mainActivity = MainActivity.instance
         if (mainActivity == null) {
             Toast.makeText(this, "修图失败：应用未就绪", Toast.LENGTH_SHORT).show()
-            isAiEditing = false
             return
         }
 
-        // Dispatch to WebView which calls Tauri trigger_ai_edit command
+        // Fetch current prompt from WebView config, then show WebView overlay dialog
+        mainActivity.runOnUiThread {
+            mainActivity.getWebView()?.evaluateJavascript(
+                "(function(){try{return window.__tauriGetAiEditPrompt?.()??''}catch(e){return ''}})();"
+            ) { result ->
+                val currentPrompt = result?.trim()?.removeSurrounding("\"")?.replace("\\n", "\n") ?: ""
+                runOnUiThread { showPromptWebViewOverlay(filePath, currentPrompt, mainActivity) }
+            }
+        }
+    }
+
+    private fun showPromptWebViewOverlay(filePath: String, currentPrompt: String, mainActivity: MainActivity) {
+        val rootView = findViewById<FrameLayout>(android.R.id.content)
+
+        // Dismiss any existing overlay
+        dismissPromptWebView()
+
+        val escapedPrompt = currentPrompt
+            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace("\"", "&quot;").replace("'", "&#39;")
+            .replace("\n", "&#10;")
+
+        val html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+              .overlay {
+                position: fixed; inset: 0;
+                background: rgba(0,0,0,0.5);
+                display: flex; align-items: center; justify-content: center;
+                padding: 16px; z-index: 50;
+              }
+              .card {
+                background: #fff; border-radius: 12px; width: 100%; max-width: 448px;
+                box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+                display: flex; flex-direction: column; max-height: 90vh;
+              }
+              .header {
+                display: flex; align-items: center; justify-content: space-between;
+                padding: 16px; border-bottom: 1px solid #e5e7eb;
+              }
+              .title-group { display: flex; flex-direction: column; }
+              .title { font-size: 18px; font-weight: 600; color: #111827; }
+              .subtitle { font-size: 14px; color: #6b7280; margin-top: 2px; }
+              .close-btn {
+                padding: 8px; border: none; background: none; cursor: pointer;
+                color: #9ca3af; border-radius: 8px;
+              }
+              .close-btn:hover { color: #4b5563; background: #f3f4f6; }
+              .close-btn svg { width: 20px; height: 20px; }
+              .content { padding: 16px; overflow-y: auto; }
+              textarea {
+                width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb;
+                border-radius: 8px; font-size: 14px; color: #374151;
+                background: #fff; resize: none; outline: none;
+                font-family: inherit; line-height: 1.5;
+              }
+              textarea:focus { border-color: transparent; box-shadow: 0 0 0 2px #3b82f6; }
+              .hint { font-size: 12px; color: #9ca3af; margin-top: 8px; }
+              .footer {
+                display: flex; align-items: center; justify-content: space-between;
+                padding: 16px; border-top: 1px solid #e5e7eb;
+              }
+              .save-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+              .save-toggle span { font-size: 14px; color: #374151; font-weight: 500; }
+              .toggle {
+                position: relative; width: 44px; height: 24px;
+                background: #d1d5db; border-radius: 12px;
+                transition: background 0.2s; cursor: pointer; flex-shrink: 0;
+              }
+              .toggle.on { background: #2563eb; }
+              .toggle::after {
+                content: ''; position: absolute;
+                width: 16px; height: 16px; background: #fff;
+                border-radius: 50%; top: 4px; left: 4px;
+                transition: transform 0.2s;
+              }
+              .toggle.on::after { transform: translateX(20px); }
+              .actions { display: flex; gap: 8px; }
+              .btn {
+                padding: 8px 16px; border-radius: 8px; font-size: 14px;
+                font-weight: 500; border: none; cursor: pointer;
+              }
+              .btn-cancel { background: #f3f4f6; color: #374151; }
+              .btn-cancel:hover { background: #e5e7eb; }
+              .btn-confirm { background: #2563eb; color: #fff; }
+              .btn-confirm:hover { background: #1d4ed8; }
+            </style>
+            </head>
+            <body>
+            <div class="overlay" onclick="if(event.target===this)NativeBridge.onCancel()">
+              <div class="card">
+                <div class="header">
+                  <div class="title-group">
+                    <div class="title">AI修图提示词</div>
+                    <div class="subtitle">编辑提示词后确认触发修图</div>
+                  </div>
+                  <button class="close-btn" onclick="NativeBridge.onCancel()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div class="content">
+                  <textarea id="prompt" rows="4" placeholder="例如：提升画质，使照片更清晰">${escapedPrompt}</textarea>
+                  <div class="hint">留空使用默认提示词</div>
+                </div>
+                <div class="footer">
+                  <div class="save-toggle" onclick="toggleSave()">
+                    <div class="toggle on" id="saveToggle"></div>
+                    <span>保存提示词</span>
+                  </div>
+                  <div class="actions">
+                    <button class="btn btn-cancel" onclick="NativeBridge.onCancel()">取消</button>
+                    <button class="btn btn-confirm" onclick="onConfirm()">确认修图</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <script>
+              var savePrompt = true;
+              function toggleSave() {
+                savePrompt = !savePrompt;
+                document.getElementById('saveToggle').className = 'toggle' + (savePrompt ? ' on' : '');
+              }
+              function onConfirm() {
+                var prompt = document.getElementById('prompt').value.trim();
+                NativeBridge.onConfirm(prompt, savePrompt);
+              }
+              document.getElementById('prompt').focus();
+            </script>
+            </body>
+            </html>
+        """.trimIndent()
+
+        val webView = WebView(this).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = false
+            setBackgroundColor(0)
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            addJavascriptInterface(object {
+                @JavascriptInterface
+                fun onConfirm(prompt: String, shouldSave: Boolean) {
+                    runOnUiThread {
+                        dismissPromptWebView()
+                        dispatchAiEdit(filePath, prompt, shouldSave, mainActivity)
+                    }
+                }
+                @JavascriptInterface
+                fun onCancel() {
+                    runOnUiThread { dismissPromptWebView() }
+                }
+            }, "NativeBridge")
+            loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+        }
+
+        val overlayParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        rootView.addView(webView, overlayParams)
+        promptWebView = webView
+    }
+
+    private fun dismissPromptWebView() {
+        promptWebView?.let {
+            (it.parent as? FrameLayout)?.removeView(it)
+            it.destroy()
+        }
+        promptWebView = null
+    }
+
+    private fun dispatchAiEdit(filePath: String, prompt: String, shouldSave: Boolean, mainActivity: MainActivity) {
+        isAiEditing = true
+        Toast.makeText(this, "正在修图…", Toast.LENGTH_SHORT).show()
+
         val escapedPath = filePath.replace("\\", "\\\\").replace("'", "\\'")
+        val escapedPrompt = prompt.replace("\\", "\\\\").replace("'", "\\'")
+            .replace("\n", "\\n").replace("\r", "\\r")
+
         val js = """
             (function() {
-                if (window.__tauriAiEditFromNative) {
-                    window.__tauriAiEditFromNative('$escapedPath');
+                if (window.__tauriTriggerAiEditWithPrompt) {
+                    window.__tauriTriggerAiEditWithPrompt('$escapedPath', '$escapedPrompt', $shouldSave);
                     return 'ok';
                 }
                 return 'no_handler';
@@ -682,6 +864,7 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        dismissPromptWebView()
         if (instance == this) {
             isViewerVisible = false
             instance = null

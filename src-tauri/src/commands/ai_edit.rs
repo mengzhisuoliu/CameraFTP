@@ -12,7 +12,8 @@ use crate::error::AppError;
 pub async fn trigger_ai_edit(
     ai_edit: State<'_, AiEditService>,
     file_path: String,
+    prompt: Option<String>,
 ) -> Result<String, AppError> {
-    let output_path = ai_edit.edit_single(PathBuf::from(&file_path)).await?;
+    let output_path = ai_edit.edit_single(PathBuf::from(&file_path), prompt).await?;
     Ok(output_path.to_string_lossy().to_string())
 }

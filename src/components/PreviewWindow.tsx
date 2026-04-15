@@ -14,6 +14,7 @@ import { usePreviewNavigation } from '../hooks/usePreviewNavigation';
 import { usePreviewExif } from '../hooks/usePreviewExif';
 import { usePreviewZoomPan } from '../hooks/usePreviewZoomPan';
 import { usePreviewToolbarAutoHide } from '../hooks/usePreviewToolbarAutoHide';
+import { PromptDialog } from './PromptDialog';
 
 export function PreviewWindow() {
   const state = usePreviewWindowLifecycle();
@@ -40,9 +41,12 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   const [imageError, setImageError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [aiEditing, setAiEditing] = useState(false);
+  const [showPromptDialog, setShowPromptDialog] = useState(false);
 
   const draft = useConfigStore(state => state.draft);
+  const updateDraft = useConfigStore(state => state.updateDraft);
   const aiEditEnabled = draft?.aiEdit?.enabled ?? false;
+  const defaultPrompt = draft?.aiEdit?.prompt ?? '';
 
   const exifInfo = usePreviewExif(imagePath);
   const {
@@ -174,18 +178,35 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     }
   };
 
-  const handleAiEdit = useCallback(async () => {
+  const handleAiEdit = useCallback(() => {
     if (!imagePath || aiEditing) return;
+    setShowPromptDialog(true);
+  }, [imagePath, aiEditing]);
+
+  const handlePromptConfirm = useCallback(async (prompt: string, shouldSave: boolean) => {
+    if (!imagePath) return;
+    setShowPromptDialog(false);
+
+    if (shouldSave && prompt !== defaultPrompt) {
+      updateDraft(d => ({
+        ...d,
+        aiEdit: { ...d.aiEdit, prompt },
+      }));
+    }
+
     setAiEditing(true);
     try {
-      const outputPath = await invoke<string>('trigger_ai_edit', { filePath: imagePath });
+      const outputPath = await invoke<string>('trigger_ai_edit', {
+        filePath: imagePath,
+        prompt: prompt || null,
+      });
       console.log('AI edit completed:', outputPath);
     } catch (e) {
       console.error('AI edit failed:', e);
     } finally {
       setAiEditing(false);
     }
-  }, [imagePath, aiEditing]);
+  }, [imagePath, defaultPrompt, updateDraft]);
 
   if (!imagePath) {
     return (
@@ -450,6 +471,14 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
           </button>
         </div>
       </div>
+
+      {/* AI修图提示词对话框 */}
+      <PromptDialog
+        isOpen={showPromptDialog}
+        defaultPrompt={defaultPrompt}
+        onConfirm={handlePromptConfirm}
+        onCancel={() => setShowPromptDialog(false)}
+      />
     </div>
   );
 });

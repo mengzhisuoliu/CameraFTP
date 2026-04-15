@@ -26,6 +26,7 @@ const DEFAULT_EDIT_PROMPT: &str = "提升画质，使照片更清晰";
 struct AiEditTask {
     file_path: PathBuf,
     is_auto_trigger: bool,
+    override_prompt: Option<String>,
     result_tx: Option<oneshot::Sender<Result<PathBuf, AppError>>>,
 }
 
@@ -52,6 +53,7 @@ impl AiEditService {
         if let Err(e) = self.auto_sender.try_send(AiEditTask {
             file_path,
             is_auto_trigger: true,
+            override_prompt: None,
             result_tx: None,
         }) {
             warn!("AI edit queue full, dropping task: {}", e);
@@ -59,13 +61,14 @@ impl AiEditService {
     }
 
     /// Manual trigger: enqueue and wait for result.
-    pub async fn edit_single(&self, file_path: PathBuf) -> Result<PathBuf, AppError> {
+    pub async fn edit_single(&self, file_path: PathBuf, override_prompt: Option<String>) -> Result<PathBuf, AppError> {
         let (tx, rx) = oneshot::channel();
 
         self.manual_sender
             .send(AiEditTask {
                 file_path,
                 is_auto_trigger: false,
+                override_prompt,
                 result_tx: Some(tx),
             })
             .await
@@ -191,11 +194,9 @@ async fn process_task(
     let provider = cached_provider.as_ref()
         .ok_or_else(|| AppError::AiEditError("No provider available".to_string()))?;
 
-    let prompt = if ai_config.prompt.is_empty() {
-        DEFAULT_EDIT_PROMPT
-    } else {
-        &ai_config.prompt
-    };
+    let prompt = task.override_prompt.as_deref()
+        .or_else(|| if ai_config.prompt.is_empty() { None } else { Some(&ai_config.prompt) })
+        .unwrap_or(DEFAULT_EDIT_PROMPT);
     let image_bytes = provider.edit_image(&prepared.base64_data, prepared.mime_type, prompt).await?;
 
     let output_dir = config.save_path.join(AIEDIT_SUBDIR);
@@ -267,6 +268,7 @@ mod tests {
         auto_sender.try_send(AiEditTask {
             file_path: task_path.clone(),
             is_auto_trigger: true,
+            override_prompt: None,
             result_tx: None,
         }).unwrap();
 
@@ -285,6 +287,7 @@ mod tests {
         manual_sender.try_send(AiEditTask {
             file_path: PathBuf::from("/photos/test.jpg"),
             is_auto_trigger: false,
+            override_prompt: None,
             result_tx: Some(tx),
         }).unwrap();
 
@@ -302,6 +305,7 @@ mod tests {
             auto_sender.try_send(AiEditTask {
                 file_path: PathBuf::from(format!("/photos/img_{i}.jpg")),
                 is_auto_trigger: true,
+                override_prompt: None,
                 result_tx: None,
             }).unwrap();
         }
@@ -309,6 +313,7 @@ mod tests {
         let result = auto_sender.try_send(AiEditTask {
             file_path: PathBuf::from("/photos/overflow.jpg"),
             is_auto_trigger: true,
+            override_prompt: None,
             result_tx: None,
         });
         assert!(result.is_err());
