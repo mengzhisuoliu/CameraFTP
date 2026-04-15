@@ -15,6 +15,8 @@ import { usePreviewExif } from '../hooks/usePreviewExif';
 import { usePreviewZoomPan } from '../hooks/usePreviewZoomPan';
 import { usePreviewToolbarAutoHide } from '../hooks/usePreviewToolbarAutoHide';
 import { PromptDialog } from './PromptDialog';
+import { AiEditProgressBar } from './AiEditProgressBar';
+import { useAiEditProgressListener, enqueueAiEdit } from '../hooks/useAiEditProgress';
 
 export function PreviewWindow() {
   const state = usePreviewWindowLifecycle();
@@ -40,7 +42,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   const effectiveAutoBringToFront = storeAutoBringToFront ?? autoBringToFront;
   const [imageError, setImageError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [aiEditing, setAiEditing] = useState(false);
+  useAiEditProgressListener();
   const [showPromptDialog, setShowPromptDialog] = useState(false);
 
   const draft = useConfigStore(state => state.draft);
@@ -179,9 +181,9 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   };
 
   const handleAiEdit = useCallback(() => {
-    if (!imagePath || aiEditing) return;
+    if (!imagePath) return;
     setShowPromptDialog(true);
-  }, [imagePath, aiEditing]);
+  }, [imagePath]);
 
   const handlePromptConfirm = useCallback(async (prompt: string, shouldSave: boolean) => {
     if (!imagePath) return;
@@ -194,18 +196,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
       }));
     }
 
-    setAiEditing(true);
-    try {
-      const outputPath = await invoke<string>('trigger_ai_edit', {
-        filePath: imagePath,
-        prompt: prompt || null,
-      });
-      console.log('AI edit completed:', outputPath);
-    } catch (e) {
-      console.error('AI edit failed:', e);
-    } finally {
-      setAiEditing(false);
-    }
+    await enqueueAiEdit([imagePath], prompt, shouldSave);
   }, [imagePath, defaultPrompt, updateDraft]);
 
   if (!imagePath) {
@@ -262,6 +253,9 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
           />
         )}
       </div>
+
+      {/* AI修图进度条 */}
+      <AiEditProgressBar position="absolute" />
 
       {/* 底部工具栏 - 浮动覆盖在图片上，半透明磨砂效果 */}
       <div
@@ -442,15 +436,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
           {aiEditEnabled && (
             <button
               onClick={handleAiEdit}
-              disabled={aiEditing}
-              className={`
-                p-2 rounded-lg transition-colors
-                ${aiEditing
-                  ? 'text-blue-300 bg-blue-500/20 cursor-wait'
-                  : 'text-gray-300 hover:text-white hover:bg-white/10'
-                }
-              `}
-              title={aiEditing ? 'AI修图中...' : 'AI修图'}
+              className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
+              title="AI修图"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
