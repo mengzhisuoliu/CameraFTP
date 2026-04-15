@@ -27,6 +27,7 @@ export type { AndroidImageOpenMethod } from '../../src-tauri/bindings/AndroidIma
 export type { AiEditConfig } from '../../src-tauri/bindings/AiEditConfig';
 export type { ProviderConfig } from '../../src-tauri/bindings/ProviderConfig';
 export type { SeedEditConfig } from '../../src-tauri/bindings/SeedEditConfig';
+export type { AiEditProgressEvent } from '../../src-tauri/bindings/AiEditProgressEvent';
 
 // ===== Re-export from global.ts =====
 export * from './global';

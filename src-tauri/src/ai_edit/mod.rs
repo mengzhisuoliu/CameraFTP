@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 pub mod config;
+pub mod progress;
 pub(crate) mod image_processor;
 pub(crate) mod providers;
 pub(crate) mod service;
