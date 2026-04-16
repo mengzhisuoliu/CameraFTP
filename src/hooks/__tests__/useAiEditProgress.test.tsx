@@ -126,10 +126,20 @@ describe('useAiEditProgress', () => {
     return getContainer().querySelector(`[data-testid="${testId}"]`)?.textContent ?? '';
   }
 
-  it('handleEvent "done" triggers gallery refresh', () => {
-    eventHandler!(doneEvent());
+  it('handleEvent "done" triggers gallery refresh', async () => {
+    vi.useFakeTimers();
 
-    expect(requestMediaLibraryRefreshMock).toHaveBeenCalledWith({ reason: 'upload' });
+    eventHandler!(doneEvent());
+    await act(async () => { await flush(); });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await flush();
+    });
+
+    expect(requestMediaLibraryRefreshMock).toHaveBeenCalledWith({ reason: 'ai-edit' });
+
+    vi.useRealTimers();
   });
 
   it('handleEvent "done" scans output files via Android bridge', () => {
@@ -328,9 +338,20 @@ describe('useAiEditProgress', () => {
     expect(invokeMock).toHaveBeenCalledWith('cancel_ai_edit');
   });
 
-  it('handleEvent "done" triggers gallery refresh with ai-edit reason', () => {
+  it('handleEvent "done" triggers gallery refresh with ai-edit reason', async () => {
+    vi.useFakeTimers();
+
     eventHandler!(doneEvent());
-    expect(requestMediaLibraryRefreshMock).toHaveBeenCalledWith({ reason: 'upload' });
+    await act(async () => { await flush(); });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await flush();
+    });
+
+    expect(requestMediaLibraryRefreshMock).toHaveBeenCalledWith({ reason: 'ai-edit' });
+
+    vi.useRealTimers();
   });
 
   it('handleEvent "progress" updates state correctly', async () => {
@@ -348,5 +369,143 @@ describe('useAiEditProgress', () => {
     expect(getText('current')).toBe('1');
     expect(getText('total')).toBe('1');
     expect(getText('is-editing')).toBe('yes');
+  });
+
+  it('handleEvent "queued" updates total when items are added during processing', async () => {
+    // Simulate: first image starts processing
+    await act(async () => {
+      eventHandler!({
+        type: 'progress',
+        current: 1,
+        total: 1,
+        fileName: 'photo1.jpg',
+        failedCount: 0,
+      });
+      await flush();
+    });
+
+    expect(getText('current')).toBe('1');
+    expect(getText('total')).toBe('1');
+
+    // Simulate: second image enqueued while first is still processing
+    await act(async () => {
+      eventHandler!({
+        type: 'queued',
+        queueDepth: 1,
+      });
+      await flush();
+    });
+
+    // total should now reflect the expanded queue: current(1) + queueDepth(1) = 2
+    expect(getText('current')).toBe('1');
+    expect(getText('total')).toBe('2');
+  });
+
+  it('handleEvent "queued" syncs updated total to native layer', () => {
+    const updateAiEditProgress = vi.fn();
+    window.ImageViewerAndroid = {
+      openOrNavigateTo: vi.fn(),
+      isAppVisible: vi.fn(),
+      onExifResult: vi.fn(),
+      resolveFilePath: vi.fn(),
+      updateAiEditProgress,
+    };
+
+    // Start processing
+    eventHandler!({
+      type: 'progress',
+      current: 1,
+      total: 1,
+      fileName: 'photo.jpg',
+      failedCount: 0,
+    });
+    expect(updateAiEditProgress).toHaveBeenCalledWith(1, 1, 0);
+
+    // New file queued
+    eventHandler!({
+      type: 'queued',
+      queueDepth: 2,
+    });
+    expect(updateAiEditProgress).toHaveBeenCalledWith(1, 3, 0);
+  });
+
+  it('handleEvent "queued" is ignored when not editing', async () => {
+    // No progress event sent — not in editing state
+    await act(async () => {
+      eventHandler!({
+        type: 'queued',
+        queueDepth: 1,
+      });
+      await flush();
+    });
+
+    // total should remain 0 (no editing session active)
+    expect(getText('total')).toBe('0');
+    expect(getText('is-editing')).toBe('no');
+  });
+
+  it('FTP upload scenario: total updates as images arrive during processing', async () => {
+    // Image 1 starts processing
+    await act(async () => {
+      eventHandler!({
+        type: 'progress',
+        current: 1,
+        total: 1,
+        fileName: 'img1.jpg',
+        failedCount: 0,
+      });
+      await flush();
+    });
+    expect(getText('current')).toBe('1');
+    expect(getText('total')).toBe('1');
+
+    // Image 2 arrives via FTP while image 1 is processing
+    await act(async () => {
+      eventHandler!({
+        type: 'queued',
+        queueDepth: 1,
+      });
+      await flush();
+    });
+    expect(getText('current')).toBe('1');
+    expect(getText('total')).toBe('2');
+
+    // Image 3 arrives via FTP
+    await act(async () => {
+      eventHandler!({
+        type: 'queued',
+        queueDepth: 2,
+      });
+      await flush();
+    });
+    expect(getText('current')).toBe('1');
+    expect(getText('total')).toBe('3');
+
+    // Image 1 completes
+    await act(async () => {
+      eventHandler!({
+        type: 'completed',
+        current: 1,
+        total: 3,
+        fileName: 'img1.jpg',
+        failedCount: 0,
+        outputPath: '/out/img1.jpg',
+      });
+      await flush();
+    });
+
+    // Image 2 starts processing
+    await act(async () => {
+      eventHandler!({
+        type: 'progress',
+        current: 2,
+        total: 3,
+        fileName: 'img2.jpg',
+        failedCount: 0,
+      });
+      await flush();
+    });
+    expect(getText('current')).toBe('2');
+    expect(getText('total')).toBe('3');
   });
 });

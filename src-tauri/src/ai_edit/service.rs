@@ -33,6 +33,7 @@ struct AiEditTask {
 
 pub struct AiEditService {
     config_service: Arc<ConfigService>,
+    app_handle: AppHandle,
     manual_sender: mpsc::Sender<AiEditTask>,
     auto_sender: mpsc::Sender<AiEditTask>,
     queue_depth: Arc<AtomicU32>,
@@ -48,13 +49,15 @@ impl AiEditService {
         let queue_depth_clone = queue_depth.clone();
         let cancel_token = CancellationToken::new();
         let cancel_token_clone = cancel_token.clone();
+        let app_handle_clone = app_handle.clone();
 
         tauri::async_runtime::spawn(async move {
-            worker_loop(manual_receiver, auto_receiver, app_handle, config_service_clone, queue_depth_clone, cancel_token_clone).await;
+            worker_loop(manual_receiver, auto_receiver, app_handle_clone, config_service_clone, queue_depth_clone, cancel_token_clone).await;
         });
 
         Self {
             config_service,
+            app_handle,
             manual_sender,
             auto_sender,
             queue_depth,
@@ -81,6 +84,8 @@ impl AiEditService {
         }) {
             self.queue_depth.fetch_sub(1, Ordering::Relaxed);
             warn!("AI edit queue full, dropping task: {}", e);
+        } else {
+            self.emit_queued();
         }
     }
 
@@ -100,6 +105,8 @@ impl AiEditService {
         {
             self.queue_depth.fetch_sub(1, Ordering::Relaxed);
             return Err(AppError::AiEditError("AI edit service shut down".to_string()));
+        } else {
+            self.emit_queued();
         }
 
         rx.await
@@ -119,6 +126,8 @@ impl AiEditService {
         {
             self.queue_depth.fetch_sub(1, Ordering::Relaxed);
             return Err(AppError::AiEditError(format!("AI edit service shut down: {}", e)));
+        } else {
+            self.emit_queued();
         }
         Ok(())
     }
@@ -129,6 +138,15 @@ impl AiEditService {
 
     pub fn cancel(&self) {
         self.cancel_token.cancel();
+    }
+
+    fn emit_queued(&self) {
+        let depth = self.queue_depth.load(Ordering::Relaxed);
+        if let Err(e) = self.app_handle.emit("ai-edit-progress", &super::progress::AiEditProgressEvent::Queued {
+            queue_depth: depth,
+        }) {
+            warn!(error = %e, "Failed to emit ai-edit-progress Queued event");
+        }
     }
 }
 

@@ -13,12 +13,13 @@
     <FrameLayout
         android:id="@+id/ai_edit_progress_container"
         android:layout_width="match_parent"
-        android:layout_height="30dp"
+        android:layout_height="32dp"
         android:layout_gravity="bottom"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="76dp"
+        android:layout_marginBottom="68dp"
         android:background="@drawable/progress_bar_bg"
+        android:clipToOutline="true"
         android:visibility="gone">
 
         <!-- Progress fill base color -->

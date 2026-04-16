@@ -81,6 +81,15 @@ function handleEvent(event: AiEditProgressEvent) {
         failedCount: event.failedCount,
       });
       break;
+    case 'queued': {
+      const { isEditing, current, failedCount } = useAiEditProgressStore.getState();
+      if (isEditing) {
+        const newTotal = current + event.queueDepth;
+        useAiEditProgressStore.setState({ total: newTotal });
+        syncToNativeLayer(current, newTotal, failedCount);
+      }
+      break;
+    }
     case 'done': {
       const hasFailures = event.failedCount > 0;
       const outputFiles = event.outputFiles ?? [];

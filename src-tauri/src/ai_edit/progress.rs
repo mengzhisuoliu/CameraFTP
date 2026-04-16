@@ -44,6 +44,11 @@ pub enum AiEditProgressEvent {
         #[ts(rename = "failedCount")]
         failed_count: u32,
     },
+    Queued {
+        #[serde(rename = "queueDepth")]
+        #[ts(rename = "queueDepth")]
+        queue_depth: u32,
+    },
     Done {
         total: u32,
         #[serde(rename = "failedCount")]
@@ -206,6 +211,32 @@ mod tests {
             !json.contains("outputFiles"),
             "Failed variant should not have outputFiles"
         );
+    }
+
+    #[test]
+    fn test_queued_event_serialization() {
+        let event = AiEditProgressEvent::Queued { queue_depth: 3 };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(
+            json.contains(r#""type":"queued""#),
+            "Expected type=queued, got: {json}"
+        );
+        assert!(
+            json.contains(r#""queueDepth":3"#),
+            "Expected queueDepth=3, got: {json}"
+        );
+    }
+
+    #[test]
+    fn test_queued_event_deserialization() {
+        let json = r#"{"type":"queued","queueDepth":2}"#;
+        let event: AiEditProgressEvent = serde_json::from_str(json).unwrap();
+        match event {
+            AiEditProgressEvent::Queued { queue_depth } => {
+                assert_eq!(queue_depth, 2);
+            }
+            other => panic!("Expected Queued variant, got: {other:?}"),
+        }
     }
 
     #[test]
