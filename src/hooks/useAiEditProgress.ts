@@ -94,8 +94,12 @@ function handleEvent(event: AiEditProgressEvent) {
       // Trigger Android MediaStore scan so system gallery sees the new files
       scanOutputFiles(outputFiles);
 
-      // Refresh in-app gallery list and latest photo
-      requestMediaLibraryRefresh({ reason: 'upload' });
+      // Delay refresh to allow MediaStore to finish indexing the scanned files.
+      // Without this delay, the reload races ahead and queries MediaStore before
+      // the file is indexed, causing the new image to appear missing or out of order.
+      setTimeout(() => {
+        requestMediaLibraryRefresh({ reason: 'ai-edit' });
+      }, 500);
 
       // Auto-preview the first output file when auto-open is enabled on Android
       if (outputFiles.length > 0 && !hasFailures) {

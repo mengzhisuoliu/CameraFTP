@@ -10,6 +10,7 @@ import {
   fetchLatestPhotoFile,
   type LatestPhotoFile,
 } from '../services/latest-photo';
+import { LATEST_PHOTO_REFRESH_REQUESTED_EVENT } from '../utils/gallery-refresh';
 
 interface FileIndexChangedEvent {
   count: number;
@@ -112,8 +113,14 @@ function initializeStore(): void {
     void refreshLatestPhoto();
   });
 
+  const handleLatestPhotoRefreshRequested = () => {
+    void refreshLatestPhoto();
+  };
+  window.addEventListener(LATEST_PHOTO_REFRESH_REQUESTED_EVENT, handleLatestPhotoRefreshRequested);
+
   teardownFn = () => {
     void unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
+    window.removeEventListener(LATEST_PHOTO_REFRESH_REQUESTED_EVENT, handleLatestPhotoRefreshRequested);
   };
 
   void refreshLatestPhoto();
