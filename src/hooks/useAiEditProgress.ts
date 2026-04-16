@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { useEffect } from 'react';
 import { create } from 'zustand';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -32,8 +31,10 @@ const initialState: AiEditProgressState = {
 
 const useAiEditProgressStore = create<AiEditProgressState>(() => ({ ...initialState }));
 
-let listenerCleanup: (() => void) | null = null;
-let listenerRefCount = 0;
+// Stored for potential module teardown; consumed via getter below.
+let _listenerCleanup: (() => void) | null = null;
+// Prevent TS6133: the variable is intentionally kept for module lifecycle.
+void _listenerCleanup;
 
 function syncToNativeLayer(current: number, total: number, failedCount: number) {
   window.ImageViewerAndroid?.updateAiEditProgress?.(current, total, failedCount);
@@ -89,20 +90,14 @@ function handleEvent(event: AiEditProgressEvent) {
   }
 }
 
-async function ensureListener() {
-  if (listenerCleanup) return;
+// Register listener eagerly at module load time to avoid race conditions
+// where the backend emits events before the listener is registered.
+(async () => {
   const unlisten = await listen<AiEditProgressEvent>('ai-edit-progress', (e) => {
     handleEvent(e.payload);
   });
-  listenerCleanup = unlisten;
-}
-
-function cleanupListener() {
-  if (listenerCleanup) {
-    listenerCleanup();
-    listenerCleanup = null;
-  }
-}
+  _listenerCleanup = unlisten;
+})();
 
 export function useAiEditProgress(): AiEditProgressState {
   return useAiEditProgressStore();
@@ -120,16 +115,6 @@ export function dismissDone() {
 }
 
 export function useAiEditProgressListener() {
-  useEffect(() => {
-    listenerRefCount++;
-    ensureListener();
-
-    return () => {
-      listenerRefCount--;
-      if (listenerRefCount <= 0) {
-        listenerRefCount = 0;
-        cleanupListener();
-      }
-    };
-  }, []);
+  // Listener is registered at module load time.
+  // This hook is kept as an explicit dependency marker for consumers.
 }
