@@ -7,7 +7,6 @@
 import { memo, useCallback } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';
-import { useServerStore } from '../stores/serverStore';
 import { Card, CardHeader, ToggleSwitch } from './ui';
 import { AiEditConfigPanel } from './AiEditConfigPanel';
 import type { AppConfig } from '../types';
@@ -22,7 +21,6 @@ const DEFAULT_AI_EDIT_CONFIG = {
 export const AiEditConfigCard = memo(function AiEditConfigCard() {
   const { isLoading, updateDraft } = useConfigStore();
   const draft = useDraftConfig();
-  const { isRunning } = useServerStore();
 
   const handleConfigUpdate = useCallback((updater: (draft: AppConfig) => Partial<AppConfig>) => {
     updateDraft(d => {
@@ -51,7 +49,7 @@ export const AiEditConfigCard = memo(function AiEditConfigCard() {
                 },
               }));
             }}
-            disabled={isLoading || isRunning}
+            disabled={isLoading}
           />
         }
       />
@@ -60,7 +58,6 @@ export const AiEditConfigCard = memo(function AiEditConfigCard() {
         <AiEditConfigPanel
           config={draft}
           isLoading={isLoading}
-          disabled={isRunning}
           onUpdate={handleConfigUpdate}
         />
       )}
