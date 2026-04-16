@@ -180,7 +180,8 @@
                 android:contentDescription="AI修图"
                 android:padding="10dp"
                 android:scaleType="fitCenter"
-                android:layout_marginHorizontal="8dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
                 android:visibility="gone" />
 
             <ImageButton
@@ -192,7 +193,8 @@
                 android:contentDescription="切换横竖屏"
                 android:padding="10dp"
                 android:scaleType="fitCenter"
-                android:layout_marginHorizontal="8dp" />
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp" />
 
             <ImageButton
                 android:id="@+id/btn_delete"
@@ -203,7 +205,8 @@
                 android:contentDescription="删除图片"
                 android:padding="10dp"
                 android:scaleType="fitCenter"
-                android:layout_marginHorizontal="8dp" />
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="0dp" />
 
         </LinearLayout>
 
