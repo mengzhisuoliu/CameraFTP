@@ -34,6 +34,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -141,7 +142,7 @@ class ImageViewerActivity : AppCompatActivity() {
     private lateinit var btnRotate: ImageButton
     private lateinit var btnDelete: ImageButton
     private lateinit var aiEditProgressContainer: FrameLayout
-    private lateinit var aiEditProgressFill: View
+    private lateinit var aiEditProgressFill: FrameLayout
     private lateinit var aiEditProgressHighlight: View
     private lateinit var aiEditProgressEdge: View
     private lateinit var aiEditStatusText: TextView
@@ -155,15 +156,6 @@ class ImageViewerActivity : AppCompatActivity() {
     private var isBottomBarVisible = true
     private var pendingDeleteUri: String? = null
     private var isAiEditing = false
-        set(value) {
-            field = value
-            runOnUiThread {
-                if (!isFinishing && !isDestroyed) {
-                    btnAiEdit.isEnabled = !value
-                    btnAiEdit.alpha = if (value) 0.5f else 1f
-                }
-            }
-        }
     private var promptWebView: WebView? = null
 
     private val deleteRequestLauncher = registerForActivityResult(
@@ -270,11 +262,37 @@ class ImageViewerActivity : AppCompatActivity() {
                 .withEndAction { bottomBar.visibility = View.GONE }
                 .start()
         }
+        updateProgressBarPosition()
+    }
+
+    private fun updateProgressBarPosition() {
+        val lp = aiEditProgressContainer.layoutParams as? FrameLayout.LayoutParams ?: return
+        val screenWidth = resources.displayMetrics.widthPixels
+        lp.width = screenWidth * 2 / 3
+        lp.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        lp.marginStart = 0
+        lp.marginEnd = 0
+        lp.bottomMargin = if (isBottomBarVisible && bottomBar.visibility != View.GONE) {
+            val barHeight = bottomBar.height
+            if (barHeight > 0) {
+                barHeight + (bottomBar.layoutParams as? FrameLayout.LayoutParams)?.bottomMargin?.let { if (it > 0) it else 8.dpToPx() }!! + 12.dpToPx()
+            } else {
+                // bottomBar not laid out yet, use default spacing
+                92.dpToPx()
+            }
+        } else {
+            16.dpToPx()
+        }
+        aiEditProgressContainer.layoutParams = lp
+    }
+
+    private fun Int.dpToPx(): Int {
+        return (this * resources.displayMetrics.density).toInt()
     }
 
     private fun setupButtons() {
         btnAiEdit.setOnClickListener {
-            if (!isAiEditing && uris.isNotEmpty() && currentIndex in uris.indices) {
+            if (uris.isNotEmpty() && currentIndex in uris.indices) {
                 triggerAiEditForCurrentImage()
             }
         }
@@ -807,6 +825,15 @@ class ImageViewerActivity : AppCompatActivity() {
         }
     }
 
+    private fun resetProgressAppearance() {
+        aiEditProgressContainer.background = ContextCompat.getDrawable(this, R.drawable.progress_bar_bg)
+        aiEditProgressFill.setBackgroundColor(0)
+        aiEditProgressFill.background = ContextCompat.getDrawable(this, R.drawable.progress_bar_fill)
+        aiEditProgressEdge.setBackgroundColor(0)
+        aiEditProgressEdge.background = ContextCompat.getDrawable(this, R.drawable.progress_bar_edge)
+        aiEditStatusText.setTextColor(0xFF60A5FA.toInt())
+    }
+
     /**
      * Called from JS bridge when AI edit completes (success or failure)
      */
@@ -816,19 +843,80 @@ class ImageViewerActivity : AppCompatActivity() {
             stopHighlightSweepAnimation()
             if (isFinishing || isDestroyed) return@runOnUiThread
             if (success) {
-                aiEditProgressContainer.visibility = View.GONE
+                stopHighlightSweepAnimation()
+                // Green container background
+                aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                    setColor(0xBF1A3C1A.toInt())
+                    cornerRadius = 12f * resources.displayMetrics.density
+                    setStroke(1 * resources.displayMetrics.density.toInt(), 0x3322C55E.toInt())
+                }
+                // Green fill overlay — static gradient matching editing style
+                aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
+                )
+                aiEditProgressFill.visibility = View.VISIBLE
+                aiEditProgressHighlight.visibility = View.GONE
+                // Green full-width bottom edge — static gradient
+                aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    2,
+                    Gravity.BOTTOM
+                )
+                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
+                )
+                // Text
+                aiEditStatusText.text = "修图完成"
+                aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
+                aiEditProgressText.text = message ?: "修图完成"
+                aiEditFailureText.visibility = View.GONE
+                // Dismiss button
+                aiEditCancelBtn.visibility = View.VISIBLE
+                aiEditCancelBtn.text = "✕"
+                aiEditCancelBtn.setOnClickListener {
+                    resetProgressAppearance()
+                    aiEditProgressContainer.visibility = View.GONE
+                }
             } else {
+                // Red container background
+                aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                    setColor(0xB35C1A1A.toInt())
+                    cornerRadius = 12f * resources.displayMetrics.density
+                    setStroke(1 * resources.displayMetrics.density.toInt(), 0x33EF4444.toInt())
+                }
+                // Red fill overlay
+                aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                aiEditProgressFill.setBackgroundColor(0x33EF4444.toInt())
+                aiEditProgressFill.visibility = View.VISIBLE
+                // Red full-width bottom edge
+                aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    2,
+                    Gravity.BOTTOM
+                )
+                aiEditProgressEdge.setBackgroundColor(0x99F87171.toInt())
+                // Text
                 aiEditStatusText.text = "修图完成"
                 aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
                 aiEditProgressText.text = message ?: "修图失败"
                 aiEditFailureText.visibility = View.GONE
+                // Dismiss button
                 aiEditCancelBtn.text = "✕"
                 aiEditCancelBtn.setOnClickListener {
+                    resetProgressAppearance()
                     aiEditProgressContainer.visibility = View.GONE
                 }
-                aiEditProgressContainer.postDelayed({
-                    aiEditProgressContainer.visibility = View.GONE
-                }, 3000)
             }
         }
     }
@@ -837,6 +925,7 @@ class ImageViewerActivity : AppCompatActivity() {
         runOnUiThread {
             if (isFinishing || isDestroyed) return@runOnUiThread
 
+            resetProgressAppearance()
             aiEditProgressContainer.visibility = View.VISIBLE
             aiEditStatusText.visibility = View.VISIBLE
             aiEditStatusText.text = "AI修图中..."
@@ -850,6 +939,9 @@ class ImageViewerActivity : AppCompatActivity() {
                     )
                 }
             }
+
+            // Position after layout so bottomBar height is available
+            aiEditProgressContainer.post { updateProgressBarPosition() }
 
             val percent = if (total > 0) (current * 100) / total else 0
 
@@ -1115,7 +1207,6 @@ class ImageViewerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         val wasAiEditVisible = btnAiEdit.visibility
-        val wasAiEditing = isAiEditing
 
         setContentView(R.layout.activity_image_viewer)
 
@@ -1138,15 +1229,14 @@ class ImageViewerActivity : AppCompatActivity() {
         aiEditCancelBtn = findViewById(R.id.ai_edit_cancel_btn)
 
         btnAiEdit.visibility = wasAiEditVisible
-        if (wasAiEditing) {
-            btnAiEdit.isEnabled = false
-            btnAiEdit.alpha = 0.5f
-        }
 
         setupViewPager()
         setupButtons()
         updateUI()
         syncAiEditProgressFromWebView()
+        if (aiEditProgressContainer.visibility == View.VISIBLE) {
+            updateProgressBarPosition()
+        }
     }
 
     @Deprecated("Deprecated in Java")
