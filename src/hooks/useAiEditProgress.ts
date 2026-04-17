@@ -179,10 +179,11 @@ export function useAiEditProgress(): AiEditProgressState {
   return useAiEditProgressStore();
 }
 
-export async function enqueueAiEdit(files: string[], prompt: string, _shouldSave: boolean): Promise<void> {
+export async function enqueueAiEdit(files: string[], prompt: string, model?: string): Promise<void> {
   await invoke('enqueue_ai_edit', {
     filePaths: files,
     prompt: prompt || null,
+    model: model || null,
   });
 }
 

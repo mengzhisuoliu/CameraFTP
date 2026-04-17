@@ -14,8 +14,12 @@ pub struct AiEditConfig {
     pub enabled: bool,
     /// 接收图片后自动触发
     pub auto_edit: bool,
-    /// 预设提示词
+    /// 自动修图提示词
     pub prompt: String,
+    /// 手动修图上次使用的提示词
+    pub manual_prompt: String,
+    /// 手动修图上次使用的模型（空则使用 provider.model）
+    pub manual_model: String,
     /// Provider 配置
     pub provider: ProviderConfig,
 }
@@ -26,6 +30,8 @@ impl Default for AiEditConfig {
             enabled: false,
             auto_edit: true,
             prompt: String::new(),
+            manual_prompt: String::new(),
+            manual_model: String::new(),
             provider: ProviderConfig::SeedEdit(SeedEditConfig::default()),
         }
     }
@@ -105,12 +111,15 @@ mod tests {
         assert_eq!(original.enabled, deserialized.enabled);
         assert_eq!(original.auto_edit, deserialized.auto_edit);
         assert_eq!(original.prompt, deserialized.prompt);
+        assert_eq!(original.manual_prompt, deserialized.manual_prompt);
+        assert_eq!(original.manual_model, deserialized.manual_model);
     }
 
     #[test]
     fn serde_roundtrip_provider_config() {
         let original = ProviderConfig::SeedEdit(SeedEditConfig {
             api_key: "test-key".to_string(),
+            model: DEFAULT_SEEDREAM_MODEL.to_string(),
         });
         let json = serde_json::to_string(&original).unwrap();
         assert!(json.contains(r#""type":"seed-edit""#));
@@ -137,6 +146,8 @@ mod tests {
             enabled: true,
             auto_edit: false,
             prompt: "enhance colors".to_string(),
+            manual_prompt: "manual prompt".to_string(),
+            manual_model: "doubao-seedream-4-0-250828".to_string(),
             provider: ProviderConfig::SeedEdit(SeedEditConfig {
                 api_key: "sk-test-123".to_string(),
                 model: DEFAULT_SEEDREAM_MODEL.to_string(),
@@ -148,6 +159,8 @@ mod tests {
         assert!(back.enabled);
         assert!(!back.auto_edit);
         assert_eq!(back.prompt, "enhance colors");
+        assert_eq!(back.manual_prompt, "manual prompt");
+        assert_eq!(back.manual_model, "doubao-seedream-4-0-250828");
         let ProviderConfig::SeedEdit(ref se) = back.provider;
         assert_eq!(se.api_key, "sk-test-123");
     }

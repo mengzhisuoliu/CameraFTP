@@ -469,12 +469,16 @@ class ImageViewerActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     jsonString.replace("\\n", "\n") to ""
                 }
-                runOnUiThread { showPromptWebViewOverlay(filePath, currentPrompt, currentModel, mainActivity) }
+                val autoEdit = try {
+                    val json = org.json.JSONObject(jsonString)
+                    json.optBoolean("autoEdit", false)
+                } catch (_: Exception) { false }
+                runOnUiThread { showPromptWebViewOverlay(filePath, currentPrompt, currentModel, autoEdit, mainActivity) }
             }
         }
     }
 
-    private fun showPromptWebViewOverlay(filePath: String, currentPrompt: String, currentModel: String, mainActivity: MainActivity) {
+    private fun showPromptWebViewOverlay(filePath: String, currentPrompt: String, currentModel: String, autoEditEnabled: Boolean, mainActivity: MainActivity) {
         val rootView = findViewById<FrameLayout>(android.R.id.content)
 
         // Dismiss any existing overlay
@@ -497,6 +501,13 @@ class ImageViewerActivity : AppCompatActivity() {
             """<div class="dropdown-opt$sel" data-value="$value">$label</div>"""
         }
         val selectedLabel = modelOptions.find { it.first == selectedModel }?.second ?: selectedModel
+
+        val saveToggleHtml = if (autoEditEnabled) {
+            """<div class="save-toggle" onclick="toggleSave()">
+                    <div class="toggle" id="saveToggle"></div>
+                    <span>保存为自动修图设置</span>
+                  </div>"""
+        } else ""
 
         val html = """
             <!DOCTYPE html>
@@ -577,26 +588,26 @@ class ImageViewerActivity : AppCompatActivity() {
               }
               .dropdown-opt:hover { background: #f9fafb; }
               .dropdown-opt.selected { background: #eff6ff; color: #1d4ed8; font-weight: 500; }
-              .footer {
-                display: flex; align-items: center; justify-content: space-between;
-                padding: 16px; border-top: 1px solid #e5e7eb;
-              }
-              .save-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-              .save-toggle span { font-size: 14px; color: #374151; font-weight: 500; }
-              .toggle {
-                position: relative; width: 44px; height: 24px;
-                background: #d1d5db; border-radius: 12px;
-                transition: background 0.2s; cursor: pointer; flex-shrink: 0;
-              }
-              .toggle.on { background: #2563eb; }
-              .toggle::after {
-                content: ''; position: absolute;
-                width: 16px; height: 16px; background: #fff;
-                border-radius: 50%; top: 4px; left: 4px;
-                transition: transform 0.2s;
-              }
-              .toggle.on::after { transform: translateX(20px); }
-              .actions { display: flex; gap: 8px; }
+          .footer {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px; border-top: 1px solid #e5e7eb;
+          }
+          .save-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+          .save-toggle span { font-size: 14px; color: #374151; font-weight: 500; }
+          .toggle {
+            position: relative; width: 44px; height: 24px;
+            background: #d1d5db; border-radius: 12px;
+            transition: background 0.2s; cursor: pointer; flex-shrink: 0;
+          }
+          .toggle.on { background: #2563eb; }
+          .toggle::after {
+            content: ''; position: absolute;
+            width: 16px; height: 16px; background: #fff;
+            border-radius: 50%; top: 4px; left: 4px;
+            transition: transform 0.2s;
+          }
+          .toggle.on::after { transform: translateX(20px); }
+          .actions { display: flex; gap: 8px; }
               .btn {
                 padding: 8px 16px; border-radius: 8px; font-size: 14px;
                 font-weight: 500; border: none; cursor: pointer;
@@ -605,15 +616,20 @@ class ImageViewerActivity : AppCompatActivity() {
               .btn-cancel:hover { background: #e5e7eb; }
               .btn-confirm { background: #2563eb; color: #fff; }
               .btn-confirm:hover { background: #1d4ed8; }
+              .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+              .header-icon { color: #d97706; flex-shrink: 0; }
             </style>
             </head>
             <body>
             <div class="overlay" onclick="if(event.target===this)NativeBridge.onCancel()">
               <div class="card">
                 <div class="header">
-                  <div class="title-group">
-                    <div class="title">AI修图提示词</div>
-                    <div class="subtitle">编辑提示词后确认触发修图</div>
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div style="width:40px;height:40px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center"><svg class="header-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg></div>
+                    <div class="title-group">
+                      <div class="title">AI修图</div>
+                      <div class="subtitle">使用生成式 AI 调整照片</div>
+                    </div>
                   </div>
                   <button class="close-btn" onclick="NativeBridge.onCancel()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -632,27 +648,24 @@ class ImageViewerActivity : AppCompatActivity() {
                   </div>
                   <div class="field-group">
                     <div class="field-label">提示词</div>
-                    <textarea id="prompt" rows="4" placeholder="例如：提升画质，使照片更清晰">${escapedPrompt}</textarea>
+                    <textarea id="prompt" rows="4" placeholder="请输入提示词">${escapedPrompt}</textarea>
                   </div>
                 </div>
                 <div class="footer">
-                  <div class="save-toggle" onclick="toggleSave()">
-                    <div class="toggle on" id="saveToggle"></div>
-                    <span>保存提示词</span>
-                  </div>
-                  <div class="actions">
+                  $saveToggleHtml
+                  <div class="actions" style="margin-left:auto">
                     <button class="btn btn-cancel" onclick="NativeBridge.onCancel()">取消</button>
-                    <button class="btn btn-confirm" onclick="onConfirm()">确认修图</button>
+                    <button class="btn btn-confirm" id="confirmBtn" onclick="onConfirm()" disabled>确认</button>
                   </div>
                 </div>
               </div>
             </div>
             <script>
-              var savePrompt = true;
+              var saveAsAutoEdit = false;
               var selectedModel = '$selectedModel';
               function toggleSave() {
-                savePrompt = !savePrompt;
-                document.getElementById('saveToggle').className = 'toggle' + (savePrompt ? ' on' : '');
+                saveAsAutoEdit = !saveAsAutoEdit;
+                document.getElementById('saveToggle').className = 'toggle' + (saveAsAutoEdit ? ' on' : '');
               }
               function toggleDropdown() {
                 var panel = document.getElementById('modelPanel');
@@ -689,8 +702,15 @@ class ImageViewerActivity : AppCompatActivity() {
               });
               function onConfirm() {
                 var prompt = document.getElementById('prompt').value.trim();
-                NativeBridge.onConfirm(prompt, savePrompt, selectedModel);
+                if (!prompt) return;
+                NativeBridge.onConfirm(prompt, selectedModel, saveAsAutoEdit);
               }
+              function updateConfirmBtn() {
+                var prompt = document.getElementById('prompt').value.trim();
+                document.getElementById('confirmBtn').disabled = !prompt;
+              }
+              document.getElementById('prompt').addEventListener('input', updateConfirmBtn);
+              updateConfirmBtn();
               document.getElementById('prompt').focus();
             </script>
             </body>
@@ -705,10 +725,10 @@ class ImageViewerActivity : AppCompatActivity() {
             isHorizontalScrollBarEnabled = false
             addJavascriptInterface(object {
                 @JavascriptInterface
-                fun onConfirm(prompt: String, shouldSave: Boolean, model: String) {
+                fun onConfirm(prompt: String, model: String, saveAsAutoEdit: Boolean) {
                     runOnUiThread {
                         dismissPromptWebView()
-                        dispatchAiEdit(filePath, prompt, shouldSave, model, mainActivity)
+                        dispatchAiEdit(filePath, prompt, model, saveAsAutoEdit, mainActivity)
                     }
                 }
                 @JavascriptInterface
@@ -735,18 +755,19 @@ class ImageViewerActivity : AppCompatActivity() {
         promptWebView = null
     }
 
-    private fun dispatchAiEdit(filePath: String, prompt: String, shouldSave: Boolean, model: String, mainActivity: MainActivity) {
+    private fun dispatchAiEdit(filePath: String, prompt: String, model: String, saveAsAutoEdit: Boolean, mainActivity: MainActivity) {
         isAiEditing = true
 
         val escapedPath = filePath.replace("\\", "\\\\").replace("'", "\\'")
         val escapedPrompt = prompt.replace("\\", "\\\\").replace("'", "\\'")
             .replace("\n", "\\n").replace("\r", "\\r")
         val escapedModel = model.replace("\\", "\\\\").replace("'", "\\'")
+        val saveFlag = if (saveAsAutoEdit) "true" else "false"
 
         val js = """
             (function() {
                 if (window.__tauriTriggerAiEditWithPrompt) {
-                    window.__tauriTriggerAiEditWithPrompt('$escapedPath', '$escapedPrompt', $shouldSave, '$escapedModel');
+                    window.__tauriTriggerAiEditWithPrompt('$escapedPath', '$escapedPrompt', '$escapedModel', $saveFlag);
                     return 'ok';
                 }
                 return 'no_handler';
