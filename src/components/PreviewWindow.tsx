@@ -185,19 +185,33 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     setShowPromptDialog(true);
   }, [imagePath]);
 
-  const handlePromptConfirm = useCallback(async (prompt: string, shouldSave: boolean) => {
+  const handlePromptConfirm = useCallback(async (prompt: string, shouldSave: boolean, model: string) => {
     if (!imagePath) return;
     setShowPromptDialog(false);
 
-    if (shouldSave && prompt !== defaultPrompt) {
-      updateDraft(d => ({
-        ...d,
-        aiEdit: { ...d.aiEdit, prompt },
-      }));
+    if (shouldSave) {
+      const currentModel = draft?.aiEdit?.provider?.type === 'seed-edit'
+        ? draft.aiEdit.provider.model
+        : undefined;
+      const promptChanged = prompt !== defaultPrompt;
+      const modelChanged = model !== currentModel;
+      if (promptChanged || modelChanged) {
+        updateDraft(d => ({
+          ...d,
+          aiEdit: {
+            ...d.aiEdit,
+            prompt,
+            provider: {
+              ...d.aiEdit.provider,
+              model,
+            },
+          },
+        }));
+      }
     }
 
     await enqueueAiEdit([imagePath], prompt, shouldSave);
-  }, [imagePath, defaultPrompt, updateDraft]);
+  }, [imagePath, defaultPrompt, draft, updateDraft]);
 
   if (!imagePath) {
     return (
@@ -463,6 +477,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
       <PromptDialog
         isOpen={showPromptDialog}
         defaultPrompt={defaultPrompt}
+        defaultModel={draft?.aiEdit?.provider?.type === 'seed-edit' ? draft.aiEdit.provider.model : undefined}
         onConfirm={handlePromptConfirm}
         onCancel={() => setShowPromptDialog(false)}
       />

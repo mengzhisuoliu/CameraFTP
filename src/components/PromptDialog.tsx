@@ -7,31 +7,36 @@
 import { useState, useEffect, useRef } from 'react';
 import { Dialog } from './ui/Dialog';
 import { ToggleSwitch } from './ui/ToggleSwitch';
+import { Select } from './ui/Select';
+import { SEEDREAM_MODELS, DEFAULT_SEEDREAM_MODEL } from '../constants/seedream-models';
 
 interface PromptDialogProps {
   isOpen: boolean;
   defaultPrompt: string;
-  onConfirm: (prompt: string, shouldSave: boolean) => void;
+  defaultModel?: string;
+  onConfirm: (prompt: string, shouldSave: boolean, model: string) => void;
   onCancel: () => void;
 }
 
-export function PromptDialog({ isOpen, defaultPrompt, onConfirm, onCancel }: PromptDialogProps) {
+export function PromptDialog({ isOpen, defaultPrompt, defaultModel, onConfirm, onCancel }: PromptDialogProps) {
   const [prompt, setPrompt] = useState(defaultPrompt);
+  const [model, setModel] = useState(defaultModel ?? DEFAULT_SEEDREAM_MODEL);
   const [savePrompt, setSavePrompt] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setPrompt(defaultPrompt);
+      setModel(defaultModel ?? DEFAULT_SEEDREAM_MODEL);
       setSavePrompt(true);
       // Focus textarea after dialog opens
       requestAnimationFrame(() => textareaRef.current?.focus());
     }
-  }, [isOpen, defaultPrompt]);
+  }, [isOpen, defaultPrompt, defaultModel]);
 
   const handleConfirm = () => {
     const trimmed = prompt.trim();
-    onConfirm(trimmed, savePrompt);
+    onConfirm(trimmed, savePrompt, model);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -47,14 +52,13 @@ export function PromptDialog({ isOpen, defaultPrompt, onConfirm, onCancel }: Pro
       onClose={onCancel}
       title="AI修图提示词"
       subtitle="编辑提示词后确认触发修图"
-      maxWidth="max-w-lg"
+      maxWidth="max-w-md"
       footer={
         <div className="flex items-center justify-between w-full">
-          <ToggleSwitch
-            enabled={savePrompt}
-            onChange={setSavePrompt}
-            label="保存提示词"
-          />
+          <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => setSavePrompt(!savePrompt)}>
+            <ToggleSwitch enabled={savePrompt} onChange={setSavePrompt} />
+            <span className="text-sm font-medium text-gray-700">保存提示词</span>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={onCancel}
@@ -73,18 +77,26 @@ export function PromptDialog({ isOpen, defaultPrompt, onConfirm, onCancel }: Pro
       }
     >
       <div className="space-y-3">
-        <textarea
-          ref={textareaRef}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="例如：提升画质，使照片更清晰"
-          rows={4}
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        <p className="text-xs text-gray-400">
-          留空使用默认提示词 · Ctrl+Enter 快速确认
-        </p>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-500">模型</label>
+          <Select
+            value={model}
+            options={SEEDREAM_MODELS}
+            onChange={setModel}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-500">提示词</label>
+          <textarea
+            ref={textareaRef}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="例如：提升画质，使照片更清晰"
+            rows={4}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
       </div>
     </Dialog>
   );

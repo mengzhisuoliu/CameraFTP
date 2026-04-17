@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { buildDeleteFailureMessage } from '../utils/gallery-delete';
 import { useConfigStore } from '../stores/configStore';
 import { enqueueAiEdit } from './useAiEditProgress';
+import { DEFAULT_SEEDREAM_MODEL } from '../constants/seedream-models';
 import type { DeleteImagesResult } from '../types';
 
 const LONG_PRESS_DURATION = 400; // Android ViewConfiguration.DEFAULT_LONG_PRESS_TIMEOUT
@@ -35,7 +36,7 @@ type UseGallerySelectionResult = {
   handleDelete: () => Promise<void>;
   handleShare: () => Promise<void>;
   handleAiEdit: () => void;
-  handleAiEditPromptConfirm: (prompt: string, shouldSave: boolean) => Promise<void>;
+  handleAiEditPromptConfirm: (prompt: string, shouldSave: boolean, model: string) => Promise<void>;
   handleCancelAiEditPrompt: () => void;
   handleCancelSelection: () => void;
   toggleMenu: () => void;
@@ -242,16 +243,30 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
     setShowAiEditPrompt(true);
   }, [selectedIds]);
 
-  const handleAiEditPromptConfirm = useCallback(async (prompt: string, shouldSave: boolean) => {
+  const handleAiEditPromptConfirm = useCallback(async (prompt: string, shouldSave: boolean, model: string) => {
     setShowAiEditPrompt(false);
 
     if (shouldSave) {
       const draft = useConfigStore.getState().draft;
-      if (draft && prompt !== draft.aiEdit.prompt) {
-        useConfigStore.getState().updateDraft(d => ({
-          ...d,
-          aiEdit: { ...d.aiEdit, prompt },
-        }));
+      if (draft) {
+        const currentModel = draft.aiEdit.provider.type === 'seed-edit'
+          ? draft.aiEdit.provider.model
+          : DEFAULT_SEEDREAM_MODEL;
+        const promptChanged = prompt !== draft.aiEdit.prompt;
+        const modelChanged = model !== currentModel;
+        if (promptChanged || modelChanged) {
+          useConfigStore.getState().updateDraft(d => ({
+            ...d,
+            aiEdit: {
+              ...d.aiEdit,
+              prompt,
+              provider: {
+                ...d.aiEdit.provider,
+                model,
+              },
+            },
+          }));
+        }
       }
     }
 

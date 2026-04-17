@@ -314,6 +314,7 @@ export const GalleryCard = memo(function GalleryCard() {
       <PromptDialog
         isOpen={showAiEditPrompt}
         defaultPrompt={draft?.aiEdit?.prompt ?? ''}
+        defaultModel={draft?.aiEdit?.provider?.type === 'seed-edit' ? draft.aiEdit.provider.model : undefined}
         onConfirm={handleAiEditPromptConfirm}
         onCancel={handleCancelAiEditPrompt}
       />

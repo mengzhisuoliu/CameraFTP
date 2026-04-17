@@ -444,18 +444,37 @@ class ImageViewerActivity : AppCompatActivity() {
             return
         }
 
-        // Fetch current prompt from WebView config, then show WebView overlay dialog
+        // Fetch current prompt and model from WebView config, then show WebView overlay dialog
         mainActivity.runOnUiThread {
             mainActivity.getWebView()?.evaluateJavascript(
                 "(function(){try{return window.__tauriGetAiEditPrompt?.()??''}catch(e){return ''}})();"
             ) { result ->
-                val currentPrompt = result?.trim()?.removeSurrounding("\"")?.replace("\\n", "\n") ?: ""
-                runOnUiThread { showPromptWebViewOverlay(filePath, currentPrompt, mainActivity) }
+                // evaluateJavascript JSON-encodes the JS return value.
+                // JS returns JSON.stringify({prompt, model}), so the callback
+                // gives us a double-encoded string like: "{\"prompt\":\"...\",\"model\":\"...\"}"
+                // We decode the outer JSON string literal via JSONArray, then parse the inner JSON.
+                val jsonString = try {
+                    val trimmed = result?.trim() ?: ""
+                    if (trimmed.startsWith("\"")) {
+                        org.json.JSONArray("[$trimmed]").getString(0)
+                    } else {
+                        trimmed
+                    }
+                } catch (_: Exception) {
+                    result?.trim()?.removeSurrounding("\"") ?: ""
+                }
+                val (currentPrompt, currentModel) = try {
+                    val json = org.json.JSONObject(jsonString)
+                    json.optString("prompt", "").replace("\\n", "\n") to json.optString("model", "")
+                } catch (e: Exception) {
+                    jsonString.replace("\\n", "\n") to ""
+                }
+                runOnUiThread { showPromptWebViewOverlay(filePath, currentPrompt, currentModel, mainActivity) }
             }
         }
     }
 
-    private fun showPromptWebViewOverlay(filePath: String, currentPrompt: String, mainActivity: MainActivity) {
+    private fun showPromptWebViewOverlay(filePath: String, currentPrompt: String, currentModel: String, mainActivity: MainActivity) {
         val rootView = findViewById<FrameLayout>(android.R.id.content)
 
         // Dismiss any existing overlay
@@ -465,6 +484,19 @@ class ImageViewerActivity : AppCompatActivity() {
             .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             .replace("\"", "&quot;").replace("'", "&#39;")
             .replace("\n", "&#10;")
+
+        // Determine which model option is selected
+        val modelOptions = listOf(
+            "doubao-seedream-5-0-260128" to "Doubao-Seedream-5.0-lite",
+            "doubao-seedream-4-5-251128" to "Doubao-Seedream-4.5",
+            "doubao-seedream-4-0-250828" to "Doubao-Seedream-4.0",
+        )
+        val selectedModel = currentModel.ifEmpty { modelOptions.first().first }
+        val modelOptionHtml = modelOptions.joinToString("") { (value, label) ->
+            val sel = if (value == selectedModel) " selected" else ""
+            """<div class="dropdown-opt$sel" data-value="$value">$label</div>"""
+        }
+        val selectedLabel = modelOptions.find { it.first == selectedModel }?.second ?: selectedModel
 
         val html = """
             <!DOCTYPE html>
@@ -500,6 +532,9 @@ class ImageViewerActivity : AppCompatActivity() {
               .close-btn:hover { color: #4b5563; background: #f3f4f6; }
               .close-btn svg { width: 20px; height: 20px; }
               .content { padding: 16px; overflow-y: auto; }
+              .field-group { margin-bottom: 12px; }
+              .field-group:last-child { margin-bottom: 0; }
+              .field-label { font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px; }
               textarea {
                 width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb;
                 border-radius: 8px; font-size: 14px; color: #374151;
@@ -507,7 +542,41 @@ class ImageViewerActivity : AppCompatActivity() {
                 font-family: inherit; line-height: 1.5;
               }
               textarea:focus { border-color: transparent; box-shadow: 0 0 0 2px #3b82f6; }
-              .hint { font-size: 12px; color: #9ca3af; margin-top: 8px; }
+              .dropdown { position: relative; }
+              .dropdown-btn {
+                width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb;
+                border-radius: 8px; font-size: 14px; color: #374151;
+                background: #fff; outline: none; cursor: pointer;
+                display: flex; align-items: center; justify-content: space-between;
+                text-align: left; -webkit-user-select: none; user-select: none;
+                -webkit-tap-highlight-color: transparent;
+              }
+              .dropdown-btn:hover { border-color: #d1d5db; }
+              .dropdown-btn .chevron {
+                width: 16px; height: 16px; color: #9ca3af;
+                transition: transform 0.2s; flex-shrink: 0;
+              }
+              .dropdown-btn.open .chevron { transform: rotate(180deg); }
+              .dropdown-panel {
+                position: absolute; left: 0; right: 0;
+                margin-top: 4px; background: #fff; border: 1px solid #e5e7eb;
+                border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+                padding: 4px 0; z-index: 10; max-height: 240px; overflow-y: auto;
+                opacity: 0; transform: scaleY(0.95) translateY(-4px);
+                transform-origin: top; pointer-events: none;
+                transition: opacity 0.15s ease, transform 0.15s ease;
+              }
+              .dropdown-panel.open {
+                opacity: 1; transform: scaleY(1) translateY(0);
+                pointer-events: auto;
+              }
+              .dropdown-opt {
+                padding: 8px 12px; font-size: 14px;
+                color: #374151; cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+              }
+              .dropdown-opt:hover { background: #f9fafb; }
+              .dropdown-opt.selected { background: #eff6ff; color: #1d4ed8; font-weight: 500; }
               .footer {
                 display: flex; align-items: center; justify-content: space-between;
                 padding: 16px; border-top: 1px solid #e5e7eb;
@@ -551,8 +620,20 @@ class ImageViewerActivity : AppCompatActivity() {
                   </button>
                 </div>
                 <div class="content">
-                  <textarea id="prompt" rows="4" placeholder="例如：提升画质，使照片更清晰">${escapedPrompt}</textarea>
-                  <div class="hint">留空使用默认提示词</div>
+                  <div class="field-group">
+                    <div class="field-label">模型</div>
+                    <div class="dropdown" id="modelDropdown">
+                      <button class="dropdown-btn" type="button" onclick="toggleDropdown()">
+                        <span id="modelLabel">$selectedLabel</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                      <div class="dropdown-panel" id="modelPanel">$modelOptionHtml</div>
+                    </div>
+                  </div>
+                  <div class="field-group">
+                    <div class="field-label">提示词</div>
+                    <textarea id="prompt" rows="4" placeholder="例如：提升画质，使照片更清晰">${escapedPrompt}</textarea>
+                  </div>
                 </div>
                 <div class="footer">
                   <div class="save-toggle" onclick="toggleSave()">
@@ -568,13 +649,47 @@ class ImageViewerActivity : AppCompatActivity() {
             </div>
             <script>
               var savePrompt = true;
+              var selectedModel = '$selectedModel';
               function toggleSave() {
                 savePrompt = !savePrompt;
                 document.getElementById('saveToggle').className = 'toggle' + (savePrompt ? ' on' : '');
               }
+              function toggleDropdown() {
+                var panel = document.getElementById('modelPanel');
+                var btn = panel.previousElementSibling;
+                var isOpen = panel.classList.contains('open');
+                if (isOpen) {
+                  panel.classList.remove('open');
+                  btn.classList.remove('open');
+                } else {
+                  panel.classList.add('open');
+                  btn.classList.add('open');
+                }
+              }
+              function closeDropdown() {
+                var panel = document.getElementById('modelPanel');
+                var btn = panel.previousElementSibling;
+                panel.classList.remove('open');
+                btn.classList.remove('open');
+              }
+              document.getElementById('modelPanel').addEventListener('click', function(e) {
+                var opt = e.target.closest('.dropdown-opt');
+                if (!opt) return;
+                selectedModel = opt.getAttribute('data-value');
+                document.getElementById('modelLabel').textContent = opt.textContent;
+                var allOpts = this.querySelectorAll('.dropdown-opt');
+                for (var i = 0; i < allOpts.length; i++) allOpts[i].classList.remove('selected');
+                opt.classList.add('selected');
+                closeDropdown();
+              });
+              document.addEventListener('click', function(e) {
+                if (!document.getElementById('modelDropdown').contains(e.target)) {
+                  closeDropdown();
+                }
+              });
               function onConfirm() {
                 var prompt = document.getElementById('prompt').value.trim();
-                NativeBridge.onConfirm(prompt, savePrompt);
+                NativeBridge.onConfirm(prompt, savePrompt, selectedModel);
               }
               document.getElementById('prompt').focus();
             </script>
@@ -590,10 +705,10 @@ class ImageViewerActivity : AppCompatActivity() {
             isHorizontalScrollBarEnabled = false
             addJavascriptInterface(object {
                 @JavascriptInterface
-                fun onConfirm(prompt: String, shouldSave: Boolean) {
+                fun onConfirm(prompt: String, shouldSave: Boolean, model: String) {
                     runOnUiThread {
                         dismissPromptWebView()
-                        dispatchAiEdit(filePath, prompt, shouldSave, mainActivity)
+                        dispatchAiEdit(filePath, prompt, shouldSave, model, mainActivity)
                     }
                 }
                 @JavascriptInterface
@@ -620,17 +735,18 @@ class ImageViewerActivity : AppCompatActivity() {
         promptWebView = null
     }
 
-    private fun dispatchAiEdit(filePath: String, prompt: String, shouldSave: Boolean, mainActivity: MainActivity) {
+    private fun dispatchAiEdit(filePath: String, prompt: String, shouldSave: Boolean, model: String, mainActivity: MainActivity) {
         isAiEditing = true
 
         val escapedPath = filePath.replace("\\", "\\\\").replace("'", "\\'")
         val escapedPrompt = prompt.replace("\\", "\\\\").replace("'", "\\'")
             .replace("\n", "\\n").replace("\r", "\\r")
+        val escapedModel = model.replace("\\", "\\\\").replace("'", "\\'")
 
         val js = """
             (function() {
                 if (window.__tauriTriggerAiEditWithPrompt) {
-                    window.__tauriTriggerAiEditWithPrompt('$escapedPath', '$escapedPrompt', $shouldSave);
+                    window.__tauriTriggerAiEditWithPrompt('$escapedPath', '$escapedPrompt', $shouldSave, '$escapedModel');
                     return 'ok';
                 }
                 return 'no_handler';

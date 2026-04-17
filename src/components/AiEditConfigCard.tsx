@@ -9,13 +9,14 @@ import { Sparkles } from 'lucide-react';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';
 import { Card, CardHeader, ToggleSwitch } from './ui';
 import { AiEditConfigPanel } from './AiEditConfigPanel';
+import { DEFAULT_SEEDREAM_MODEL } from '../constants/seedream-models';
 import type { AppConfig } from '../types';
 
 const DEFAULT_AI_EDIT_CONFIG = {
   enabled: false,
   autoEdit: true,
   prompt: '',
-  provider: { type: 'seed-edit' as const, apiKey: '' },
+  provider: { type: 'seed-edit' as const, apiKey: '', model: DEFAULT_SEEDREAM_MODEL },
 };
 
 export const AiEditConfigCard = memo(function AiEditConfigCard() {

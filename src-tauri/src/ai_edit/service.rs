@@ -194,6 +194,7 @@ async fn worker_loop(
 
     let mut cached_provider: Option<Box<dyn providers::AiEditProvider>> = None;
     let mut cached_api_key: Option<String> = None;
+    let mut cached_model: Option<String> = None;
 
     fn emit_batch_done(
         state: &mut WorkerState,
@@ -319,7 +320,7 @@ async fn worker_loop(
 
         // Process task with cancel awareness: abort current task on cancel
         let result = tokio::select! {
-            r = process_task(&task, &config_service, &mut cached_provider, &mut cached_api_key) => Some(r),
+            r = process_task(&task, &config_service, &mut cached_provider, &mut cached_api_key, &mut cached_model) => Some(r),
             _ = cancel_token.cancelled() => {
                 info!("AI edit cancelled during task processing");
                 None
@@ -405,6 +406,7 @@ async fn process_task(
     config_service: &ConfigService,
     cached_provider: &mut Option<Box<dyn providers::AiEditProvider>>,
     cached_api_key: &mut Option<String>,
+    cached_model: &mut Option<String>,
 ) -> Result<PathBuf, AppError> {
     let config = config_service.get()
         .map_err(|e| AppError::AiEditError(format!("Failed to read config: {}", e)))?;
@@ -427,10 +429,14 @@ async fn process_task(
     let current_api_key = match &ai_config.provider {
         super::config::ProviderConfig::SeedEdit(cfg) => cfg.api_key.clone(),
     };
+    let current_model = match &ai_config.provider {
+        super::config::ProviderConfig::SeedEdit(cfg) => cfg.model.clone(),
+    };
 
-    if cached_api_key.as_ref() != Some(&current_api_key) {
+    if cached_api_key.as_ref() != Some(&current_api_key) || cached_model.as_ref() != Some(&current_model) {
         *cached_provider = Some(providers::create_provider(&ai_config.provider)?);
         *cached_api_key = Some(current_api_key);
+        *cached_model = Some(current_model);
     }
 
     let provider = cached_provider.as_ref()

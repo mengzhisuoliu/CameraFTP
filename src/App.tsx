@@ -38,16 +38,32 @@ function App() {
     const w = window as unknown as Record<string, unknown>;
 
     w.__tauriGetAiEditPrompt = () => {
-      return useConfigStore.getState().draft?.aiEdit?.prompt ?? '';
+      const draft = useConfigStore.getState().draft;
+      const prompt = draft?.aiEdit?.prompt ?? '';
+      const model = draft?.aiEdit?.provider?.type === 'seed-edit'
+        ? draft.aiEdit.provider.model
+        : '';
+      return JSON.stringify({ prompt, model });
     };
 
-    w.__tauriTriggerAiEditWithPrompt = async (filePath: string, prompt: string, shouldSave: boolean) => {
+    w.__tauriTriggerAiEditWithPrompt = async (filePath: string, prompt: string, shouldSave: boolean, model?: string) => {
       const draft = useConfigStore.getState().draft;
-      if (shouldSave && draft && prompt !== draft.aiEdit.prompt) {
-        updateDraft(d => ({
-          ...d,
-          aiEdit: { ...d.aiEdit, prompt },
-        }));
+      if (shouldSave && draft) {
+        const currentModel = draft.aiEdit.provider.type === 'seed-edit'
+          ? draft.aiEdit.provider.model
+          : undefined;
+        const promptChanged = prompt !== draft.aiEdit.prompt;
+        const modelChanged = model && model !== currentModel;
+        if (promptChanged || modelChanged) {
+          updateDraft(d => ({
+            ...d,
+            aiEdit: {
+              ...d.aiEdit,
+              prompt,
+              ...(modelChanged ? { provider: { ...d.aiEdit.provider, model } } : {}),
+            },
+          }));
+        }
       }
 
       await enqueueAiEdit([filePath], prompt, shouldSave);

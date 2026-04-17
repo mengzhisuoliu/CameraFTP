@@ -80,7 +80,7 @@ describe('ConfigCard Android image viewer settings', () => {
         enabled: false,
         autoEdit: true,
         prompt: '',
-        provider: { type: 'seed-edit', apiKey: '' },
+        provider: { type: 'seed-edit', apiKey: '', model: 'doubao-seedream-5-0-260128' },
       },
     };
 

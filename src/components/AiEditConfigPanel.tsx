@@ -6,7 +6,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { ToggleSwitch } from './ui';
+import { ToggleSwitch, Select } from './ui';
+import { SEEDREAM_MODELS, DEFAULT_SEEDREAM_MODEL } from '../constants/seedream-models';
 import type { AppConfig } from '../types';
 
 interface AiEditConfigPanelProps {
@@ -119,6 +120,31 @@ export function AiEditConfigPanel({
         />
         <p className="text-xs text-gray-500">留空使用默认提示词</p>
       </div>
+
+      {/* 模型选择 */}
+      {seedEditConfig && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            模型
+          </label>
+          <Select
+            value={seedEditConfig.model || DEFAULT_SEEDREAM_MODEL}
+            options={SEEDREAM_MODELS}
+            onChange={(model) => {
+              onUpdate(() => ({
+                aiEdit: {
+                  ...config.aiEdit,
+                  provider: {
+                    ...config.aiEdit.provider,
+                    model,
+                  },
+                },
+              }));
+            }}
+            disabled={isLoading || disabled}
+          />
+        </div>
+      )}
 
       {/* API Key */}
       <div className="space-y-2">
