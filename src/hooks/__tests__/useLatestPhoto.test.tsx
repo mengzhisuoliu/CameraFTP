@@ -88,7 +88,7 @@ describe('useLatestPhoto', () => {
     ).toBe('latest.jpg');
   });
 
-  it('does NOT refresh on LATEST_PHOTO_REFRESH_REQUESTED_EVENT (only on click)', async () => {
+  it('refreshes on LATEST_PHOTO_REFRESH_REQUESTED_EVENT', async () => {
     await act(async () => {
       getRoot().render(<LatestPhotoHarness />);
       await flush();
@@ -96,14 +96,13 @@ describe('useLatestPhoto', () => {
 
     expect(fetchLatestPhotoFileMock).toHaveBeenCalledTimes(1);
 
-    // Dispatching the refresh event should NOT trigger a fetch
+    // Dispatching the refresh event triggers a fetch
     await act(async () => {
       window.dispatchEvent(new CustomEvent(LATEST_PHOTO_REFRESH_REQUESTED_EVENT));
       await flush();
     });
 
-    // Still only 1 call — event does not trigger refresh
-    expect(fetchLatestPhotoFileMock).toHaveBeenCalledTimes(1);
+    expect(fetchLatestPhotoFileMock).toHaveBeenCalledTimes(2);
   });
 
   it('refreshes on manual click via refreshLatestPhoto', async () => {
