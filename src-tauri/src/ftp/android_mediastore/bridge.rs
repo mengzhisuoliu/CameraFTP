@@ -27,7 +27,7 @@ use super::types::{display_name_from_path, mime_type_from_filename, relative_pat
 #[cfg(target_os = "android")]
 const MEDIASTORE_BRIDGE_CLASS: &str = "com.gjk.cameraftpcompanion.bridges.MediaStoreBridge";
 
-#[cfg(any(target_os = "android", test))]
+#[cfg(target_os = "android")]
 const FINALIZE_ENTRY_METHOD_NAME: &str = "finalizeEntryAndEmitGalleryItemsAddedNative";
 
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
