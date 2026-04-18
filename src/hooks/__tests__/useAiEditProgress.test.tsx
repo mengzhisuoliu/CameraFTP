@@ -171,7 +171,7 @@ describe('useAiEditProgress', () => {
 
     eventHandler!(doneEvent());
 
-    expect(onAiEditComplete).toHaveBeenCalledWith(true, null);
+    expect(onAiEditComplete).toHaveBeenCalledWith(true, '修图完成，共3张');
   });
 
   it('handleEvent "done" notifies native layer with failure message', () => {
@@ -191,7 +191,7 @@ describe('useAiEditProgress', () => {
 
     expect(onAiEditComplete).toHaveBeenCalledWith(
       false,
-      '修图完成，2张失败：fail1.jpg、fail2.jpg',
+      '修图完成，成功1张，失败2张',
     );
   });
 
@@ -272,7 +272,7 @@ describe('useAiEditProgress', () => {
     expect(updateAiEditProgress).toHaveBeenCalledWith(2, 5, 0);
   });
 
-  it('handleEvent "done" with no failures resets state after timeout', async () => {
+  it('handleEvent "done" with no failures shows done state then resets after timeout', async () => {
     vi.useFakeTimers();
 
     eventHandler!(doneEvent());
@@ -280,13 +280,14 @@ describe('useAiEditProgress', () => {
     await act(async () => { await flush(); });
 
     expect(getText('is-editing')).toBe('no');
-    expect(getText('is-done')).toBe('no');
+    expect(getText('is-done')).toBe('yes');
 
     await act(async () => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(3000);
       await flush();
     });
 
+    expect(getText('is-done')).toBe('no');
     expect(getText('current')).toBe('0');
     expect(getText('total')).toBe('0');
     expect(getText('failed-count')).toBe('0');

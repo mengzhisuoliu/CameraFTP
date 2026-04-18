@@ -129,7 +129,7 @@ describe('AiEditProgressBar', () => {
     expect(dismissDoneMock).toHaveBeenCalled();
   });
 
-  it('positions fixed progress bar above bottom nav (bottom-20)', async () => {
+  it('applies fixed positioning class and style when position="fixed"', async () => {
     mockState.isEditing = true;
     mockState.current = 1;
     mockState.total = 1;
@@ -141,12 +141,11 @@ describe('AiEditProgressBar', () => {
 
     const bar = getContainer().firstElementChild as HTMLElement;
     expect(bar).toBeTruthy();
-    expect(bar.className).toContain('bottom-20');
     expect(bar.className).toContain('fixed');
-    expect(bar.className).toContain('z-50');
+    expect(bar.style.bottom).toBe('5rem');
   });
 
-  it('positions absolute progress bar above toolbar', async () => {
+  it('applies absolute positioning class and style when position="absolute"', async () => {
     mockState.isEditing = true;
     mockState.current = 1;
     mockState.total = 1;

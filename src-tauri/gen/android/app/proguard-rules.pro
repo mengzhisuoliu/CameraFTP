@@ -26,6 +26,7 @@
 -keep class com.gjk.cameraftpcompanion.bridges.ImageProcessorBridge { *; }
 -keep class com.gjk.cameraftpcompanion.bridges.ImageProcessorBridge$Companion { *; }
 -keep class com.gjk.cameraftpcompanion.bridges.ImageViewerBridge { *; }
+-keep class com.gjk.cameraftpcompanion.bridges.ImageViewerBridge$Companion { *; }
 
 # Keep Android service coordinator JNI entrypoints referenced only from Rust native code.
 -keep class com.gjk.cameraftpcompanion.AndroidServiceStateCoordinator { *; }
