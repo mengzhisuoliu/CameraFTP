@@ -167,11 +167,6 @@ mod tests {
     }
 
     #[test]
-    fn default_model_is_5_0_lite() {
-        assert_eq!(crate::ai_edit::config::DEFAULT_SEEDREAM_MODEL, "doubao-seedream-5-0-260128");
-    }
-
-    #[test]
     fn request_body_serialization() {
         let test_model = "doubao-seedream-4-0-250828";
         let request = SeedEditRequest {

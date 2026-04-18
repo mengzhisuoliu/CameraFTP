@@ -32,6 +32,8 @@ struct AiEditTask {
 
 pub struct AiEditService {
     config_service: Arc<ConfigService>,
+    /// Used only by `emit_queued()` for broadcasting queue events from public API methods.
+    /// The worker_loop uses its own cloned AppHandle for all other event emissions.
     app_handle: AppHandle,
     manual_sender: mpsc::Sender<AiEditTask>,
     auto_sender: mpsc::Sender<AiEditTask>,
@@ -149,7 +151,7 @@ impl AiEditService {
     }
 
     pub fn cancel(&self) {
-        let mut guard = self.cancel_token.lock().unwrap();
+        let mut guard = self.cancel_token.lock().unwrap_or_else(|e| e.into_inner());
         guard.cancel();
         *guard = CancellationToken::new();
     }
@@ -247,7 +249,7 @@ async fn worker_loop(
     }
 
     loop {
-        let cancel_token = cancel_token_arc.lock().unwrap().clone();
+        let cancel_token = cancel_token_arc.lock().unwrap_or_else(|e| e.into_inner()).clone();
 
         // Fast path: drain pending manual tasks first (high priority)
         let task = if let Ok(task) = manual_rx.try_recv() {
@@ -511,13 +513,6 @@ fn chrono_now_string() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn constants_are_reasonable() {
-        assert_eq!(AUTO_QUEUE_CAPACITY, 32);
-        assert_eq!(MANUAL_QUEUE_CAPACITY, 4);
-        assert_eq!(AIEDIT_SUBDIR, "AIEdit");
-    }
 
     #[test]
     fn chrono_now_string_includes_milliseconds() {

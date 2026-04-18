@@ -31,6 +31,11 @@ const initialState: AiEditProgressState = {
   failedFiles: [],
 };
 
+/** Delay before refreshing gallery after AI edit completes — allows MediaStore to finish indexing. */
+const GALLERY_REFRESH_DELAY_MS = 500;
+/** Auto-reset the done state after this delay when there are no failures. */
+const DONE_AUTO_RESET_DELAY_MS = 3000;
+
 const useAiEditProgressStore = create<AiEditProgressState>(() => ({ ...initialState }));
 
 let _listenerRegistered = false;
@@ -108,7 +113,7 @@ function handleEvent(event: AiEditProgressEvent) {
       // the file is indexed, causing the new image to appear missing or out of order.
       setTimeout(() => {
         requestMediaLibraryRefresh({ reason: 'ai-edit' });
-      }, 500);
+      }, GALLERY_REFRESH_DELAY_MS);
 
       // Auto-preview the first output file when auto-open is enabled on Android
       if (outputFiles.length > 0 && !hasFailures) {
@@ -118,9 +123,15 @@ function handleEvent(event: AiEditProgressEvent) {
       if (!hasFailures) {
         setTimeout(() => {
           useAiEditProgressStore.setState({ ...initialState });
-        }, 3000);
+        }, DONE_AUTO_RESET_DELAY_MS);
       }
       notifyNativeDone(event.failedCount === 0, event.failedCount, event.total);
+      break;
+    }
+    case 'queuedDropped': {
+      console.warn(
+        `[ai-edit-progress] Auto-edit task dropped (queue full): ${event.fileName}`,
+      );
       break;
     }
   }

@@ -334,37 +334,19 @@ describe('useAiEditProgress', () => {
     expect(listenMock).not.toHaveBeenCalled();
   });
 
-  it('re-registration calls previous unlisten before creating new listener', async () => {
-    const firstUnlisten = vi.fn();
-    const secondUnlisten = vi.fn();
-    let listenCallIndex = 0;
-
-    listenMock.mockImplementation(async (_name, handler) => {
-      listenCallIndex++;
-      capturedHandler.current = (payload) => handler({ payload });
-      return listenCallIndex === 1 ? firstUnlisten : secondUnlisten;
+  it('queuedDropped event is handled without error', async () => {
+    await act(async () => {
+      eventHandler!({
+        type: 'queuedDropped' as any,
+        fileName: 'test.jpg',
+        queueDepth: 32,
+      } as any);
+      await flush();
     });
 
-    // Access internal registerListener by forcing re-registration path.
-    // The module already called registerListener at load time (call #1).
-    // To trigger call #2, we simulate the failure path by importing the
-    // module's registerListener directly.
-    //
-    // Since we can't reset _listenerRegistered from outside, we test the
-    // contract via the exported useAiEditProgressListener hook which calls
-    // registerListener. But the guard prevents re-registration.
-    //
-    // Instead, we verify the structural contract: listen() is called and
-    // its return value (unlisten) must not be discarded.
-    // The first registration already happened, so firstUnlisten was returned.
-    expect(firstUnlisten).not.toHaveBeenCalled();
-
-    // Reset mock for other tests
-    listenCallIndex = 0;
-    listenMock.mockImplementation(async (_name, handler) => {
-      capturedHandler.current = (payload) => handler({ payload });
-      return vi.fn();
-    });
+    // Should not throw — state should remain unchanged
+    expect(getText('is-editing')).toBe('no');
+    expect(getText('is-done')).toBe('no');
   });
 
   it('cancelAiEdit invokes cancel_ai_edit command', async () => {
