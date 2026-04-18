@@ -20,7 +20,7 @@ use crate::ftp::FtpStorageBackend;
 use dashmap::DashSet;
 use libunftp::options::Shutdown;
 use libunftp::ServerBuilder;
-use std::net::{SocketAddr, TcpStream};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
@@ -426,7 +426,7 @@ impl FtpServerActor {
                 }
             }
 
-            if Self::is_port_listening(port) {
+            if Self::is_port_listening(port).await {
                 info!(
                     port = port,
                     elapsed_ms = start.elapsed().as_millis() as u64,
@@ -450,9 +450,9 @@ impl FtpServerActor {
     }
 
     /// 检查端口是否在监听
-    fn is_port_listening(port: u16) -> bool {
+    async fn is_port_listening(port: u16) -> bool {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-        TcpStream::connect_timeout(&addr, Duration::from_millis(10)).is_ok()
+        tokio::net::TcpStream::connect(addr).await.is_ok()
     }
 
     /// 创建文件系统实例（路径已验证，不应失败）
@@ -471,7 +471,14 @@ impl FtpServerActor {
         #[cfg(not(target_os = "android"))]
         {
             return unftp_sbe_fs::Filesystem::new(root_path.to_path_buf())
-                .unwrap_or_else(|e| panic!("Filesystem creation failed: {e}"));
+                .unwrap_or_else(|e| {
+                    tracing::error!(
+                        path = %root_path.display(),
+                        error = %e,
+                        "Filesystem creation failed — path validated at startup but may have been removed"
+                    );
+                    panic!("Filesystem creation failed for {}: {e}", root_path.display())
+                });
         }
     }
 
