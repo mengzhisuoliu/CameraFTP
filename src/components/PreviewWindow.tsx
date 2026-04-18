@@ -5,7 +5,6 @@
  */
 
 import { useEffect, useState, useCallback, useMemo, memo } from 'react';
-import { Sparkles } from 'lucide-react';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useConfigStore } from '../stores/configStore';
@@ -48,8 +47,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
 
   const draft = useConfigStore(state => state.draft);
   const updateDraft = useConfigStore(state => state.updateDraft);
-  const aiEditEnabled = draft?.aiEdit?.enabled ?? false;
-
   const exifInfo = usePreviewExif(imagePath);
   const {
     showToolbar,
@@ -136,20 +133,22 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
       switch (e.key) {
         case 'ArrowLeft':
         case 'ArrowUp':
-          goToPrevious();
+          if (!showPromptDialog) goToPrevious();
           break;
         case 'ArrowRight':
         case 'ArrowDown':
-          goToNext();
+          if (!showPromptDialog) goToNext();
           break;
         case 'Home':
-          goToOldest();
+          if (!showPromptDialog) goToOldest();
           break;
         case 'End':
-          goToLatest();
+          if (!showPromptDialog) goToLatest();
           break;
         case 'Escape':
-          if (isFullscreen) {
+          if (showPromptDialog) {
+            setShowPromptDialog(false);
+          } else if (isFullscreen) {
             await appWindow.setFullscreen(false);
             await appWindow.setAlwaysOnTop(false);
           }
@@ -164,7 +163,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
       window.removeEventListener('mouseup', handleGlobalMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest, stopDragging]);
+  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest, stopDragging, showPromptDialog]);
 
   const handleOpenFolder = async () => {
     if (imagePath) {
@@ -404,23 +403,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
             </button>
           )}
 
-          {/* 全屏按钮 */}
-          <button
-            onClick={toggleFullscreen}
-            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-            title={isFullscreen ? '退出全屏' : '全屏显示'}
-          >
-            {isFullscreen ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-              </svg>
-            )}
-          </button>
-
           {/* 自动前台按钮 - 使用置顶图标（向上箭头指向横线） */}
           <button
             onClick={handleToggleAutoFront}
@@ -441,16 +423,35 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
             </svg>
           </button>
 
-          {/* AI修图按钮 - 仅在启用时显示 */}
-          {aiEditEnabled && (
-            <button
-              onClick={handleAiEdit}
-              className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
-              title="AI修图"
-            >
-              <Sparkles className="w-5 h-5" />
-            </button>
-          )}
+          {/* AI修图按钮 */}
+          <button
+            onClick={handleAiEdit}
+            className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
+            title="AI修图"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a0.5 0.5 0 0 1 0-0.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a0.5 0.5 0 0 1 0.963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a0.5 0.5 0 0 1 0 0.964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a0.5 0.5 0 0 1-0.963 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 3v4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M22 5h-4" />
+            </svg>
+          </button>
+
+          {/* 全屏按钮 */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            title={isFullscreen ? '退出全屏' : '全屏显示'}
+          >
+            {isFullscreen ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+              </svg>
+            )}
+          </button>
 
           {/* 打开文件夹 */}
           <button
