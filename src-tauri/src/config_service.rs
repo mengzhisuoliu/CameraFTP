@@ -222,4 +222,21 @@ mod tests {
             AppConfig::default().port
         );
     }
+
+    #[test]
+    fn load_falls_back_to_defaults_for_partially_valid_json() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+
+        // Valid JSON structure but with unknown field — serde ignores unknowns
+        // and uses defaults for missing fields due to #[serde(default)]
+        fs::write(&config_path, r#"{"unknownField": true}"#).expect("write partial config");
+
+        let service = ConfigService::new_with_path(config_path);
+        let loaded = service.load().expect("should load without error");
+
+        // Should use defaults for missing fields
+        assert_eq!(loaded.port, AppConfig::default().port);
+        assert_eq!(service.get().expect("failed to get config").port, AppConfig::default().port);
+    }
 }
