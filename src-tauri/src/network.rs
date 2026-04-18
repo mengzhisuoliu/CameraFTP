@@ -56,6 +56,63 @@ impl NetworkManager {
             && !Self::is_wifi_interface(name)
     }
 
+    /// On Windows, get the set of interface FriendlyNames that are operationally UP.
+    /// Uses GetAdaptersAddresses directly because local_ip_address crate doesn't check OperStatus.
+    #[cfg(target_os = "windows")]
+    fn get_active_interface_names() -> std::collections::HashSet<String> {
+        use std::collections::HashSet;
+        use windows::Win32::NetworkManagement::IpHelper::GetAdaptersAddresses;
+        use windows::Win32::NetworkManagement::IpHelper::IP_ADAPTER_ADDRESSES_LH;
+        use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
+
+        const AF_INET: u32 = 2;
+
+        let mut size: u32 = 0;
+        // First call: get required buffer size
+        unsafe {
+            let _ = GetAdaptersAddresses(AF_INET, Default::default(), None, None, &mut size);
+        }
+
+        if size == 0 {
+            return HashSet::new();
+        }
+
+        // Allocate buffer aligned for IP_ADAPTER_ADDRESSES_LH
+        let layout = std::alloc::Layout::new::<IP_ADAPTER_ADDRESSES_LH>();
+        let aligned_size = ((size as usize) + layout.align() - 1) & !(layout.align() - 1);
+        let mut buffer: Vec<u8> = vec![0u8; aligned_size];
+        let adapter_ptr = buffer.as_mut_ptr() as *mut IP_ADAPTER_ADDRESSES_LH;
+
+        let result = unsafe {
+            GetAdaptersAddresses(AF_INET, Default::default(), None, Some(adapter_ptr), &mut size)
+        };
+
+        if result != 0 {
+            tracing::warn!("GetAdaptersAddresses failed with error code: {}", result);
+            return HashSet::new();
+        }
+
+        let mut active_names = HashSet::new();
+        let mut current = adapter_ptr;
+
+        while !current.is_null() {
+            unsafe {
+                let adapter = &*current;
+                if adapter.OperStatus == IfOperStatusUp {
+                    let friendly_name = adapter.FriendlyName
+                        .to_string()
+                        .unwrap_or_default();
+                    if !friendly_name.is_empty() {
+                        active_names.insert(friendly_name);
+                    }
+                }
+                current = adapter.Next;
+            }
+        }
+
+        active_names
+    }
+
     /// 获取所有网络接口
     fn list_interfaces() -> Vec<NetworkInterface> {
         let mut interfaces = Vec::new();
@@ -100,7 +157,22 @@ impl NetworkManager {
                 tracing::warn!("Failed to list network interfaces: {}", e);
             }
         }
-        
+
+        // On Windows, filter out disconnected adapters whose OperStatus is not Up
+        #[cfg(target_os = "windows")]
+        {
+            let active_names = Self::get_active_interface_names();
+            if !active_names.is_empty() {
+                let before = interfaces.len();
+                interfaces.retain(|iface| active_names.contains(&iface.name));
+                tracing::info!(
+                    "Filtered {} interfaces to {} active ones",
+                    before,
+                    interfaces.len()
+                );
+            }
+        }
+
         // 如果没有找到接口，尝试获取本地 IP（但确保不是链路本地地址）
         if interfaces.is_empty() {
             if let Ok(ip) = local_ip() {
