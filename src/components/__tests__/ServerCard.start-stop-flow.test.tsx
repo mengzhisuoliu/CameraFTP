@@ -41,11 +41,6 @@ const {
     ensureStorageReady: serverState.ensureStorageReady,
   };
 
-  // zustand store mock: supports both useStore() and useStore(selector)
-  const makeStore = (stateFn: () => Record<string, unknown>) =>
-    (selector?: (s: Record<string, unknown>) => unknown) =>
-      selector ? selector(stateFn()) : stateFn();
-
   return {
     startServerMock,
     stopServerMock,
@@ -54,7 +49,6 @@ const {
     ensureStorageReadyMock,
     serverState,
     permissionState,
-    makeStore,
   };
 });
 
