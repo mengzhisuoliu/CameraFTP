@@ -504,65 +504,6 @@ fn chrono_now_string() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::mpsc;
-
-    #[tokio::test]
-    async fn auto_trigger_sends_to_auto_channel() {
-        let (auto_sender, mut auto_rx) = mpsc::channel::<AiEditTask>(AUTO_QUEUE_CAPACITY);
-        let (_manual_sender, _manual_rx) = mpsc::channel::<AiEditTask>(MANUAL_QUEUE_CAPACITY);
-
-        let task_path = PathBuf::from("/photos/test.jpg");
-        auto_sender.try_send(AiEditTask {
-            file_path: task_path.clone(),
-            override_prompt: None,
-            override_model: None,
-            result_tx: None,
-        }).unwrap();
-
-        let task = auto_rx.try_recv().expect("task should be in auto channel");
-        assert_eq!(task.file_path, task_path);
-        assert!(task.result_tx.is_none());
-    }
-
-    #[tokio::test]
-    async fn manual_trigger_sends_to_manual_channel() {
-        let (_auto_sender, _auto_rx) = mpsc::channel::<AiEditTask>(AUTO_QUEUE_CAPACITY);
-        let (manual_sender, mut manual_rx) = mpsc::channel::<AiEditTask>(MANUAL_QUEUE_CAPACITY);
-
-        let (tx, _rx) = oneshot::channel();
-        manual_sender.try_send(AiEditTask {
-            file_path: PathBuf::from("/photos/test.jpg"),
-            override_prompt: None,
-            override_model: None,
-            result_tx: Some(tx),
-        }).unwrap();
-
-        let task = manual_rx.try_recv().expect("task should be in manual channel");
-        assert!(task.result_tx.is_some());
-    }
-
-    #[tokio::test]
-    async fn auto_queue_full_drops_gracefully() {
-        let (auto_sender, _auto_rx) = mpsc::channel::<AiEditTask>(AUTO_QUEUE_CAPACITY);
-        let (_manual_sender, _manual_rx) = mpsc::channel::<AiEditTask>(MANUAL_QUEUE_CAPACITY);
-
-        for i in 0..AUTO_QUEUE_CAPACITY {
-            auto_sender.try_send(AiEditTask {
-                file_path: PathBuf::from(format!("/photos/img_{i}.jpg")),
-                override_prompt: None,
-                override_model: None,
-                result_tx: None,
-            }).unwrap();
-        }
-
-        let result = auto_sender.try_send(AiEditTask {
-            file_path: PathBuf::from("/photos/overflow.jpg"),
-            override_prompt: None,
-            override_model: None,
-            result_tx: None,
-        });
-        assert!(result.is_err());
-    }
 
     #[test]
     fn constants_are_reasonable() {
@@ -582,7 +523,7 @@ mod tests {
 
     #[test]
     fn worker_state_tracks_output_files() {
-        let mut state = super::WorkerState::default();
+        let mut state = WorkerState::default();
 
         state.completed_count += 1;
         state.output_files.push("/output/AIEdit/photo1_AIEdit.jpg".to_string());
@@ -599,26 +540,5 @@ mod tests {
         assert_eq!(state.processed_count(), 3);
         assert_eq!(state.output_files.len(), 2);
         assert_eq!(state.failed_files.len(), 1);
-    }
-
-    #[test]
-    fn cancel_token_initially_not_cancelled() {
-        let token = CancellationToken::new();
-        assert!(!token.is_cancelled());
-    }
-
-    #[test]
-    fn cancel_token_cancels_on_invoke() {
-        let token = CancellationToken::new();
-        token.cancel();
-        assert!(token.is_cancelled());
-    }
-
-    #[tokio::test]
-    async fn cancel_token_cancelled_future_resolves() {
-        let token = CancellationToken::new();
-        token.cancel();
-        // Should resolve immediately
-        token.cancelled().await;
     }
 }

@@ -162,7 +162,8 @@ async function registerListener(): Promise<void> {
     const unlisten = await listen<AiEditProgressEvent>('ai-edit-progress', (e) => {
       handleEvent(e.payload);
     });
-    // Listener lives for app lifetime; no teardown needed
+    // Intentionally discard unlisten — listener lives for app lifetime, no teardown needed.
+    // If registration failed above, _listenerRegistered is reset and the next call retries.
     void unlisten;
   } catch (err) {
     _listenerRegistered = false;

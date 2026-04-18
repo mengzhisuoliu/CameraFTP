@@ -17,6 +17,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
+import android.text.TextUtils
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -516,23 +517,23 @@ class ImageViewerActivity : AppCompatActivity() {
         // Dismiss any existing overlay
         dismissPromptWebView()
 
-        val escapedPrompt = currentPrompt
-            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            .replace("\"", "&quot;").replace("'", "&#39;")
+        val escapedPrompt = TextUtils.htmlEncode(currentPrompt)
             .replace("\n", "&#10;")
 
-        // Determine which model option is selected
+        // Determine which model option is selected — validate against whitelist
         val modelOptions = listOf(
             "doubao-seedream-5-0-260128" to "Doubao-Seedream-5.0-lite",
             "doubao-seedream-4-5-251128" to "Doubao-Seedream-4.5",
             "doubao-seedream-4-0-250828" to "Doubao-Seedream-4.0",
         )
-        val selectedModel = currentModel.ifEmpty { modelOptions.first().first }
+        val selectedModel = modelOptions.map { it.first }
+            .firstOrNull { it == currentModel }
+            ?: modelOptions.first().first
         val modelOptionHtml = modelOptions.joinToString("") { (value, label) ->
             val sel = if (value == selectedModel) " selected" else ""
             """<div class="dropdown-opt$sel" data-value="$value">$label</div>"""
         }
-        val selectedLabel = modelOptions.find { it.first == selectedModel }?.second ?: selectedModel
+        val selectedLabel = modelOptions.first { it.first == selectedModel }.second
 
         val saveToggleHtml = if (autoEditEnabled) {
             """<div class="save-toggle" onclick="toggleSave()">
@@ -790,16 +791,13 @@ class ImageViewerActivity : AppCompatActivity() {
     private fun dispatchAiEdit(filePath: String, prompt: String, model: String, saveAsAutoEdit: Boolean, mainActivity: MainActivity) {
         isAiEditing = true
 
-        val escapedPath = filePath.replace("\\", "\\\\").replace("'", "\\'")
-        val escapedPrompt = prompt.replace("\\", "\\\\").replace("'", "\\'")
-            .replace("\n", "\\n").replace("\r", "\\r")
-        val escapedModel = model.replace("\\", "\\\\").replace("'", "\\'")
-        val saveFlag = if (saveAsAutoEdit) "true" else "false"
-
+        // Use JSONArray for safe JSON encoding — avoids JS string injection vulnerabilities
+        val args = JSONArray().put(filePath).put(prompt).put(model).put(saveAsAutoEdit)
         val js = """
             (function() {
+                var args = $args;
                 if (window.__tauriTriggerAiEditWithPrompt) {
-                    window.__tauriTriggerAiEditWithPrompt('$escapedPath', '$escapedPrompt', '$escapedModel', $saveFlag);
+                    window.__tauriTriggerAiEditWithPrompt(args[0], args[1], args[2], args[3]);
                     return 'ok';
                 }
                 return 'no_handler';
@@ -839,80 +837,78 @@ class ImageViewerActivity : AppCompatActivity() {
             isAiEditing = false
             stopHighlightSweepAnimation()
             if (isFinishing || isDestroyed) return@runOnUiThread
+
+            val containerColor: Int
+            val strokeColor: Int
+            val fillColors: IntArray?
+            val fillColor: Int?
+            val edgeColors: IntArray?
+            val edgeColor: Int?
+            val statusMessage: String
+
             if (success) {
-                // Green container background
-                aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                    setColor(0xBF1A3C1A.toInt())
-                    cornerRadius = 12f * resources.displayMetrics.density
-                    setStroke(1 * resources.displayMetrics.density.toInt(), 0x3322C55E.toInt())
-                }
-                // Green fill overlay — static gradient matching editing style
-                aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
-                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
-                )
-                aiEditProgressFill.visibility = View.VISIBLE
-                aiEditProgressHighlight.visibility = View.GONE
-                // Green full-width bottom edge — static gradient
-                aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    2,
-                    Gravity.BOTTOM
-                )
-                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
-                )
-                // Text
-                aiEditStatusText.text = "修图完成"
-                aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
-                aiEditProgressText.text = message ?: "修图完成"
-                aiEditFailureText.visibility = View.GONE
-                // Dismiss button
-                aiEditCancelBtn.visibility = View.VISIBLE
-                aiEditCancelBtn.text = "✕"
-                aiEditCancelBtn.setOnClickListener {
-                    resetProgressAppearance()
-                    aiEditProgressContainer.visibility = View.GONE
-                }
+                containerColor = 0xBF1A3C1A.toInt()
+                strokeColor = 0x3322C55E.toInt()
+                fillColors = intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
+                fillColor = null
+                edgeColors = intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
+                edgeColor = null
+                statusMessage = message ?: "修图完成"
             } else {
-                // Red container background
-                aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                    setColor(0xB35C1A1A.toInt())
-                    cornerRadius = 12f * resources.displayMetrics.density
-                    setStroke(1 * resources.displayMetrics.density.toInt(), 0x33EF4444.toInt())
-                }
-                // Red fill overlay
-                aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
+                containerColor = 0xB35C1A1A.toInt()
+                strokeColor = 0x33EF4444.toInt()
+                fillColors = null
+                fillColor = 0x33EF4444.toInt()
+                edgeColors = null
+                edgeColor = 0x99F87171.toInt()
+                statusMessage = message ?: "修图失败"
+            }
+
+            val dp = resources.displayMetrics.density
+
+            aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                setColor(containerColor)
+                cornerRadius = 12f * dp
+                setStroke(dp.toInt(), strokeColor)
+            }
+
+            aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            if (fillColors != null) {
+                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fillColors
                 )
-                aiEditProgressFill.setBackgroundColor(0x33EF4444.toInt())
-                aiEditProgressFill.visibility = View.VISIBLE
-                // Red full-width bottom edge
-                aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    2,
-                    Gravity.BOTTOM
+            } else {
+                aiEditProgressFill.setBackgroundColor(fillColor!!)
+            }
+            aiEditProgressFill.visibility = View.VISIBLE
+            aiEditProgressHighlight.visibility = View.GONE
+
+            aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                2,
+                Gravity.BOTTOM
+            )
+            if (edgeColors != null) {
+                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, edgeColors
                 )
-                aiEditProgressEdge.setBackgroundColor(0x99F87171.toInt())
-                // Text
-                aiEditStatusText.text = "修图完成"
-                aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
-                aiEditProgressText.text = message ?: "修图失败"
-                aiEditFailureText.visibility = View.GONE
-                // Dismiss button
-                aiEditCancelBtn.text = "✕"
-                aiEditCancelBtn.setOnClickListener {
-                    resetProgressAppearance()
-                    aiEditProgressContainer.visibility = View.GONE
-                }
+            } else {
+                aiEditProgressEdge.setBackgroundColor(edgeColor!!)
+            }
+
+            aiEditStatusText.text = "修图完成"
+            aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
+            aiEditProgressText.text = statusMessage
+            aiEditFailureText.visibility = View.GONE
+            aiEditCancelBtn.visibility = View.VISIBLE
+            aiEditCancelBtn.text = "✕"
+            aiEditCancelBtn.setOnClickListener {
+                resetProgressAppearance()
+                aiEditProgressContainer.visibility = View.GONE
             }
         }
     }

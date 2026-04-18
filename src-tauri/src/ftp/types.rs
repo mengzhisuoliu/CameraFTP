@@ -121,7 +121,6 @@ impl Default for ServerStateSnapshot {
 
 
 #[derive(Debug, Clone, Default, PartialEq)]
-#[allow(dead_code)] // Internal fields used within ftp module
 pub struct ServerRuntimeSnapshot {
     pub bind_addr: Option<String>,
     pub is_running: bool,
