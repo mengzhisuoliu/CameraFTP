@@ -34,6 +34,7 @@ const initialState: AiEditProgressState = {
 const useAiEditProgressStore = create<AiEditProgressState>(() => ({ ...initialState }));
 
 let _listenerRegistered = false;
+let _storedUnlisten: (() => void) | null = null;
 
 function syncToNativeLayer(current: number, total: number, failedCount: number) {
   window.ImageViewerAndroid?.updateAiEditProgress?.(current, total, failedCount);
@@ -159,12 +160,16 @@ async function registerListener(): Promise<void> {
   _listenerRegistered = true;
 
   try {
+    // Unregister previous listener if it exists (e.g. from a failed prior attempt or HMR)
+    if (_storedUnlisten) {
+      _storedUnlisten();
+      _storedUnlisten = null;
+    }
+
     const unlisten = await listen<AiEditProgressEvent>('ai-edit-progress', (e) => {
       handleEvent(e.payload);
     });
-    // Intentionally discard unlisten — listener lives for app lifetime, no teardown needed.
-    // If registration failed above, _listenerRegistered is reset and the next call retries.
-    void unlisten;
+    _storedUnlisten = unlisten;
   } catch (err) {
     _listenerRegistered = false;
     console.error('[ai-edit-progress] Listener registration failed:', err);

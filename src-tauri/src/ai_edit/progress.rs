@@ -61,6 +61,14 @@ pub enum AiEditProgressEvent {
         #[ts(rename = "outputFiles")]
         output_files: Vec<String>,
     },
+    QueuedDropped {
+        #[serde(rename = "fileName")]
+        #[ts(rename = "fileName")]
+        file_name: String,
+        #[serde(rename = "queueDepth")]
+        #[ts(rename = "queueDepth")]
+        queue_depth: u32,
+    },
 }
 
 #[cfg(test)]
@@ -98,6 +106,10 @@ mod tests {
                 failed_count: 1,
             },
             AiEditProgressEvent::Queued { queue_depth: 2 },
+            AiEditProgressEvent::QueuedDropped {
+                file_name: "photo.jpg".to_string(),
+                queue_depth: 32,
+            },
             AiEditProgressEvent::Done {
                 total: 3,
                 failed_count: 1,
@@ -112,5 +124,15 @@ mod tests {
             assert_eq!(format!("{:?}", event), format!("{:?}", back),
                 "Roundtrip failed for variant: json={}", json);
         }
+    }
+
+    #[test]
+    fn queued_dropped_serializes_with_type_tag() {
+        let event = AiEditProgressEvent::QueuedDropped {
+            file_name: "photo.jpg".to_string(),
+            queue_depth: 32,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"queuedDropped\""), "JSON: {}", json);
     }
 }

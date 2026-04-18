@@ -507,6 +507,7 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     private fun showPromptWebViewOverlay(filePath: String, currentPrompt: String, currentModel: String, autoEditEnabled: Boolean, hasApiKey: Boolean, mainActivity: MainActivity) {
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
         val rootView = findViewById<FrameLayout>(android.R.id.content)
 
         // Dismiss any existing overlay
@@ -842,6 +843,7 @@ class ImageViewerActivity : AppCompatActivity() {
             it.destroy()
         }
         promptWebView = null
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
     private fun dispatchAiEdit(filePath: String, prompt: String, model: String, saveAsAutoEdit: Boolean, apiKey: String, mainActivity: MainActivity) {
@@ -1255,6 +1257,7 @@ class ImageViewerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
 
+        dismissPromptWebView()
         setContentView(R.layout.activity_image_viewer)
 
         bindViews()

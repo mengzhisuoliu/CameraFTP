@@ -76,14 +76,28 @@ impl AiEditService {
         }
 
         self.queue_depth.fetch_add(1, Ordering::Relaxed);
-        if let Err(e) = self.auto_sender.try_send(AiEditTask {
+        let task = AiEditTask {
             file_path,
             override_prompt: None,
             override_model: None,
             result_tx: None,
-        }) {
+        };
+        if let Err(e) = self.auto_sender.try_send(task) {
             self.queue_depth.fetch_sub(1, Ordering::Relaxed);
-            warn!("AI edit queue full, dropping task: {}", e);
+            let dropped_task = e.into_inner();
+            warn!("AI edit queue full, dropping task: {}", dropped_task.file_path.display());
+
+            let file_name = dropped_task.file_path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let depth = self.queue_depth.load(Ordering::Relaxed);
+            if let Err(emit_err) = self.app_handle.emit("ai-edit-progress", &super::progress::AiEditProgressEvent::QueuedDropped {
+                file_name,
+                queue_depth: depth,
+            }) {
+                warn!(error = %emit_err, "Failed to emit ai-edit-progress QueuedDropped event");
+            }
         } else {
             self.emit_queued();
         }
@@ -234,13 +248,6 @@ async fn worker_loop(
 
     loop {
         let cancel_token = cancel_token_arc.lock().unwrap().clone();
-
-        if cancel_token.is_cancelled() {
-            info!("AI edit worker cancelled");
-            drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
-            emit_batch_done(&mut state, &app_handle);
-            continue;
-        }
 
         // Fast path: drain pending manual tasks first (high priority)
         let task = if let Ok(task) = manual_rx.try_recv() {
@@ -541,4 +548,8 @@ mod tests {
         assert_eq!(state.output_files.len(), 2);
         assert_eq!(state.failed_files.len(), 1);
     }
+
+    // Note: Cancel behavior is exercised through the tokio::select! branches
+    // in worker_loop. The redundant top-of-loop check was removed because
+    // select! already handles cancel_token.cancelled() at every await point.
 }
