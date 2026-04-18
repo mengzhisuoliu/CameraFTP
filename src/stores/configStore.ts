@@ -96,8 +96,7 @@ export const useConfigStore = create<ConfigState>((set, get) => {
           set({ config, error: null });
         }
       } catch (e) {
-        set({ error: String(e) });
-        throw e;
+        console.error('Failed to save config:', e);
       }
     });
 

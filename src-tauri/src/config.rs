@@ -284,14 +284,6 @@ impl AppConfig {
             return Err("Save path cannot be empty".to_string());
         }
 
-        if self.advanced_connection.enabled && !self.advanced_connection.auth.anonymous {
-            if self.advanced_connection.auth.username.trim().is_empty() {
-                return Err(
-                    "Username cannot be empty when authentication is enabled".to_string()
-                );
-            }
-        }
-
         Ok(())
     }
 }
