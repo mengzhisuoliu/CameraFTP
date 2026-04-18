@@ -194,6 +194,7 @@ mod tests {
         assert_eq!(AppError::PermissionError("x".into()).code(), "PERMISSION_ERROR");
         assert_eq!(AppError::StoragePermissionError("x".into()).code(), "STORAGE_PERMISSION_ERROR");
         assert_eq!(AppError::AiEditError("x".into()).code(), "AI_EDIT_ERROR");
+        assert_eq!(AppError::Serialization("x".into()).code(), "SERIALIZATION_ERROR");
         assert_eq!(AppError::Other("x".into()).code(), "OTHER_ERROR");
     }
 
@@ -204,6 +205,8 @@ mod tests {
         assert!(!AppError::ServerAlreadyRunning.is_critical());
         assert!(!AppError::ServerNotRunning.is_critical());
         assert!(!AppError::NoAvailablePort.is_critical());
+        assert!(!AppError::NoNetworkInterface.is_critical());
+        assert!(!AppError::Serialization("x".into()).is_critical());
         assert!(!AppError::Io("x".into()).is_critical());
         assert!(!AppError::NetworkError("x".into()).is_critical());
         assert!(!AppError::AiEditError("x".into()).is_critical());
