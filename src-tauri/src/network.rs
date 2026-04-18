@@ -53,6 +53,7 @@ impl NetworkManager {
         let name_lower = name.to_lowercase();
         ["eth", "en", "ethernet", "lan"].iter().any(|k| name_lower.contains(k))
             && !Self::is_virtual_interface(name)
+            && !Self::is_wifi_interface(name)
     }
 
     /// 获取所有网络接口
@@ -158,5 +159,151 @@ impl NetworkManager {
         }
         tracing::error!("No available port found in range {}-65535", start);
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn link_local_169_254_x_x_detected() {
+        let ip: std::net::IpAddr = "169.254.1.1".parse().unwrap();
+        assert!(NetworkManager::is_link_local(&ip));
+    }
+
+    #[test]
+    fn normal_ip_not_link_local() {
+        let ip: std::net::IpAddr = "192.168.1.1".parse().unwrap();
+        assert!(!NetworkManager::is_link_local(&ip));
+    }
+
+    #[test]
+    fn ipv6_not_link_local() {
+        let ip: std::net::IpAddr = "::1".parse().unwrap();
+        assert!(!NetworkManager::is_link_local(&ip));
+    }
+
+    #[test]
+    fn loopback_not_link_local() {
+        let ip: std::net::IpAddr = "127.0.0.1".parse().unwrap();
+        assert!(!NetworkManager::is_link_local(&ip));
+    }
+
+    #[test]
+    fn vmware_detected_as_virtual() {
+        assert!(NetworkManager::is_virtual_interface("VMware Network Adapter"));
+    }
+
+    #[test]
+    fn vmnet_detected_as_virtual() {
+        assert!(NetworkManager::is_virtual_interface("vmnet8"));
+    }
+
+    #[test]
+    fn virtualbox_detected_as_virtual() {
+        assert!(NetworkManager::is_virtual_interface("VirtualBox Host-Only"));
+    }
+
+    #[test]
+    fn docker_detected_as_virtual() {
+        assert!(NetworkManager::is_virtual_interface("docker0"));
+    }
+
+    #[test]
+    fn wsl_detected_as_virtual() {
+        assert!(NetworkManager::is_virtual_interface("WSL (Hyper-V)"));
+    }
+
+    #[test]
+    fn vpn_detected_as_virtual() {
+        assert!(NetworkManager::is_virtual_interface("VPN Connection"));
+    }
+
+    #[test]
+    fn tun_detected_as_virtual() {
+        assert!(NetworkManager::is_virtual_interface("tun0"));
+    }
+
+    #[test]
+    fn real_ethernet_not_virtual() {
+        assert!(!NetworkManager::is_virtual_interface("Ethernet"));
+    }
+
+    #[test]
+    fn real_wifi_not_virtual() {
+        assert!(!NetworkManager::is_virtual_interface("Wi-Fi"));
+    }
+
+    #[test]
+    fn virtual_detection_case_insensitive() {
+        assert!(NetworkManager::is_virtual_interface("DOCKER"));
+        assert!(NetworkManager::is_virtual_interface("Vmware"));
+        assert!(NetworkManager::is_virtual_interface("Wsl"));
+    }
+
+    #[test]
+    fn wlan_detected_as_wifi() {
+        assert!(NetworkManager::is_wifi_interface("WLAN"));
+    }
+
+    #[test]
+    fn wi_fi_detected_as_wifi() {
+        assert!(NetworkManager::is_wifi_interface("Wi-Fi"));
+    }
+
+    #[test]
+    fn wifi_detected_as_wifi() {
+        assert!(NetworkManager::is_wifi_interface("wifi0"));
+    }
+
+    #[test]
+    fn wl_prefix_detected_as_wifi() {
+        assert!(NetworkManager::is_wifi_interface("wlp3s0"));
+    }
+
+    #[test]
+    fn wireless_detected_as_wifi() {
+        assert!(NetworkManager::is_wifi_interface("wireless0"));
+    }
+
+    #[test]
+    fn ethernet_not_wifi() {
+        assert!(!NetworkManager::is_wifi_interface("Ethernet"));
+    }
+
+    #[test]
+    fn eth_prefix_detected_as_ethernet() {
+        assert!(NetworkManager::is_ethernet_interface("eth0"));
+    }
+
+    #[test]
+    fn en_prefix_detected_as_ethernet() {
+        assert!(NetworkManager::is_ethernet_interface("en0"));
+    }
+
+    #[test]
+    fn ethernet_keyword_detected() {
+        assert!(NetworkManager::is_ethernet_interface("Ethernet"));
+    }
+
+    #[test]
+    fn lan_keyword_detected() {
+        assert!(NetworkManager::is_ethernet_interface("LAN Connection"));
+    }
+
+    #[test]
+    fn virtual_ethernet_excluded() {
+        assert!(!NetworkManager::is_ethernet_interface("veth123456"));
+    }
+
+    #[test]
+    fn wifi_not_ethernet() {
+        assert!(!NetworkManager::is_ethernet_interface("wlan0"));
+    }
+
+    #[test]
+    fn recommended_ip_does_not_panic() {
+        let _ = NetworkManager::recommended_ip();
     }
 }
