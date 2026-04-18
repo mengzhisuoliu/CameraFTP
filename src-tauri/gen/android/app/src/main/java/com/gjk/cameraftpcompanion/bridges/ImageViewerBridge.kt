@@ -42,8 +42,8 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
     }
 
     @android.webkit.JavascriptInterface
-    fun openOrNavigateTo(uri: String, allUrisJson: String, aiEditEnabled: Boolean = false): Boolean {
-        Log.d(TAG, "openOrNavigateTo: uri=$uri, aiEditEnabled=$aiEditEnabled")
+    fun openOrNavigateTo(uri: String, allUrisJson: String): Boolean {
+        Log.d(TAG, "openOrNavigateTo: uri=$uri")
         return try {
             val allUris = JSONArray(allUrisJson).let { json ->
                 (0 until json.length()).map { json.getString(it) }
@@ -57,7 +57,6 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
                 activity,
                 navigationTarget.uris,
                 navigationTarget.targetIndex,
-                aiEditEnabled,
             )
             true
         } catch (e: Exception) {

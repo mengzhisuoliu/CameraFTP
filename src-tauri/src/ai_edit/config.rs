@@ -10,8 +10,6 @@ use ts_rs::TS;
 #[ts(export)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AiEditConfig {
-    /// 总开关
-    pub enabled: bool,
     /// 接收图片后自动触发
     pub auto_edit: bool,
     /// 自动修图提示词
@@ -27,7 +25,6 @@ pub struct AiEditConfig {
 impl Default for AiEditConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
             auto_edit: false,
             prompt: String::new(),
             manual_prompt: String::new(),
@@ -79,9 +76,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_has_ai_edit_enabled_true() {
+    fn default_config_has_auto_edit_false() {
         let config = AiEditConfig::default();
-        assert!(config.enabled);
+        assert!(!config.auto_edit);
     }
 
     #[test]
@@ -99,7 +96,6 @@ mod tests {
     #[test]
     fn config_with_custom_values() {
         let config = AiEditConfig {
-            enabled: true,
             auto_edit: false,
             prompt: "enhance colors".to_string(),
             manual_prompt: "manual prompt".to_string(),
@@ -112,7 +108,6 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         let back: AiEditConfig = serde_json::from_str(&json).unwrap();
 
-        assert!(back.enabled);
         assert!(!back.auto_edit);
         assert_eq!(back.prompt, "enhance colors");
         assert_eq!(back.manual_prompt, "manual prompt");

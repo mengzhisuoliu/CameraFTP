@@ -170,10 +170,9 @@ interface ImageViewerAndroid {
    * Reuse existing viewer if visible, otherwise open viewer
    * @param uri Content URI of the target image
    * @param allUrisJson JSON array of all image URIs for navigation
-   * @param aiEditEnabled Whether AI edit is enabled (shows the button in native viewer)
    * @returns true if navigation/open action succeeded
    */
-  openOrNavigateTo(uri: string, allUrisJson: string, aiEditEnabled?: boolean): boolean;
+  openOrNavigateTo(uri: string, allUrisJson: string): boolean;
 
   /**
    * Check whether image viewer app/activity is currently visible

@@ -54,7 +54,6 @@ class ImageViewerActivity : AppCompatActivity() {
         private const val TAG = "ImageViewerActivity"
         const val EXTRA_URIS = "uris"
         const val EXTRA_TARGET_INDEX = "target_index"
-        const val EXTRA_AI_EDIT_ENABLED = "ai_edit_enabled"
         /** Active instance, set by onResume/cleared by onDestroy for bridge access */
         var instance: ImageViewerActivity? = null
             private set
@@ -63,11 +62,10 @@ class ImageViewerActivity : AppCompatActivity() {
         var isViewerVisible: Boolean = false
             private set
 
-        fun start(context: Context, uris: List<String>, targetIndex: Int, aiEditEnabled: Boolean = false) {
+        fun start(context: Context, uris: List<String>, targetIndex: Int) {
             val intent = Intent(context, ImageViewerActivity::class.java).apply {
                 putExtra(EXTRA_URIS, JSONArray(uris).toString())
                 putExtra(EXTRA_TARGET_INDEX, targetIndex)
-                putExtra(EXTRA_AI_EDIT_ENABLED, aiEditEnabled)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
@@ -112,7 +110,7 @@ class ImageViewerActivity : AppCompatActivity() {
         }
 
         @JvmStatic
-        fun navigateOrStart(context: Context, uris: List<String>, targetIndex: Int, aiEditEnabled: Boolean = false) {
+        fun navigateOrStart(context: Context, uris: List<String>, targetIndex: Int) {
             val active = instance
             val hasVisibleReusableViewer = active != null && isViewerVisible && !active.isFinishing && !active.isDestroyed
             val plan = buildReuseNavigationPlan(hasVisibleReusableViewer, uris, targetIndex) ?: return
@@ -122,7 +120,7 @@ class ImageViewerActivity : AppCompatActivity() {
                 return
             }
 
-            start(context, plan.uris, plan.safeTargetIndex, aiEditEnabled)
+            start(context, plan.uris, plan.safeTargetIndex)
         }
 
         /**
@@ -196,11 +194,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
         uris = parseUrisFromIntent().toMutableList()
         currentIndex = intent.getIntExtra(EXTRA_TARGET_INDEX, 0)
-        val aiEditEnabled = intent.getBooleanExtra(EXTRA_AI_EDIT_ENABLED, false)
-
         bindViews()
-
-        btnAiEdit.visibility = if (aiEditEnabled) View.VISIBLE else View.GONE
 
         setupViewPager()
         setupButtons()

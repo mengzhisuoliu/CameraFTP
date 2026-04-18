@@ -65,10 +65,10 @@ impl AiEditService {
     }
 
     /// Auto-trigger: non-blocking enqueue.
-    /// Checks `enabled`, `auto_edit`, and non-empty prompt before enqueueing.
+    /// Checks `auto_edit` and non-empty prompt before enqueueing.
     pub async fn on_file_uploaded(&self, file_path: PathBuf) {
         let should_enqueue = self.config_service.get()
-            .map(|c| c.ai_edit.enabled && c.ai_edit.auto_edit && !c.ai_edit.prompt.trim().is_empty())
+            .map(|c| c.ai_edit.auto_edit && !c.ai_edit.prompt.trim().is_empty())
             .unwrap_or(false);
 
         if !should_enqueue {

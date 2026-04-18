@@ -48,7 +48,6 @@ const baseConfig: AppConfig = {
   },
   androidImageViewer: null,
   aiEdit: {
-    enabled: false,
     autoEdit: true,
     prompt: '',
     manualPrompt: '',

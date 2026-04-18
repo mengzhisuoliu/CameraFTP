@@ -48,8 +48,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
 
   const draft = useConfigStore(state => state.draft);
   const updateDraft = useConfigStore(state => state.updateDraft);
-  const aiEditEnabled = draft?.aiEdit?.enabled ?? false;
-
   const exifInfo = usePreviewExif(imagePath);
   const {
     showToolbar,
@@ -441,16 +439,14 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
             </svg>
           </button>
 
-          {/* AI修图按钮 - 仅在启用时显示 */}
-          {aiEditEnabled && (
-            <button
-              onClick={handleAiEdit}
-              className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
-              title="AI修图"
-            >
-              <Sparkles className="w-5 h-5" />
-            </button>
-          )}
+          {/* AI修图按钮 */}
+          <button
+            onClick={handleAiEdit}
+            className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
+            title="AI修图"
+          >
+            <Sparkles className="w-5 h-5" />
+          </button>
 
           {/* 打开文件夹 */}
           <button
