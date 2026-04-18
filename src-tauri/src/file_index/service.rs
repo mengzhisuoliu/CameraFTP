@@ -293,30 +293,28 @@ impl FileIndexService {
         // Atomic check-and-insert under write lock to prevent TOCTOU race
         let mut index = self.index.write().await;
 
-        // TODO(perf): Linear scan is O(n) per insert. Consider maintaining a
-        // HashSet<PathBuf> alongside the sorted Vec for O(1) dedup lookups
-        // when file counts exceed ~1000.
-        if index.files().iter().any(|f| f.path == path) {
+        if index.contains_path(&path) {
             trace!("File already indexed, skipping: {:?}", path);
             return Ok(());
         }
 
-        // 插入到正确位置（保持排序：新→旧）
-        let mut files = index.files().as_ref().clone();
-        let insert_pos = files.iter()
-            .position(|f| f.sort_time < file_info.sort_time)
-            .unwrap_or(files.len());
+        // Insert into sorted position using copy-on-write (Arc::make_mut)
+        {
+            let files: &mut Vec<FileInfo> = Arc::make_mut(&mut index.files);
+            let insert_pos = files.iter()
+                .position(|f| f.sort_time < file_info.sort_time)
+                .unwrap_or(files.len());
 
-        files.insert(insert_pos, file_info);
+            files.insert(insert_pos, file_info);
 
-        // 更新 current_index 如果插入位置在 current_index 之前
-        if let Some(current) = index.current_index {
-            if insert_pos <= current {
-                index.current_index = Some(current + 1);
+            if let Some(current) = index.current_index {
+                if insert_pos <= current {
+                    index.current_index = Some(current + 1);
+                }
             }
         }
 
-        index.set_files(files);
+        index.path_set.insert(path.clone());
         drop(index);
         info!("Added file to index: {:?}", path);
 
@@ -331,8 +329,12 @@ impl FileIndexService {
         let mut index = self.index.write().await;
 
         if let Some(pos) = index.files().iter().position(|f| f.path == path) {
-            let mut files = index.files().as_ref().clone();
-            files.remove(pos);
+            let new_len = {
+                let files: &mut Vec<FileInfo> = Arc::make_mut(&mut index.files);
+                files.remove(pos);
+                files.len()
+            };
+            index.path_set.remove(path);
 
             // 调整 current_index
             if let Some(current) = index.current_index {
@@ -341,16 +343,15 @@ impl FileIndexService {
                     index.current_index = Some(current - 1);
                 } else if pos == current {
                     // 删除的是当前文件，尝试保持有效索引
-                    if files.is_empty() {
+                    if new_len == 0 {
                         index.current_index = None;
-                    } else if current >= files.len() {
-                        index.current_index = Some(files.len() - 1);
+                    } else if current >= new_len {
+                        index.current_index = Some(new_len - 1);
                     }
                     // 否则保持 current 不变（指向下一个文件）
                 }
             }
 
-            index.set_files(files);
             drop(index);
             info!("Removed file from index: {:?}", path);
 
@@ -413,11 +414,13 @@ impl FileIndexService {
             return;
         };
 
-        let mut files = index.files().as_ref().clone();
-        files.remove(pos);
-        let new_len = files.len();
+        let new_len = {
+            let files: &mut Vec<FileInfo> = Arc::make_mut(&mut index.files);
+            files.remove(pos);
+            files.len()
+        };
+        index.path_set.remove(path);
         Self::adjust_current_index_after_removal(&mut index.current_index, pos, new_len);
-        index.set_files(files);
         info!("Removed missing file from index: {:?}", path);
     }
 
@@ -473,6 +476,13 @@ impl FileIndexService {
         index.files().len()
     }
 
+    #[cfg(test)]
+    pub async fn set_test_files(&self, files: Vec<FileInfo>) {
+        let mut index = self.index.write().await;
+        index.set_files(files);
+        index.current_index = if !index.files().is_empty() { Some(0) } else { None };
+    }
+
     /// 更新存储路径并重新扫描
     pub async fn update_save_path(&self, new_path: PathBuf) -> Result<(), AppError> {
         let current_path = self.save_path.read().await.clone();
@@ -509,14 +519,26 @@ impl FileIndexService {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
+    use std::time::SystemTime;
 
     use tempfile::tempdir;
 
     use crate::config_service::ConfigService;
+    use crate::file_index::types::FileInfo;
 
     use super::FileIndexService;
+
+    fn make_file_info(path: &str, sort_time_ms: u64) -> FileInfo {
+        FileInfo {
+            path: PathBuf::from(path),
+            filename: path.split('/').last().unwrap_or(path).to_string(),
+            exif_time: None,
+            modified_time: SystemTime::UNIX_EPOCH,
+            sort_time: sort_time_ms,
+        }
+    }
 
     #[tokio::test]
     async fn get_latest_file_windows_startup_returns_saved_image_without_prior_scan() {
@@ -553,5 +575,129 @@ mod tests {
             "latest.jpg"
         );
         assert_eq!(file_index_service.get_file_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn remove_file_adjusts_current_index_when_removing_before_current() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+        let config_service = ConfigService::new_with_path(config_path);
+        let service = FileIndexService::new(Arc::new(config_service));
+
+        service.set_test_files(vec![
+            make_file_info("/images/a.jpg", 3000),
+            make_file_info("/images/b.jpg", 2000),
+            make_file_info("/images/c.jpg", 1000),
+        ]).await;
+
+        assert_eq!(service.get_current_index().await, Some(0));
+
+        // Remove file after current — index should stay 0
+        let removed = service.remove_file(Path::new("/images/c.jpg")).await;
+        assert!(removed.expect("remove should succeed"));
+        assert_eq!(service.get_file_count().await, 2);
+        assert_eq!(service.get_current_index().await, Some(0));
+    }
+
+    #[tokio::test]
+    async fn remove_file_at_current_stays_at_zero() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+        let config_service = ConfigService::new_with_path(config_path);
+        let service = FileIndexService::new(Arc::new(config_service));
+
+        service.set_test_files(vec![
+            make_file_info("/images/a.jpg", 3000),
+            make_file_info("/images/b.jpg", 2000),
+        ]).await;
+
+        // Remove current (index 0 = a.jpg) — should stay at 0, now pointing to b.jpg
+        let removed = service.remove_file(Path::new("/images/a.jpg")).await;
+        assert!(removed.expect("remove should succeed"));
+        assert_eq!(service.get_current_index().await, Some(0));
+        let files = service.get_files().await;
+        assert_eq!(files[0].filename, "b.jpg");
+    }
+
+    #[tokio::test]
+    async fn remove_nonexistent_file_returns_false() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+        let config_service = ConfigService::new_with_path(config_path);
+        let service = FileIndexService::new(Arc::new(config_service));
+
+        service.set_test_files(vec![
+            make_file_info("/images/a.jpg", 3000),
+        ]).await;
+
+        let removed = service.remove_file(Path::new("/images/nonexistent.jpg")).await;
+        assert!(!removed.expect("remove should return false"));
+        assert_eq!(service.get_file_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn get_latest_file_returns_newest_by_sort_time() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+        let config_service = ConfigService::new_with_path(config_path);
+        let service = FileIndexService::new(Arc::new(config_service));
+
+        service.set_test_files(vec![
+            make_file_info("/images/newest.jpg", 3000),
+            make_file_info("/images/oldest.jpg", 1000),
+        ]).await;
+
+        let latest = service.get_latest_file().await;
+        assert!(latest.is_some());
+        assert_eq!(latest.unwrap().filename, "newest.jpg");
+    }
+
+    #[tokio::test]
+    async fn add_file_skips_duplicate_path() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+        let save_path = temp_dir.path().join("images");
+        std::fs::create_dir_all(&save_path).expect("create dir");
+
+        let config_service = ConfigService::new_with_path(config_path);
+        config_service
+            .mutate_and_persist(|config| {
+                config.save_path = save_path.clone();
+            })
+            .expect("persist config");
+
+        let service = FileIndexService::new(Arc::new(config_service));
+
+        // Create a real file
+        let file_path = save_path.join("test.jpg");
+        std::fs::write(&file_path, b"test-jpeg-content").expect("write file");
+
+        // Add it
+        service.add_file(file_path.clone()).await.expect("first add");
+        assert_eq!(service.get_file_count().await, 1);
+
+        // Add again — should be skipped as duplicate
+        service.add_file(file_path.clone()).await.expect("second add");
+        assert_eq!(service.get_file_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn empty_index_returns_none_for_latest() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let config_path = temp_dir.path().join("config.json");
+        let save_path = temp_dir.path().join("empty_images");
+        std::fs::create_dir_all(&save_path).expect("create dir");
+
+        let config_service = ConfigService::new_with_path(config_path);
+        config_service
+            .mutate_and_persist(|config| {
+                config.save_path = save_path.clone();
+            })
+            .expect("persist config");
+
+        let service = FileIndexService::new(Arc::new(config_service));
+
+        let latest = service.get_latest_file().await;
+        assert!(latest.is_none(), "empty directory should return None");
     }
 }

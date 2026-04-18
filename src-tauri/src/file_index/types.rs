@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::SystemTime;
 use ts_rs::TS;
@@ -24,8 +25,9 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct FileIndex {
-    files: Arc<Vec<FileInfo>>,
+    pub(crate) files: Arc<Vec<FileInfo>>,
     pub current_index: Option<usize>,
+    pub(crate) path_set: HashSet<PathBuf>,
 }
 
 impl FileIndex {
@@ -33,6 +35,7 @@ impl FileIndex {
         Self {
             files: Arc::new(Vec::new()),
             current_index: None,
+            path_set: HashSet::new(),
         }
     }
 
@@ -40,8 +43,14 @@ impl FileIndex {
         &self.files
     }
 
+    /// Check if a path is already indexed (O(1) via HashSet)
+    pub fn contains_path(&self, path: &PathBuf) -> bool {
+        self.path_set.contains(path)
+    }
+
     /// Update files. Callers provide the new complete vector.
     pub fn set_files(&mut self, new_files: Vec<FileInfo>) {
+        self.path_set = new_files.iter().map(|f| f.path.clone()).collect();
         self.files = Arc::new(new_files);
     }
 }
