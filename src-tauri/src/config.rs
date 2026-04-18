@@ -274,6 +274,26 @@ impl AppConfig {
             self
         }
     }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.port == 0 {
+            return Err("Port cannot be 0".to_string());
+        }
+
+        if self.save_path.as_os_str().is_empty() {
+            return Err("Save path cannot be empty".to_string());
+        }
+
+        if self.advanced_connection.enabled && !self.advanced_connection.auth.anonymous {
+            if self.advanced_connection.auth.username.trim().is_empty() {
+                return Err(
+                    "Username cannot be empty when authentication is enabled".to_string()
+                );
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// 初始化 Android 路径（在应用启动时调用）
@@ -337,6 +357,38 @@ mod tests {
             super::AndroidImageOpenMethod::ExternalApp
         );
         assert!(!config.auto_open_latest_when_visible);
+    }
+
+    #[test]
+    fn valid_default_config_passes_validation() {
+        let config = AppConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn empty_save_path_fails_validation() {
+        let mut config = AppConfig::default();
+        config.save_path = PathBuf::new();
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn auth_enabled_with_empty_username_fails_validation() {
+        let mut config = AppConfig::default();
+        config.advanced_connection.enabled = true;
+        config.advanced_connection.auth.anonymous = false;
+        config.advanced_connection.auth.username = String::new();
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn auth_enabled_with_valid_username_passes_validation() {
+        let mut config = AppConfig::default();
+        config.advanced_connection.enabled = true;
+        config.advanced_connection.auth.anonymous = false;
+        config.advanced_connection.auth.username = "admin".to_string();
+        config.advanced_connection.auth.password_hash = "somehash".to_string();
+        assert!(config.validate().is_ok());
     }
 
     #[test]

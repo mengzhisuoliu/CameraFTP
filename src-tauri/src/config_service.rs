@@ -64,6 +64,11 @@ impl ConfigService {
         let mut next_config = guard.clone();
         let result = mutate(&mut next_config);
         next_config = next_config.normalized_for_current_platform();
+
+        if let Err(e) = next_config.validate() {
+            return Err(AppError::Other(format!("Invalid configuration: {}", e)));
+        }
+
         Self::save_to_path(&self.config_path, &next_config)?;
         *guard = next_config;
 
