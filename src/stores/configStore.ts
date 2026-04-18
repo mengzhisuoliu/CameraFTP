@@ -143,7 +143,9 @@ export const useConfigStore = create<ConfigState>((set, get) => {
       await executeAsync(
         {
           operation: () => invoke<AppConfig>('load_config'),
-          onSuccess: (config, set) => set((state) => ({ ...state, config, draft: config })),
+          onSuccess: (config, set) => {
+            set((state) => ({ ...state, config, draft: config }));
+          },
         },
         set,
       );

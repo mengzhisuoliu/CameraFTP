@@ -6,8 +6,6 @@
 
 package com.gjk.cameraftpcompanion.bridges
 
-import android.net.Uri
-import android.provider.MediaStore
 import android.util.Log
 import com.gjk.cameraftpcompanion.ImageViewerActivity
 import com.gjk.cameraftpcompanion.MainActivity
@@ -44,8 +42,8 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
     }
 
     @android.webkit.JavascriptInterface
-    fun openOrNavigateTo(uri: String, allUrisJson: String, aiEditEnabled: Boolean = false): Boolean {
-        Log.d(TAG, "openOrNavigateTo: uri=$uri, aiEditEnabled=$aiEditEnabled")
+    fun openOrNavigateTo(uri: String, allUrisJson: String): Boolean {
+        Log.d(TAG, "openOrNavigateTo: uri=$uri")
         return try {
             val allUris = JSONArray(allUrisJson).let { json ->
                 (0 until json.length()).map { json.getString(it) }
@@ -59,7 +57,6 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
                 activity,
                 navigationTarget.uris,
                 navigationTarget.targetIndex,
-                aiEditEnabled,
             )
             true
         } catch (e: Exception) {
@@ -77,24 +74,12 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
     }
 
     /**
-     * Resolve a content:// URI to a real file system path.
-     * Returns null if the URI cannot be resolved.
+     * Resolve a URI to a file system path.
+     * Handles file://, content:// (via MediaStore), and fallback.
      */
     @android.webkit.JavascriptInterface
     fun resolveFilePath(uri: String): String? {
-        return try {
-            val contentUri = Uri.parse(uri)
-            if (contentUri.scheme != "content") return uri
-            activity.contentResolver.query(contentUri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val idx = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
-                    if (idx >= 0) cursor.getString(idx) else null
-                } else null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "resolveFilePath failed for $uri", e)
-            null
-        }
+        return ImageViewerActivity.resolveUriToFilePath(activity, uri)
     }
 
     /**
@@ -124,15 +109,5 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         val viewer = ImageViewerActivity.instance
         val context = (viewer ?: activity) as? android.content.Context ?: return
         android.media.MediaScannerConnection.scanFile(context, arrayOf(filePath), null, null)
-    }
-
-    /**
-     * Emits a gallery-items-added window event for the given URI, refreshing the in-app gallery.
-     */
-    @android.webkit.JavascriptInterface
-    fun emitGalleryItemsAddedForUri(uri: String?) {
-        if (uri == null) return
-        val mainActivity = MainActivity.instance ?: return
-        com.gjk.cameraftpcompanion.bridges.MediaStoreBridge.emitGalleryItemsAdded(mainActivity, uri)
     }
 }

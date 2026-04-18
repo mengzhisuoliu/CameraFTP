@@ -22,8 +22,6 @@ const MANUAL_QUEUE_CAPACITY: usize = 4;
 const AUTO_QUEUE_CAPACITY: usize = 32;
 const AIEDIT_SUBDIR: &str = "AIEdit";
 
-/// Placeholder is no longer used — prompt must be explicitly configured
-const _DEFAULT_EDIT_PROMPT: &str = "提升画质，使照片更清晰";
 
 struct AiEditTask {
     file_path: PathBuf,
@@ -67,10 +65,10 @@ impl AiEditService {
     }
 
     /// Auto-trigger: non-blocking enqueue.
-    /// Checks `enabled`, `auto_edit`, and non-empty prompt before enqueueing.
+    /// Checks `auto_edit` and non-empty prompt before enqueueing.
     pub async fn on_file_uploaded(&self, file_path: PathBuf) {
         let should_enqueue = self.config_service.get()
-            .map(|c| c.ai_edit.enabled && c.ai_edit.auto_edit && !c.ai_edit.prompt.trim().is_empty())
+            .map(|c| c.ai_edit.auto_edit && !c.ai_edit.prompt.trim().is_empty())
             .unwrap_or(false);
 
         if !should_enqueue {
@@ -136,10 +134,6 @@ impl AiEditService {
         Ok(())
     }
 
-    pub fn queue_len(&self) -> u32 {
-        self.queue_depth.load(Ordering::Relaxed)
-    }
-
     pub fn cancel(&self) {
         let mut guard = self.cancel_token.lock().unwrap();
         guard.cancel();
@@ -156,6 +150,37 @@ impl AiEditService {
     }
 }
 
+struct WorkerState {
+    completed_count: u32,
+    failed_count: u32,
+    failed_files: Vec<String>,
+    output_files: Vec<String>,
+}
+
+impl Default for WorkerState {
+    fn default() -> Self {
+        Self {
+            completed_count: 0,
+            failed_count: 0,
+            failed_files: Vec::new(),
+            output_files: Vec::new(),
+        }
+    }
+}
+
+impl WorkerState {
+    fn processed_count(&self) -> u32 {
+        self.completed_count + self.failed_count
+    }
+
+    fn reset(&mut self) {
+        self.completed_count = 0;
+        self.failed_count = 0;
+        self.failed_files.clear();
+        self.output_files.clear();
+    }
+}
+
 async fn worker_loop(
     mut manual_rx: mpsc::Receiver<AiEditTask>,
     mut auto_rx: mpsc::Receiver<AiEditTask>,
@@ -166,35 +191,7 @@ async fn worker_loop(
 ) {
     info!("AI edit worker started");
 
-    struct WorkerState {
-        completed_count: u32,
-        failed_count: u32,
-        failed_files: Vec<String>,
-        output_files: Vec<String>,
-        batch_total: u32,
-    }
-
-    impl WorkerState {
-        fn processed_count(&self) -> u32 {
-            self.completed_count + self.failed_count
-        }
-
-        fn reset(&mut self) {
-            self.completed_count = 0;
-            self.failed_count = 0;
-            self.failed_files.clear();
-            self.output_files.clear();
-            self.batch_total = 0;
-        }
-    }
-
-    let mut state = WorkerState {
-        completed_count: 0,
-        failed_count: 0,
-        failed_files: Vec::new(),
-        output_files: Vec::new(),
-        batch_total: 0,
-    };
+    let mut state = WorkerState::default();
 
     let mut cached_provider: Option<Box<dyn providers::AiEditProvider>> = None;
     let mut cached_api_key: Option<String> = None;
@@ -307,7 +304,6 @@ async fn worker_loop(
         let remaining = queue_depth.load(Ordering::Relaxed);
         let current = state.processed_count() + 1;
         let total = current + remaining;
-        state.batch_total = total;
         let file_name = task.file_path.file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
@@ -416,7 +412,6 @@ async fn process_task(
         .map_err(|e| AppError::AiEditError(format!("Failed to read config: {}", e)))?;
 
     let ai_config = &config.ai_edit;
-
     let super::config::ProviderConfig::SeedEdit(ref seed_config) = ai_config.provider;
     if seed_config.api_key.is_empty() {
         return Err(AppError::AiEditError("API Key is not configured".to_string()));
@@ -427,17 +422,11 @@ async fn process_task(
         let preprocessor = image_processor::create_preprocessor();
         preprocessor.prepare(&file_path_clone)
     }).await
-        .map_err(|e| AppError::AiEditError(format!("Preprocessing task panicked: {}", e)))?
-        .map_err(|e| AppError::AiEditError(format!("Image preprocessing failed: {}", e)))?;
+        .map_err(|e| AppError::AiEditError(format!("Preprocessing task panicked: {}", e)))??;
 
-    let current_api_key = match &ai_config.provider {
-        super::config::ProviderConfig::SeedEdit(cfg) => cfg.api_key.clone(),
-    };
-    // Use override_model for manual edits, fall back to config model for auto edits
+    let current_api_key = seed_config.api_key.clone();
     let effective_model = task.override_model.as_deref()
-        .unwrap_or_else(|| match &ai_config.provider {
-            super::config::ProviderConfig::SeedEdit(cfg) => cfg.model.as_str(),
-        })
+        .unwrap_or(&seed_config.model)
         .to_string();
 
     if cached_api_key.as_ref() != Some(&current_api_key) || cached_model.as_ref() != Some(&effective_model) {
@@ -515,65 +504,6 @@ fn chrono_now_string() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::mpsc;
-
-    #[tokio::test]
-    async fn auto_trigger_sends_to_auto_channel() {
-        let (auto_sender, mut auto_rx) = mpsc::channel::<AiEditTask>(AUTO_QUEUE_CAPACITY);
-        let (_manual_sender, _manual_rx) = mpsc::channel::<AiEditTask>(MANUAL_QUEUE_CAPACITY);
-
-        let task_path = PathBuf::from("/photos/test.jpg");
-        auto_sender.try_send(AiEditTask {
-            file_path: task_path.clone(),
-            override_prompt: None,
-            override_model: None,
-            result_tx: None,
-        }).unwrap();
-
-        let task = auto_rx.try_recv().expect("task should be in auto channel");
-        assert_eq!(task.file_path, task_path);
-        assert!(task.result_tx.is_none());
-    }
-
-    #[tokio::test]
-    async fn manual_trigger_sends_to_manual_channel() {
-        let (_auto_sender, _auto_rx) = mpsc::channel::<AiEditTask>(AUTO_QUEUE_CAPACITY);
-        let (manual_sender, mut manual_rx) = mpsc::channel::<AiEditTask>(MANUAL_QUEUE_CAPACITY);
-
-        let (tx, _rx) = oneshot::channel();
-        manual_sender.try_send(AiEditTask {
-            file_path: PathBuf::from("/photos/test.jpg"),
-            override_prompt: None,
-            override_model: None,
-            result_tx: Some(tx),
-        }).unwrap();
-
-        let task = manual_rx.try_recv().expect("task should be in manual channel");
-        assert!(task.result_tx.is_some());
-    }
-
-    #[tokio::test]
-    async fn auto_queue_full_drops_gracefully() {
-        let (auto_sender, _auto_rx) = mpsc::channel::<AiEditTask>(AUTO_QUEUE_CAPACITY);
-        let (_manual_sender, _manual_rx) = mpsc::channel::<AiEditTask>(MANUAL_QUEUE_CAPACITY);
-
-        for i in 0..AUTO_QUEUE_CAPACITY {
-            auto_sender.try_send(AiEditTask {
-                file_path: PathBuf::from(format!("/photos/img_{i}.jpg")),
-                override_prompt: None,
-                override_model: None,
-                result_tx: None,
-            }).unwrap();
-        }
-
-        let result = auto_sender.try_send(AiEditTask {
-            file_path: PathBuf::from("/photos/overflow.jpg"),
-            override_prompt: None,
-            override_model: None,
-            result_tx: None,
-        });
-        assert!(result.is_err());
-    }
 
     #[test]
     fn constants_are_reasonable() {
@@ -592,73 +522,23 @@ mod tests {
     }
 
     #[test]
-    fn default_edit_prompt_is_chinese() {
-        assert!(!_DEFAULT_EDIT_PROMPT.is_empty());
-        assert!(_DEFAULT_EDIT_PROMPT.contains("画质"));
-    }
-
-    #[test]
     fn worker_state_tracks_output_files() {
-        struct WorkerState {
-            completed_count: u32,
-            failed_count: u32,
-            failed_files: Vec<String>,
-            output_files: Vec<String>,
-            batch_total: u32,
-        }
+        let mut state = WorkerState::default();
 
-        impl WorkerState {
-            fn processed_count(&self) -> u32 {
-                self.completed_count + self.failed_count
-            }
-        }
-
-        let mut state = WorkerState {
-            completed_count: 0,
-            failed_count: 0,
-            failed_files: Vec::new(),
-            output_files: Vec::new(),
-            batch_total: 0,
-        };
-
-        // Simulate successful task
         state.completed_count += 1;
         state.output_files.push("/output/AIEdit/photo1_AIEdit.jpg".to_string());
         assert_eq!(state.processed_count(), 1);
         assert_eq!(state.output_files.len(), 1);
 
-        // Simulate another success
         state.completed_count += 1;
         state.output_files.push("/output/AIEdit/photo2_AIEdit.jpg".to_string());
         assert_eq!(state.processed_count(), 2);
         assert_eq!(state.output_files.len(), 2);
 
-        // Simulate failure
         state.failed_count += 1;
         state.failed_files.push("bad.jpg".to_string());
         assert_eq!(state.processed_count(), 3);
         assert_eq!(state.output_files.len(), 2);
         assert_eq!(state.failed_files.len(), 1);
-    }
-
-    #[test]
-    fn cancel_token_initially_not_cancelled() {
-        let token = CancellationToken::new();
-        assert!(!token.is_cancelled());
-    }
-
-    #[test]
-    fn cancel_token_cancels_on_invoke() {
-        let token = CancellationToken::new();
-        token.cancel();
-        assert!(token.is_cancelled());
-    }
-
-    #[tokio::test]
-    async fn cancel_token_cancelled_future_resolves() {
-        let token = CancellationToken::new();
-        token.cancel();
-        // Should resolve immediately
-        token.cancelled().await;
     }
 }

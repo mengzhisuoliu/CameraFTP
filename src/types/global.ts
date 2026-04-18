@@ -170,10 +170,9 @@ interface ImageViewerAndroid {
    * Reuse existing viewer if visible, otherwise open viewer
    * @param uri Content URI of the target image
    * @param allUrisJson JSON array of all image URIs for navigation
-   * @param aiEditEnabled Whether AI edit is enabled (shows the button in native viewer)
    * @returns true if navigation/open action succeeded
    */
-  openOrNavigateTo(uri: string, allUrisJson: string, aiEditEnabled?: boolean): boolean;
+  openOrNavigateTo(uri: string, allUrisJson: string): boolean;
 
   /**
    * Check whether image viewer app/activity is currently visible
@@ -214,12 +213,6 @@ interface ImageViewerAndroid {
    * @param filePath Absolute file path to scan
    */
   scanNewFile?(filePath: string): void;
-
-  /**
-   * Emits a gallery-items-added window event for the given URI, refreshing the in-app gallery.
-   * @param uri Content URI or file path of the new item
-   */
-  emitGalleryItemsAddedForUri?(uri: string): void;
 }
 
 // ===== 全局窗口扩展 =====

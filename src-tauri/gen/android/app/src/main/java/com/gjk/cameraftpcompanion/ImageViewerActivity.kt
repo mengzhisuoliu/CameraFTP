@@ -17,6 +17,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
+import android.text.TextUtils
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -53,7 +54,6 @@ class ImageViewerActivity : AppCompatActivity() {
         private const val TAG = "ImageViewerActivity"
         const val EXTRA_URIS = "uris"
         const val EXTRA_TARGET_INDEX = "target_index"
-        const val EXTRA_AI_EDIT_ENABLED = "ai_edit_enabled"
         /** Active instance, set by onResume/cleared by onDestroy for bridge access */
         var instance: ImageViewerActivity? = null
             private set
@@ -62,11 +62,10 @@ class ImageViewerActivity : AppCompatActivity() {
         var isViewerVisible: Boolean = false
             private set
 
-        fun start(context: Context, uris: List<String>, targetIndex: Int, aiEditEnabled: Boolean = false) {
+        fun start(context: Context, uris: List<String>, targetIndex: Int) {
             val intent = Intent(context, ImageViewerActivity::class.java).apply {
                 putExtra(EXTRA_URIS, JSONArray(uris).toString())
                 putExtra(EXTRA_TARGET_INDEX, targetIndex)
-                putExtra(EXTRA_AI_EDIT_ENABLED, aiEditEnabled)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
@@ -111,7 +110,7 @@ class ImageViewerActivity : AppCompatActivity() {
         }
 
         @JvmStatic
-        fun navigateOrStart(context: Context, uris: List<String>, targetIndex: Int, aiEditEnabled: Boolean = false) {
+        fun navigateOrStart(context: Context, uris: List<String>, targetIndex: Int) {
             val active = instance
             val hasVisibleReusableViewer = active != null && isViewerVisible && !active.isFinishing && !active.isDestroyed
             val plan = buildReuseNavigationPlan(hasVisibleReusableViewer, uris, targetIndex) ?: return
@@ -121,15 +120,31 @@ class ImageViewerActivity : AppCompatActivity() {
                 return
             }
 
-            start(context, plan.uris, plan.safeTargetIndex, aiEditEnabled)
+            start(context, plan.uris, plan.safeTargetIndex)
         }
 
         /**
-         * Triggers a MediaStore scan for a newly created file from any context.
+         * Resolve a URI string to a file system path.
+         * Handles file://, content:// (via MediaStore), and fallback.
          */
         @JvmStatic
-        fun scanNewFile(context: Context, filePath: String) {
-            android.media.MediaScannerConnection.scanFile(context, arrayOf(filePath), null, null)
+        fun resolveUriToFilePath(context: android.content.Context, uriString: String): String? {
+            return try {
+                val uri = Uri.parse(uriString)
+                when (uri.scheme) {
+                    "file" -> uri.path
+                    "content" -> context.contentResolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val idx = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                            if (idx >= 0) cursor.getString(idx) else null
+                        } else null
+                    }
+                    else -> uriString
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "resolveUriToFilePath failed for $uriString", e)
+                null
+            }
         }
     }
 
@@ -179,8 +194,14 @@ class ImageViewerActivity : AppCompatActivity() {
 
         uris = parseUrisFromIntent().toMutableList()
         currentIndex = intent.getIntExtra(EXTRA_TARGET_INDEX, 0)
-        val aiEditEnabled = intent.getBooleanExtra(EXTRA_AI_EDIT_ENABLED, false)
+        bindViews()
 
+        setupViewPager()
+        setupButtons()
+        updateUI()
+    }
+
+    private fun bindViews() {
         viewPager = findViewById(R.id.view_pager)
         bottomBar = findViewById(R.id.bottom_bar)
         filenameView = findViewById(R.id.filename)
@@ -198,12 +219,6 @@ class ImageViewerActivity : AppCompatActivity() {
         aiEditProgressText = findViewById(R.id.ai_edit_progress_text)
         aiEditFailureText = findViewById(R.id.ai_edit_failure_text)
         aiEditCancelBtn = findViewById(R.id.ai_edit_cancel_btn)
-
-        btnAiEdit.visibility = if (aiEditEnabled) View.VISIBLE else View.GONE
-
-        setupViewPager()
-        setupButtons()
-        updateUI()
     }
 
     private fun setupViewPager() {
@@ -467,10 +482,6 @@ class ImageViewerActivity : AppCompatActivity() {
             mainActivity.getWebView()?.evaluateJavascript(
                 "(function(){try{return window.__tauriGetAiEditPrompt?.()??''}catch(e){return ''}})();"
             ) { result ->
-                // evaluateJavascript JSON-encodes the JS return value.
-                // JS returns JSON.stringify({prompt, model}), so the callback
-                // gives us a double-encoded string like: "{\"prompt\":\"...\",\"model\":\"...\"}"
-                // We decode the outer JSON string literal via JSONArray, then parse the inner JSON.
                 val jsonString = try {
                     val trimmed = result?.trim() ?: ""
                     if (trimmed.startsWith("\"")) {
@@ -478,19 +489,17 @@ class ImageViewerActivity : AppCompatActivity() {
                     } else {
                         trimmed
                     }
-                } catch (_: Exception) {
-                    result?.trim()?.removeSurrounding("\"") ?: ""
-                }
-                val (currentPrompt, currentModel) = try {
-                    val json = org.json.JSONObject(jsonString)
-                    json.optString("prompt", "").replace("\\n", "\n") to json.optString("model", "")
                 } catch (e: Exception) {
-                    jsonString.replace("\\n", "\n") to ""
+                    Log.w(TAG, "Failed to decode JSON from WebView: $result", e)
+                    ""
                 }
-                val autoEdit = try {
-                    val json = org.json.JSONObject(jsonString)
-                    json.optBoolean("autoEdit", false)
-                } catch (_: Exception) { false }
+                val json = try { org.json.JSONObject(jsonString) } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse prompt JSON: $jsonString", e)
+                    null
+                }
+                val currentPrompt = json?.optString("prompt", "")?.replace("\\n", "\n") ?: ""
+                val currentModel = json?.optString("model", "") ?: ""
+                val autoEdit = json?.optBoolean("autoEdit", false) ?: false
                 runOnUiThread { showPromptWebViewOverlay(filePath, currentPrompt, currentModel, autoEdit, mainActivity) }
             }
         }
@@ -502,23 +511,23 @@ class ImageViewerActivity : AppCompatActivity() {
         // Dismiss any existing overlay
         dismissPromptWebView()
 
-        val escapedPrompt = currentPrompt
-            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            .replace("\"", "&quot;").replace("'", "&#39;")
+        val escapedPrompt = TextUtils.htmlEncode(currentPrompt)
             .replace("\n", "&#10;")
 
-        // Determine which model option is selected
+        // Determine which model option is selected — validate against whitelist
         val modelOptions = listOf(
             "doubao-seedream-5-0-260128" to "Doubao-Seedream-5.0-lite",
             "doubao-seedream-4-5-251128" to "Doubao-Seedream-4.5",
             "doubao-seedream-4-0-250828" to "Doubao-Seedream-4.0",
         )
-        val selectedModel = currentModel.ifEmpty { modelOptions.first().first }
+        val selectedModel = modelOptions.map { it.first }
+            .firstOrNull { it == currentModel }
+            ?: modelOptions.first().first
         val modelOptionHtml = modelOptions.joinToString("") { (value, label) ->
             val sel = if (value == selectedModel) " selected" else ""
             """<div class="dropdown-opt$sel" data-value="$value">$label</div>"""
         }
-        val selectedLabel = modelOptions.find { it.first == selectedModel }?.second ?: selectedModel
+        val selectedLabel = modelOptions.first { it.first == selectedModel }.second
 
         val saveToggleHtml = if (autoEditEnabled) {
             """<div class="save-toggle" onclick="toggleSave()">
@@ -776,16 +785,13 @@ class ImageViewerActivity : AppCompatActivity() {
     private fun dispatchAiEdit(filePath: String, prompt: String, model: String, saveAsAutoEdit: Boolean, mainActivity: MainActivity) {
         isAiEditing = true
 
-        val escapedPath = filePath.replace("\\", "\\\\").replace("'", "\\'")
-        val escapedPrompt = prompt.replace("\\", "\\\\").replace("'", "\\'")
-            .replace("\n", "\\n").replace("\r", "\\r")
-        val escapedModel = model.replace("\\", "\\\\").replace("'", "\\'")
-        val saveFlag = if (saveAsAutoEdit) "true" else "false"
-
+        // Use JSONArray for safe JSON encoding — avoids JS string injection vulnerabilities
+        val args = JSONArray().put(filePath).put(prompt).put(model).put(saveAsAutoEdit)
         val js = """
             (function() {
+                var args = $args;
                 if (window.__tauriTriggerAiEditWithPrompt) {
-                    window.__tauriTriggerAiEditWithPrompt('$escapedPath', '$escapedPrompt', '$escapedModel', $saveFlag);
+                    window.__tauriTriggerAiEditWithPrompt(args[0], args[1], args[2], args[3]);
                     return 'ok';
                 }
                 return 'no_handler';
@@ -805,24 +811,7 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     private fun resolveUriToFilePath(uriString: String): String? {
-        return try {
-            val uri = Uri.parse(uriString)
-            if (uri.scheme == "file") {
-                uri.path
-            } else if (uri.scheme == "content") {
-                contentResolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val idx = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
-                        if (idx >= 0) cursor.getString(idx) else null
-                    } else null
-                }
-            } else {
-                uriString
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "resolveUriToFilePath failed for $uriString", e)
-            null
-        }
+        return resolveUriToFilePath(this, uriString)
     }
 
     private fun resetProgressAppearance() {
@@ -842,81 +831,78 @@ class ImageViewerActivity : AppCompatActivity() {
             isAiEditing = false
             stopHighlightSweepAnimation()
             if (isFinishing || isDestroyed) return@runOnUiThread
+
+            val containerColor: Int
+            val strokeColor: Int
+            val fillColors: IntArray?
+            val fillColor: Int?
+            val edgeColors: IntArray?
+            val edgeColor: Int?
+            val statusMessage: String
+
             if (success) {
-                stopHighlightSweepAnimation()
-                // Green container background
-                aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                    setColor(0xBF1A3C1A.toInt())
-                    cornerRadius = 12f * resources.displayMetrics.density
-                    setStroke(1 * resources.displayMetrics.density.toInt(), 0x3322C55E.toInt())
-                }
-                // Green fill overlay — static gradient matching editing style
-                aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
-                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
-                )
-                aiEditProgressFill.visibility = View.VISIBLE
-                aiEditProgressHighlight.visibility = View.GONE
-                // Green full-width bottom edge — static gradient
-                aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    2,
-                    Gravity.BOTTOM
-                )
-                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
-                )
-                // Text
-                aiEditStatusText.text = "修图完成"
-                aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
-                aiEditProgressText.text = message ?: "修图完成"
-                aiEditFailureText.visibility = View.GONE
-                // Dismiss button
-                aiEditCancelBtn.visibility = View.VISIBLE
-                aiEditCancelBtn.text = "✕"
-                aiEditCancelBtn.setOnClickListener {
-                    resetProgressAppearance()
-                    aiEditProgressContainer.visibility = View.GONE
-                }
+                containerColor = 0xBF1A3C1A.toInt()
+                strokeColor = 0x3322C55E.toInt()
+                fillColors = intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
+                fillColor = null
+                edgeColors = intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
+                edgeColor = null
+                statusMessage = message ?: "修图完成"
             } else {
-                // Red container background
-                aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                    setColor(0xB35C1A1A.toInt())
-                    cornerRadius = 12f * resources.displayMetrics.density
-                    setStroke(1 * resources.displayMetrics.density.toInt(), 0x33EF4444.toInt())
-                }
-                // Red fill overlay
-                aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
+                containerColor = 0xB35C1A1A.toInt()
+                strokeColor = 0x33EF4444.toInt()
+                fillColors = null
+                fillColor = 0x33EF4444.toInt()
+                edgeColors = null
+                edgeColor = 0x99F87171.toInt()
+                statusMessage = message ?: "修图失败"
+            }
+
+            val dp = resources.displayMetrics.density
+
+            aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                setColor(containerColor)
+                cornerRadius = 12f * dp
+                setStroke(dp.toInt(), strokeColor)
+            }
+
+            aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            if (fillColors != null) {
+                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fillColors
                 )
-                aiEditProgressFill.setBackgroundColor(0x33EF4444.toInt())
-                aiEditProgressFill.visibility = View.VISIBLE
-                // Red full-width bottom edge
-                aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    2,
-                    Gravity.BOTTOM
+            } else {
+                aiEditProgressFill.setBackgroundColor(fillColor!!)
+            }
+            aiEditProgressFill.visibility = View.VISIBLE
+            aiEditProgressHighlight.visibility = View.GONE
+
+            aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                2,
+                Gravity.BOTTOM
+            )
+            if (edgeColors != null) {
+                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, edgeColors
                 )
-                aiEditProgressEdge.setBackgroundColor(0x99F87171.toInt())
-                // Text
-                aiEditStatusText.text = "修图完成"
-                aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
-                aiEditProgressText.text = message ?: "修图失败"
-                aiEditFailureText.visibility = View.GONE
-                // Dismiss button
-                aiEditCancelBtn.text = "✕"
-                aiEditCancelBtn.setOnClickListener {
-                    resetProgressAppearance()
-                    aiEditProgressContainer.visibility = View.GONE
-                }
+            } else {
+                aiEditProgressEdge.setBackgroundColor(edgeColor!!)
+            }
+
+            aiEditStatusText.text = "修图完成"
+            aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
+            aiEditProgressText.text = statusMessage
+            aiEditFailureText.visibility = View.GONE
+            aiEditCancelBtn.visibility = View.VISIBLE
+            aiEditCancelBtn.text = "✕"
+            aiEditCancelBtn.setOnClickListener {
+                resetProgressAppearance()
+                aiEditProgressContainer.visibility = View.GONE
             }
         }
     }
@@ -1210,23 +1196,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_image_viewer)
 
-        viewPager = findViewById(R.id.view_pager)
-        bottomBar = findViewById(R.id.bottom_bar)
-        filenameView = findViewById(R.id.filename)
-        exifParams = findViewById(R.id.exif_params)
-        exifDatetime = findViewById(R.id.exif_datetime)
-        btnAiEdit = findViewById(R.id.btn_ai_edit)
-        btnRotate = findViewById(R.id.btn_rotate)
-        btnDelete = findViewById(R.id.btn_delete)
-
-        aiEditProgressContainer = findViewById(R.id.ai_edit_progress_container)
-        aiEditProgressFill = findViewById(R.id.ai_edit_progress_fill)
-        aiEditProgressHighlight = findViewById(R.id.ai_edit_progress_highlight)
-        aiEditProgressEdge = findViewById(R.id.ai_edit_progress_edge)
-        aiEditStatusText = findViewById(R.id.ai_edit_status_text)
-        aiEditProgressText = findViewById(R.id.ai_edit_progress_text)
-        aiEditFailureText = findViewById(R.id.ai_edit_failure_text)
-        aiEditCancelBtn = findViewById(R.id.ai_edit_cancel_btn)
+        bindViews()
 
         btnAiEdit.visibility = wasAiEditVisible
 

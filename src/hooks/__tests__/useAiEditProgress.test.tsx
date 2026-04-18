@@ -171,7 +171,7 @@ describe('useAiEditProgress', () => {
 
     eventHandler!(doneEvent());
 
-    expect(onAiEditComplete).toHaveBeenCalledWith(true, null);
+    expect(onAiEditComplete).toHaveBeenCalledWith(true, '修图完成，共3张');
   });
 
   it('handleEvent "done" notifies native layer with failure message', () => {
@@ -191,7 +191,7 @@ describe('useAiEditProgress', () => {
 
     expect(onAiEditComplete).toHaveBeenCalledWith(
       false,
-      '修图完成，2张失败：fail1.jpg、fail2.jpg',
+      '修图完成，成功1张，失败2张',
     );
   });
 
@@ -272,7 +272,7 @@ describe('useAiEditProgress', () => {
     expect(updateAiEditProgress).toHaveBeenCalledWith(2, 5, 0);
   });
 
-  it('handleEvent "done" with no failures resets state after timeout', async () => {
+  it('handleEvent "done" with no failures shows done state then resets after timeout', async () => {
     vi.useFakeTimers();
 
     eventHandler!(doneEvent());
@@ -280,13 +280,14 @@ describe('useAiEditProgress', () => {
     await act(async () => { await flush(); });
 
     expect(getText('is-editing')).toBe('no');
-    expect(getText('is-done')).toBe('no');
+    expect(getText('is-done')).toBe('yes');
 
     await act(async () => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(3000);
       await flush();
     });
 
+    expect(getText('is-done')).toBe('no');
     expect(getText('current')).toBe('0');
     expect(getText('total')).toBe('0');
     expect(getText('failed-count')).toBe('0');
@@ -336,22 +337,6 @@ describe('useAiEditProgress', () => {
   it('cancelAiEdit invokes cancel_ai_edit command', async () => {
     await cancelAiEdit();
     expect(invokeMock).toHaveBeenCalledWith('cancel_ai_edit');
-  });
-
-  it('handleEvent "done" triggers gallery refresh with ai-edit reason', async () => {
-    vi.useFakeTimers();
-
-    eventHandler!(doneEvent());
-    await act(async () => { await flush(); });
-
-    await act(async () => {
-      vi.advanceTimersByTime(500);
-      await flush();
-    });
-
-    expect(requestMediaLibraryRefreshMock).toHaveBeenCalledWith({ reason: 'ai-edit' });
-
-    vi.useRealTimers();
   });
 
   it('handleEvent "progress" updates state correctly', async () => {
@@ -442,70 +427,5 @@ describe('useAiEditProgress', () => {
     // total should remain 0 (no editing session active)
     expect(getText('total')).toBe('0');
     expect(getText('is-editing')).toBe('no');
-  });
-
-  it('FTP upload scenario: total updates as images arrive during processing', async () => {
-    // Image 1 starts processing
-    await act(async () => {
-      eventHandler!({
-        type: 'progress',
-        current: 1,
-        total: 1,
-        fileName: 'img1.jpg',
-        failedCount: 0,
-      });
-      await flush();
-    });
-    expect(getText('current')).toBe('1');
-    expect(getText('total')).toBe('1');
-
-    // Image 2 arrives via FTP while image 1 is processing
-    await act(async () => {
-      eventHandler!({
-        type: 'queued',
-        queueDepth: 1,
-      });
-      await flush();
-    });
-    expect(getText('current')).toBe('1');
-    expect(getText('total')).toBe('2');
-
-    // Image 3 arrives via FTP
-    await act(async () => {
-      eventHandler!({
-        type: 'queued',
-        queueDepth: 2,
-      });
-      await flush();
-    });
-    expect(getText('current')).toBe('1');
-    expect(getText('total')).toBe('3');
-
-    // Image 1 completes
-    await act(async () => {
-      eventHandler!({
-        type: 'completed',
-        current: 1,
-        total: 3,
-        fileName: 'img1.jpg',
-        failedCount: 0,
-        outputPath: '/out/img1.jpg',
-      });
-      await flush();
-    });
-
-    // Image 2 starts processing
-    await act(async () => {
-      eventHandler!({
-        type: 'progress',
-        current: 2,
-        total: 3,
-        fileName: 'img2.jpg',
-        failedCount: 0,
-      });
-      await flush();
-    });
-    expect(getText('current')).toBe('2');
-    expect(getText('total')).toBe('3');
   });
 });

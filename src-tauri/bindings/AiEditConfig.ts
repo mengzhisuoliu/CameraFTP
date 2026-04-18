@@ -6,10 +6,6 @@ import type { ProviderConfig } from "./ProviderConfig";
  */
 export type AiEditConfig = { 
 /**
- * 总开关
- */
-enabled: boolean, 
-/**
  * 接收图片后自动触发
  */
 autoEdit: boolean, 

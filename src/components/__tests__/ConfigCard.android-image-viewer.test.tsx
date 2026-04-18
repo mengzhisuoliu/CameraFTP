@@ -77,7 +77,6 @@ describe('ConfigCard Android image viewer settings', () => {
         autoOpenLatestWhenVisible: true,
       },
       aiEdit: {
-        enabled: false,
         autoEdit: true,
         prompt: '',
         manualPrompt: '',
