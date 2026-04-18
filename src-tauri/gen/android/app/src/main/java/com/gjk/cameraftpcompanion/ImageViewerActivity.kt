@@ -464,7 +464,12 @@ class ImageViewerActivity : AppCompatActivity() {
                 "(function(){try{return window.__tauriGetAiEditPrompt?.()??''}catch(e){return ''}})();"
             ) { result ->
                 val jsonString = try {
-                    (result?.trim() ?: "").removeSurrounding("\"")
+                    val trimmed = result?.trim() ?: ""
+                    if (trimmed.startsWith("\"")) {
+                        org.json.JSONArray("[$trimmed]").getString(0)
+                    } else {
+                        trimmed
+                    }
                 } catch (_: Exception) { "" }
                 val json = try { org.json.JSONObject(jsonString) } catch (_: Exception) { null }
                 val currentPrompt = json?.optString("prompt", "")?.replace("\\n", "\n") ?: ""
