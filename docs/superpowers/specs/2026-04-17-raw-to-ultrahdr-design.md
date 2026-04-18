@@ -430,11 +430,15 @@ src/components/
 
 ## 文件命名规则
 
+格式：`{原文件名去掉扩展名}_UltraHDR_{yyyyMMdd_HHmmss}.jpg`
+
+datetime 取自 EXIF 拍摄时间（`DateTimeOriginal`），若不可得则使用文件修改时间。
+
 | 原始 RAW 文件 | Ultra HDR 输出 |
 |--------------|----------------|
-| `IMG_0001.CR3` | `IMG_0001_UltraHDR.jpg` |
-| `DSC_0024.NEF` | `DSC_0024_UltraHDR.jpg` |
-| `_DSC0001.ARW` | `_DSC0001_UltraHDR.jpg` |
+| `IMG_0001.CR3` | `IMG_0001_UltraHDR_20260418_143025.jpg` |
+| `DSC_0024.NEF` | `DSC_0024_UltraHDR_20260312_091500.jpg` |
+| `_DSC0001.ARW` | `_DSC0001_UltraHDR_20260405_185632.jpg` |
 
 输出文件保存在与原 RAW 文件相同的目录中。
 
@@ -478,3 +482,21 @@ UltraHdrProgressEvent:
 | 自生成 SDR 基底 | 需重新实现相机 ISP（色调曲线、色彩科学、降噪锐化），且自生成 SDR 与线性 HDR 同源，增益图同样全零；不如直接使用相机已渲染好的内嵌 JPEG |
 | 提取相机 EXIF 中的色调曲线数据 | 各厂商色调曲线数据均不完整存储在 RAW 文件中（仅存风格名称/ID），无法完整重建 |
 | RGB 三通道增益图 | 与 SDR 基底的色调曲线失配会导致跨通道色调偏移，亮度-only 增益图更安全 |
+
+---
+
+## 共享 RAW 解码器预留
+
+当前 Ultra HDR 模块拥有独立的 RAW 解码逻辑（直接使用 rsraw）。为支持未来的胶片滤镜等功能复用同一解码管线，预留以下重构方向：
+
+```
+src-tauri/src/raw_processing/          ← 未来共享模块（预留）
+├── decoder.rs                         # RawDecoder: open / extract_preview / decode(config)
+├── types.rs                           # DecodedRaw, RawMetadata, RawDecodeConfig
+└── color.rs                           # 色彩空间变换
+
+src-tauri/src/ultra_hdr/               ← 当前模块，未来依赖 raw_processing
+src-tauri/src/film_filter/             ← 胶片滤镜模块（见独立 spec）
+```
+
+`RawDecodeConfig` 通过不同参数（gamma、output_color、interpolation）为不同功能提供定制化的解码输出，两项功能可共享同一次 `unpack()` 调用结果。当前不涉及一次解码两次消费的场景，架构上预留即可。
