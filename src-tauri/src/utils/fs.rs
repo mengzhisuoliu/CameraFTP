@@ -122,3 +122,44 @@ pub fn is_path_writable(path: &Path) -> Result<bool, std::io::Error> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[tokio::test]
+    async fn wait_for_file_ready_returns_true_for_readable_file() {
+        let mut file = tempfile::NamedTempFile::new().expect("create temp file");
+        file.write_all(b"test content").expect("write content");
+        file.flush().expect("flush");
+        let path = file.path().to_path_buf();
+
+        let result = wait_for_file_ready(&path, Duration::from_secs(2)).await;
+        assert!(result, "file should be ready immediately");
+    }
+
+    #[tokio::test]
+    async fn wait_for_file_ready_returns_false_for_nonexistent_file() {
+        let path = std::env::temp_dir().join("nonexistent_test_file_12345_unique.jpg");
+        let _ = std::fs::remove_file(&path);
+
+        let result = wait_for_file_ready(&path, Duration::from_millis(100)).await;
+        assert!(!result, "should timeout for nonexistent file");
+    }
+
+    #[test]
+    fn is_path_writable_detects_writable_dir() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let result = is_path_writable(temp_dir.path()).expect("check writable");
+        assert!(result);
+        let test_file = temp_dir.path().join(".write_test");
+        assert!(!test_file.exists(), "test file should be cleaned up");
+    }
+
+    #[test]
+    fn is_path_writable_returns_error_for_nonexistent_dir() {
+        let result = is_path_writable(Path::new("/nonexistent/path/that/does/not/exist/abc123"));
+        assert!(result.is_err(), "should fail for nonexistent directory");
+    }
+}
+
