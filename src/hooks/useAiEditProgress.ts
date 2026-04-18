@@ -139,6 +139,8 @@ function handleEvent(event: AiEditProgressEvent) {
 
 async function autoPreviewIfEnabled(outputFiles: string[]) {
   try {
+    // Dynamic import to avoid circular dependency: this module is imported by
+    // App.tsx which is part of the configStore dependency chain.
     const { useConfigStore: _useConfigStore } = await import('../stores/configStore');
     const autoOpen = _useConfigStore.getState().draft?.androidImageViewer?.autoOpenLatestWhenVisible ?? false;
     if (autoOpen) {

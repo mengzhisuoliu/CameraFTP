@@ -293,6 +293,9 @@ impl FileIndexService {
         // Atomic check-and-insert under write lock to prevent TOCTOU race
         let mut index = self.index.write().await;
 
+        // TODO(perf): Linear scan is O(n) per insert. Consider maintaining a
+        // HashSet<PathBuf> alongside the sorted Vec for O(1) dedup lookups
+        // when file counts exceed ~1000.
         if index.files().iter().any(|f| f.path == path) {
             trace!("File already indexed, skipping: {:?}", path);
             return Ok(());

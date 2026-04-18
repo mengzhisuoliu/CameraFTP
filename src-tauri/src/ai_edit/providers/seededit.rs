@@ -127,7 +127,7 @@ impl AiEditProvider for SeedEditProvider {
                 .await
                 .map_err(|e| AppError::AiEditError(format!("Failed to read image bytes: {}", e)))?;
 
-            Ok(image_bytes.to_vec())
+            Ok(image_bytes.into())
         } else if let Some(b64) = image_data.b64_json {
             use base64::Engine;
             base64::engine::general_purpose::STANDARD.decode(&b64)

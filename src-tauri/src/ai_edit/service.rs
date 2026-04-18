@@ -197,6 +197,43 @@ impl WorkerState {
     }
 }
 
+enum SelectOutcome {
+    Task(AiEditTask),
+    Cancelled,
+    ShutDown,
+}
+
+async fn select_next_task(
+    manual_rx: &mut mpsc::Receiver<AiEditTask>,
+    auto_rx: &mut mpsc::Receiver<AiEditTask>,
+    cancel_token: &CancellationToken,
+) -> SelectOutcome {
+    tokio::select! {
+        biased;
+
+        _ = cancel_token.cancelled() => SelectOutcome::Cancelled,
+
+        task = manual_rx.recv() => match task {
+            Some(t) => SelectOutcome::Task(t),
+            None => SelectOutcome::ShutDown,
+        },
+
+        task = auto_rx.recv() => match task {
+            Some(t) => SelectOutcome::Task(t),
+            None => {
+                // Auto channel closed — fall back to manual-only select
+                tokio::select! {
+                    _ = cancel_token.cancelled() => SelectOutcome::Cancelled,
+                    task = manual_rx.recv() => match task {
+                        Some(t) => SelectOutcome::Task(t),
+                        None => SelectOutcome::ShutDown,
+                    },
+                }
+            }
+        }
+    }
+}
+
 async fn worker_loop(
     mut manual_rx: mpsc::Receiver<AiEditTask>,
     mut auto_rx: mpsc::Receiver<AiEditTask>,
@@ -255,54 +292,18 @@ async fn worker_loop(
         let task = if let Ok(task) = manual_rx.try_recv() {
             task
         } else {
-            // Slow path: wait on either channel, manual has priority via biased select
-            tokio::select! {
-                biased;
-
-                _ = cancel_token.cancelled() => {
+            match select_next_task(&mut manual_rx, &mut auto_rx, &cancel_token).await {
+                SelectOutcome::Task(task) => task,
+                SelectOutcome::Cancelled => {
                     info!("AI edit worker cancelled while waiting");
                     drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
                     emit_batch_done(&mut state, &app_handle);
                     continue;
                 }
-
-                task = manual_rx.recv() => {
-                    match task {
-                        Some(t) => t,
-                        None => {
-                            // Manual channel closed; drain pending then finish
-                            drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
-                            emit_batch_done(&mut state, &app_handle);
-                            break;
-                        },
-                    }
-                }
-                task = auto_rx.recv() => {
-                    match task {
-                        Some(t) => t,
-                        None => {
-                            // Auto channel closed; wait for manual tasks or shutdown
-                            if queue_depth.load(Ordering::Relaxed) == 0 && state.processed_count() > 0 {
-                                emit_batch_done(&mut state, &app_handle);
-                            }
-                            tokio::select! {
-                                _ = cancel_token.cancelled() => {
-                                    drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
-                                    emit_batch_done(&mut state, &app_handle);
-                                    continue;
-                                }
-                                task = manual_rx.recv() => {
-                                    match task {
-                                        Some(t) => t,
-                                        None => {
-                                            emit_batch_done(&mut state, &app_handle);
-                                            break;
-                                        },
-                                    }
-                                }
-                            }
-                        }
-                    }
+                SelectOutcome::ShutDown => {
+                    drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
+                    emit_batch_done(&mut state, &app_handle);
+                    break;
                 }
             }
         };
