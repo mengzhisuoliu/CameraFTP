@@ -547,6 +547,7 @@ class ImageViewerActivity : AppCompatActivity() {
                   <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
+              <a href="#" class="api-link" onclick="event.preventDefault();NativeBridge.openLink('https://www.volcengine.com/docs/82379/1399008')">开通火山引擎模型服务 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
             </div>
             """
         } else ""
@@ -671,6 +672,12 @@ class ImageViewerActivity : AppCompatActivity() {
                 background: none; border: none; cursor: pointer; padding: 4px; color: #9ca3af;
               }
               .eye-btn:hover { color: #4b5563; }
+              .api-link {
+                display: inline-flex; align-items: center; gap: 2px;
+                font-size: 14px; color: #2563eb; text-decoration: none; margin-top: 4px;
+              }
+              .api-link:hover { color: #1d4ed8; }
+              .api-link svg { flex-shrink: 0; }
             </style>
             </head>
             <body>
@@ -806,6 +813,16 @@ class ImageViewerActivity : AppCompatActivity() {
                 @JavascriptInterface
                 fun onCancel() {
                     runOnUiThread { dismissPromptWebView() }
+                }
+                @JavascriptInterface
+                fun openLink(url: String) {
+                    runOnUiThread {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to open external link: $url", e)
+                        }
+                    }
                 }
             }, "NativeBridge")
             loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)

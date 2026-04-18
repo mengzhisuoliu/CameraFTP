@@ -5,11 +5,12 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Sparkles, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import { Select } from './ui/Select';
 import { SEEDREAM_MODELS, DEFAULT_SEEDREAM_MODEL } from '../constants/seedream-models';
+import { openExternalLink } from '../utils/external-link';
 
 interface PromptDialogProps {
   isOpen: boolean;
@@ -120,6 +121,14 @@ export function PromptDialog({ isOpen, defaultPrompt, defaultModel, autoEditEnab
                 {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <button
+              onClick={() => openExternalLink('https://www.volcengine.com/docs/82379/1399008')}
+              className="text-sm text-blue-600 hover:text-blue-700 inline-flex items-center gap-0.5 mt-1"
+              type="button"
+            >
+              开通火山引擎模型服务
+              <ExternalLink className="w-3 h-3" />
+            </button>
           </div>
         )}
         <div className="space-y-2">

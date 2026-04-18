@@ -184,6 +184,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     setShowPromptDialog(true);
   }, [imagePath]);
 
+  const flushConfigSave = useConfigStore(state => state.flushConfigSave);
+
   const handlePromptConfirm = useCallback(async (prompt: string, model: string, saveAsAutoEdit: boolean, apiKey?: string) => {
     if (!imagePath) return;
     setShowPromptDialog(false);
@@ -205,6 +207,10 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         } : {}),
       },
     }));
+
+    if (apiKey) {
+      await flushConfigSave();
+    }
 
     await enqueueAiEdit([imagePath], prompt, model);
   }, [imagePath, updateDraft]);

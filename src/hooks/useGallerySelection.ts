@@ -245,9 +245,10 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
   const handleAiEditPromptConfirm = useCallback(async (prompt: string, model: string, saveAsAutoEdit: boolean, apiKey?: string) => {
     setShowAiEditPrompt(false);
 
-    const draft = useConfigStore.getState().draft;
+    const store = useConfigStore.getState();
+    const draft = store.draft;
     if (draft) {
-      useConfigStore.getState().updateDraft(d => ({
+      store.updateDraft(d => ({
         ...d,
         aiEdit: {
           ...d.aiEdit,
@@ -264,6 +265,10 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
           } : {}),
         },
       }));
+
+      if (apiKey) {
+        await store.flushConfigSave();
+      }
     }
 
     const uris = [...selectedIds]

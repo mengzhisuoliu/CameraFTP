@@ -19,6 +19,7 @@ interface ConfigState {
 
   loadConfig: () => Promise<void>;
   updateDraft: (updater: (draft: AppConfig) => AppConfig) => void;
+  flushConfigSave: () => Promise<void>;
   saveAuthConfig: (auth: { anonymous: boolean; username: string; password: string }) => Promise<void>;
   updatePreviewConfig: (updates: Partial<PreviewWindowConfig>) => Promise<PreviewWindowConfig | null>;
   applyPreviewConfig: (previewConfig: PreviewWindowConfig) => void;
@@ -160,6 +161,10 @@ export const useConfigStore = create<ConfigState>((set, get) => {
       set({ draft: newDraft });
 
       debouncedSave(newDraft, draftRevision);
+    },
+
+    flushConfigSave: async () => {
+      await waitForWholeConfigSaveBarrier();
     },
 
     saveAuthConfig: async ({ anonymous, username, password }) => {

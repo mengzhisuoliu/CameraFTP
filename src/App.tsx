@@ -66,6 +66,10 @@ function App() {
         },
       }));
 
+      if (apiKey) {
+        await useConfigStore.getState().flushConfigSave();
+      }
+
       await enqueueAiEdit([filePath], prompt, model);
     };
 
