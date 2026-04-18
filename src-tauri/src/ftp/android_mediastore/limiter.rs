@@ -40,6 +40,7 @@ impl UploadLimiter {
     }
 
     /// Returns the number of currently available permits.
+    #[cfg(test)]
     pub fn available_permits(&self) -> usize {
         self.semaphore.available_permits()
     }

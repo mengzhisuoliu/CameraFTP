@@ -153,10 +153,11 @@ impl Default for ServerRuntimeState {
 }
 
 impl ServerRuntimeState {
-    pub fn subscribe(&self) -> watch::Receiver<ServerRuntimeSnapshot> {
+    pub(crate) fn subscribe(&self) -> watch::Receiver<ServerRuntimeSnapshot> {
         self.tx.subscribe()
     }
 
+    #[cfg(test)]
     pub async fn update_running_snapshot(&self, snapshot: ServerStateSnapshot) {
         let mut state = self.state.write().await;
         state.is_running = snapshot.is_running;
