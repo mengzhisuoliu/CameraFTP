@@ -14,8 +14,8 @@ use tracing::{info, warn};
 /// 证书文件名
 const CERT_FILE: &str = "ftp.crt";
 const KEY_FILE: &str = "ftp.key";
-/// Companion file storing the cert generation timestamp (epoch seconds)
-const CERT_TIMESTAMP_FILE: &str = "ftp.crt.generated";
+/// Extension appended to cert path for the companion timestamp file
+const CERT_TIMESTAMP_EXT: &str = "crt.generated";
 
 /// 证书有效期：10年
 const CERT_VALIDITY_DAYS: u64 = 365 * 10;
@@ -98,7 +98,7 @@ fn get_certs_directory() -> crate::error::AppResult<PathBuf> {
 
 /// 检查证书剩余有效期（天数）
 fn check_certificate_validity(cert_path: &Path) -> Result<u64, Box<dyn std::error::Error>> {
-    let timestamp_path = cert_path.with_extension("crt.generated");
+    let timestamp_path = cert_path.with_extension(CERT_TIMESTAMP_EXT);
 
     let created_epoch = if timestamp_path.exists() {
         fs::read_to_string(&timestamp_path)?
@@ -140,7 +140,7 @@ fn generate_and_save_certificates(
     fs::write(key_path, key_pem).map_err(|e| crate::error::AppError::Io(e.to_string()))?;
 
     // Store generation timestamp for reliable validity tracking
-    let timestamp_path = cert_path.with_extension("crt.generated");
+    let timestamp_path = cert_path.with_extension(CERT_TIMESTAMP_EXT);
     let now_epoch = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
