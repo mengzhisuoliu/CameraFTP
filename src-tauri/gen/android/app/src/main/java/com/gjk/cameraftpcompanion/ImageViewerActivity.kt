@@ -470,8 +470,14 @@ class ImageViewerActivity : AppCompatActivity() {
                     } else {
                         trimmed
                     }
-                } catch (_: Exception) { "" }
-                val json = try { org.json.JSONObject(jsonString) } catch (_: Exception) { null }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to decode JSON from WebView: $result", e)
+                    ""
+                }
+                val json = try { org.json.JSONObject(jsonString) } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse prompt JSON: $jsonString", e)
+                    null
+                }
                 val currentPrompt = json?.optString("prompt", "")?.replace("\\n", "\n") ?: ""
                 val currentModel = json?.optString("model", "") ?: ""
                 val autoEdit = json?.optBoolean("autoEdit", false) ?: false
