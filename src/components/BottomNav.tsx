@@ -20,7 +20,7 @@ export const BottomNav = memo(function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="max-w-md mx-auto flex">
         {navItems.map(({ id, icon: Icon, label }) => (
           <button
