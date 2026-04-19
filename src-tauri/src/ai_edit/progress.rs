@@ -60,6 +60,8 @@ pub enum AiEditProgressEvent {
         #[serde(rename = "outputFiles")]
         #[ts(rename = "outputFiles")]
         output_files: Vec<String>,
+        #[serde(default)]
+        cancelled: bool,
     },
     QueuedDropped {
         #[serde(rename = "fileName")]
@@ -115,6 +117,7 @@ mod tests {
                 failed_count: 1,
                 failed_files: vec!["c.jpg".to_string()],
                 output_files: vec!["/out/a_AIEdit.jpg".to_string()],
+                cancelled: false,
             },
         ];
 
@@ -133,5 +136,19 @@ mod tests {
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"queuedDropped\""), "JSON: {}", json);
+    }
+
+    #[test]
+    fn done_without_cancelled_field_deserializes_as_false() {
+        // Simulates a Done event from an older backend that lacks the `cancelled` field.
+        let json = r#"{"type":"done","total":2,"failedCount":0,"failedFiles":[],"outputFiles":["/out/a.jpg"]}"#;
+        let event: AiEditProgressEvent = serde_json::from_str(json).unwrap();
+        match event {
+            AiEditProgressEvent::Done { cancelled, .. } => assert!(
+                !cancelled,
+                "cancelled should default to false when absent from JSON"
+            ),
+            other => panic!("Expected Done variant, got: {:?}", other),
+        }
     }
 }

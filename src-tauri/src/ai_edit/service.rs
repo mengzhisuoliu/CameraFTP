@@ -254,12 +254,14 @@ async fn worker_loop(
     fn emit_batch_done(
         state: &mut WorkerState,
         app_handle: &AppHandle,
+        cancelled: bool,
     ) {
         if let Err(e) = app_handle.emit("ai-edit-progress", &super::progress::AiEditProgressEvent::Done {
             total: state.processed_count(),
             failed_count: state.failed_count,
             failed_files: std::mem::take(&mut state.failed_files),
             output_files: std::mem::take(&mut state.output_files),
+            cancelled,
         }) {
             warn!(error = %e, "Failed to emit ai-edit-progress Done event");
         }
@@ -298,19 +300,19 @@ async fn worker_loop(
                 SelectOutcome::AutoChannelClosed(task) => {
                     // Auto channel closed mid-batch — emit Done if batch has pending results
                     if queue_depth.load(Ordering::Relaxed) == 0 && state.processed_count() > 0 {
-                        emit_batch_done(&mut state, &app_handle);
+                        emit_batch_done(&mut state, &app_handle, false);
                     }
                     task
                 }
                 SelectOutcome::Cancelled => {
                     info!("AI edit worker cancelled while waiting");
                     drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
-                    emit_batch_done(&mut state, &app_handle);
+                    emit_batch_done(&mut state, &app_handle, true);
                     continue;
                 }
                 SelectOutcome::ShutDown => {
                     drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
-                    emit_batch_done(&mut state, &app_handle);
+                    emit_batch_done(&mut state, &app_handle, true);
                     break;
                 }
             }
@@ -405,14 +407,14 @@ async fn worker_loop(
                     let _ = tx.send(Err(AppError::AiEditError("AI edit cancelled".to_string())));
                 }
                 drain_pending_tasks(&mut manual_rx, &mut auto_rx, &queue_depth);
-                emit_batch_done(&mut state, &app_handle);
+                emit_batch_done(&mut state, &app_handle, true);
                 continue;
             }
         }
 
         // Emit Done when queue is empty and batch is complete
         if queue_depth.load(Ordering::Relaxed) == 0 && state.processed_count() > 0 {
-            emit_batch_done(&mut state, &app_handle);
+            emit_batch_done(&mut state, &app_handle, false);
         }
     }
 

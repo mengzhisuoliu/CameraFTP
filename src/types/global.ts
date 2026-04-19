@@ -196,9 +196,10 @@ interface ImageViewerAndroid {
   /**
    * Callback from JS when an AI edit triggered from native viewer completes
    * @param success Whether the edit succeeded
-   * @param message Error message if failed, null if succeeded
+   * @param message Status message, or null if cancelled
+   * @param cancelled Whether the edit was cancelled by user
    */
-  onAiEditComplete?(success: boolean, message: string | null): void;
+  onAiEditComplete?(success: boolean, message: string | null, cancelled: boolean): void;
 
   /**
    * Update AI edit progress in native UI

@@ -118,6 +118,7 @@ describe('useAiEditProgress', () => {
       failedCount: 0,
       failedFiles: [],
       outputFiles: ['/tmp/out1.jpg', '/tmp/out2.jpg'],
+      cancelled: false,
       ...overrides,
     };
   }
@@ -171,7 +172,7 @@ describe('useAiEditProgress', () => {
 
     eventHandler!(doneEvent());
 
-    expect(onAiEditComplete).toHaveBeenCalledWith(true, '修图完成，共3张');
+    expect(onAiEditComplete).toHaveBeenCalledWith(true, '共3张', false);
   });
 
   it('handleEvent "done" notifies native layer with failure message', () => {
@@ -191,7 +192,8 @@ describe('useAiEditProgress', () => {
 
     expect(onAiEditComplete).toHaveBeenCalledWith(
       false,
-      '修图完成，成功1张，失败2张',
+      '成功1张 失败2张',
+      false,
     );
   });
 
@@ -451,5 +453,31 @@ describe('useAiEditProgress', () => {
       prompt: 'test prompt',
       model: 'test-model',
     });
+  });
+
+  it('handleEvent "done" with cancelled silently resets without showing success', async () => {
+    const onAiEditComplete = vi.fn();
+    const scanNewFile = vi.fn();
+    window.ImageViewerAndroid = {
+      openOrNavigateTo: vi.fn(),
+      isAppVisible: vi.fn(),
+      onExifResult: vi.fn(),
+      resolveFilePath: vi.fn(),
+      onAiEditComplete,
+      scanNewFile,
+    };
+
+    eventHandler!(doneEvent({ cancelled: true }));
+
+    // Should not show done state — immediately reset to initial
+    expect(getText('is-editing')).toBe('no');
+    expect(getText('is-done')).toBe('no');
+    expect(getText('current')).toBe('0');
+
+    // Should notify native with cancelled=true
+    expect(onAiEditComplete).toHaveBeenCalledWith(false, null, true);
+
+    // Should still scan output files
+    expect(scanNewFile).toHaveBeenCalledTimes(2);
   });
 });

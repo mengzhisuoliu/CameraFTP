@@ -929,11 +929,18 @@ class ImageViewerActivity : AppCompatActivity() {
     /**
      * Called from JS bridge when AI edit completes (success or failure)
      */
-    fun onAiEditComplete(success: Boolean, message: String?) {
+    fun onAiEditComplete(success: Boolean, message: String?, cancelled: Boolean) {
         runOnUiThread {
             isAiEditing = false
             stopHighlightSweepAnimation()
             if (isFinishing || isDestroyed) return@runOnUiThread
+
+            // On cancel, silently hide the progress bar without showing success/failure
+            if (cancelled) {
+                resetProgressAppearance()
+                aiEditProgressContainer.visibility = View.GONE
+                return@runOnUiThread
+            }
 
             val containerColor: Int
             val strokeColor: Int
@@ -941,7 +948,6 @@ class ImageViewerActivity : AppCompatActivity() {
             val fillColor: Int?
             val edgeColors: IntArray?
             val edgeColor: Int?
-            val statusMessage: String
 
             if (success) {
                 containerColor = 0xBF1A3C1A.toInt()
@@ -950,7 +956,6 @@ class ImageViewerActivity : AppCompatActivity() {
                 fillColor = null
                 edgeColors = intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
                 edgeColor = null
-                statusMessage = message ?: "修图完成"
             } else {
                 containerColor = 0xB35C1A1A.toInt()
                 strokeColor = 0x33EF4444.toInt()
@@ -958,7 +963,6 @@ class ImageViewerActivity : AppCompatActivity() {
                 fillColor = 0x33EF4444.toInt()
                 edgeColors = null
                 edgeColor = 0x99F87171.toInt()
-                statusMessage = message ?: "修图失败"
             }
 
             val dp = resources.displayMetrics.density
@@ -999,7 +1003,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
             aiEditStatusText.text = "修图完成"
             aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
-            aiEditProgressText.text = statusMessage
+            aiEditProgressText.text = message ?: ""
             aiEditFailureText.visibility = View.GONE
             aiEditCancelBtn.visibility = View.VISIBLE
             aiEditCancelBtn.text = "✕"

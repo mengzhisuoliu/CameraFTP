@@ -86,10 +86,10 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
      * Called from JS when an AI edit triggered from native completes.
      */
     @android.webkit.JavascriptInterface
-    fun onAiEditComplete(success: Boolean, message: String?) {
-        if (success) clearProgress()
+    fun onAiEditComplete(success: Boolean, message: String?, cancelled: Boolean) {
+        if (success || cancelled) clearProgress()
         val viewer = ImageViewerActivity.instance ?: return
-        viewer.onAiEditComplete(success, message)
+        viewer.onAiEditComplete(success, message, cancelled)
     }
 
     @android.webkit.JavascriptInterface

@@ -45,11 +45,15 @@ function syncToNativeLayer(current: number, total: number, failedCount: number) 
   window.ImageViewerAndroid?.updateAiEditProgress?.(current, total, failedCount);
 }
 
-function notifyNativeDone(success: boolean, failedCount: number, total: number) {
+function notifyNativeDone(success: boolean, failedCount: number, total: number, cancelled: boolean) {
+  if (cancelled) {
+    window.ImageViewerAndroid?.onAiEditComplete?.(false, null, true);
+    return;
+  }
   const message = failedCount > 0
-    ? `修图完成，成功${total - failedCount}张，失败${failedCount}张`
-    : `修图完成，共${total}张`;
-  window.ImageViewerAndroid?.onAiEditComplete?.(success, message);
+    ? `成功${total - failedCount}张 失败${failedCount}张`
+    : `共${total}张`;
+  window.ImageViewerAndroid?.onAiEditComplete?.(success, message, false);
 }
 
 function scanOutputFiles(outputFiles: string[]) {
@@ -97,6 +101,17 @@ function handleEvent(event: AiEditProgressEvent) {
       const hasFailures = event.failedCount > 0;
       const outputFiles = event.outputFiles ?? [];
 
+      // On cancel, silently reset state without showing success/failure UI
+      if (event.cancelled) {
+        useAiEditProgressStore.setState({ ...initialState });
+        scanOutputFiles(outputFiles);
+        setTimeout(() => {
+          requestMediaLibraryRefresh({ reason: 'ai-edit' });
+        }, GALLERY_REFRESH_DELAY_MS);
+        notifyNativeDone(false, event.failedCount, event.total, true);
+        break;
+      }
+
       useAiEditProgressStore.setState({
         isEditing: false,
         isDone: true,
@@ -125,7 +140,7 @@ function handleEvent(event: AiEditProgressEvent) {
           useAiEditProgressStore.setState({ ...initialState });
         }, DONE_AUTO_RESET_DELAY_MS);
       }
-      notifyNativeDone(event.failedCount === 0, event.failedCount, event.total);
+      notifyNativeDone(event.failedCount === 0, event.failedCount, event.total, false);
       break;
     }
     case 'queuedDropped': {
