@@ -160,7 +160,7 @@ export const GalleryCard = memo(function GalleryCard() {
     const filePaths = Array.from(selectedIds)
       .map(id => pager.items.find(item => item.mediaId === id))
       .filter((item): item is NonNullable<typeof item> => item != null)
-      .map(item => item.filePath);
+      .map(item => item.uri);
     if (filePaths.length > 0) {
       await enqueueLutFilter(filePaths, lutId);
     }
