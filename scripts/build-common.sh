@@ -372,6 +372,7 @@ clean_build_cache() {
         "src-tauri/gen/android/.kotlin"
         "src-tauri/gen/android/app/src/main/assets"
         "src-tauri/gen/android/app/src/main/jniLibs"
+        "src-tauri/gen/android/app/extra-jniLibs"
         "src-tauri/gen/android/app/src/main/java/com/gjk/cameraftpcompanion/generated"
         "src-tauri/gen/android/app/tauri.build.gradle.kts"
         "src-tauri/gen/android/app/tauri.properties"

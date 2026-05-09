@@ -277,6 +277,20 @@ EOF
     fi
 }
 
+# Inject RawAlchemyCpp .so into Tauri's staging directory
+inject_raw_alchemy_so() {
+    local so_path="${1:-}"
+    if [ -z "$so_path" ] || [ ! -f "$so_path" ]; then
+        return 0
+    fi
+
+    local staging_dir="src-tauri/gen/android/app/build/tauri-staging/jniLibs/arm64-v8a"
+    if [ -d "$staging_dir" ]; then
+        cp "$so_path" "$staging_dir/"
+        info "Injected libraw_alchemy_core.so into tauri-staging"
+    fi
+}
+
 # 构建
 build_android() {
     local BUILD_TYPE="${1:-release}"
@@ -289,8 +303,9 @@ build_android() {
     fi
     check_or_create_keystore
 
-    # Build RawAlchemyCpp .so if available (must be BEFORE Tauri build so it's in jniLibs)
-    local rawalchemy_dir="${RAWALCHEMY_DIR:-$SCRIPT_DIR/../RawAlchemyCpp}"
+    # Build RawAlchemyCpp .so if available
+    local rawalchemy_dir="${RAWALCHEMY_DIR:-$SCRIPT_DIR/../src-tauri/lib/rawalchemy}"
+    local rawalchemy_so=""
     if [ -d "$rawalchemy_dir" ]; then
         local bt_upper
         if [ "$BUILD_TYPE" = "debug" ]; then
@@ -302,14 +317,15 @@ build_android() {
             warn "RawAlchemyCpp Android build failed. LUT filter will be unavailable."
         }
 
-        # Copy .so to jniLibs (Tauri includes pre-existing jniLibs files in the APK)
-        local jni_dir="src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a"
-        mkdir -p "$jni_dir"
         local abs_dir
         abs_dir="$(cd "$rawalchemy_dir" && pwd)"
-        if [ -f "$abs_dir/build-android-arm64/libraw_alchemy.so" ]; then
-            cp "$abs_dir/build-android-arm64/libraw_alchemy.so" "$jni_dir/"
-            success "Copied RawAlchemyCpp .so to $jni_dir/"
+        if [ -f "$abs_dir/build-android-arm64/libraw_alchemy_core.so" ]; then
+            rawalchemy_so="$abs_dir/build-android-arm64/libraw_alchemy_core.so"
+            # Also copy to extra-jniLibs (included in APK via build.gradle.kts)
+            local jni_dir="src-tauri/gen/android/app/extra-jniLibs/arm64-v8a"
+            mkdir -p "$jni_dir"
+            cp "$rawalchemy_so" "$jni_dir/"
+            success "RawAlchemyCpp .so ready: $rawalchemy_so"
         fi
     else
         warn "RawAlchemyCpp not found. LUT filter feature will be unavailable."
@@ -325,6 +341,7 @@ build_android() {
                 error "Android debug 构建失败"
                 exit 1
             }
+            inject_raw_alchemy_so "$rawalchemy_so"
             move_to_out \
                 "src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk" \
                 "CameraFTP_v${VERSION}-debug.apk" \
@@ -336,6 +353,7 @@ build_android() {
                 error "Android release 构建失败"
                 exit 1
             }
+            inject_raw_alchemy_so "$rawalchemy_so"
             move_to_out \
                 "src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk" \
                 "CameraFTP_v${VERSION}.apk" \

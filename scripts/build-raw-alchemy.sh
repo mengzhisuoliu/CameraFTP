@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/build-common.sh"
 
-RAWALCHEMY_DIR="${RAWALCHEMY_DIR:-$SCRIPT_DIR/../../RawAlchemyCpp}"
+RAWALCHEMY_DIR="${RAWALCHEMY_DIR:-$SCRIPT_DIR/../src-tauri/lib/rawalchemy}"
 
 build_raw_alchemy_windows() {
     local build_type="${1:-Release}"
@@ -77,7 +77,7 @@ build_raw_alchemy_android() {
     cmake --build "build-android-arm64" -j"$(nproc 2>/dev/null || echo 4)"
     cd - > /dev/null
 
-    local so_path="$abs_dir/build-android-arm64/libraw_alchemy.so"
+    local so_path="$abs_dir/build-android-arm64/libraw_alchemy_core.so"
     if [ -f "$so_path" ]; then
         success "RawAlchemyCpp .so built: $so_path"
     else

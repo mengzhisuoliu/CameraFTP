@@ -274,7 +274,7 @@ fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
 #[cfg(target_os = "android")]
 fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
     let lib_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    Some(lib_dir.join("libraw_alchemy.so"))
+    Some(lib_dir.join("libraw_alchemy_core.so"))
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "android")))]

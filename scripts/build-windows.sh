@@ -36,7 +36,7 @@ build_windows() {
     terminate_running_process "$OUTPUT_NAME"
 
     # Build RawAlchemyCpp DLL if available
-    local rawalchemy_dir="${RAWALCHEMY_DIR:-$SCRIPT_DIR/../RawAlchemyCpp}"
+    local rawalchemy_dir="${RAWALCHEMY_DIR:-$SCRIPT_DIR/../src-tauri/lib/rawalchemy}"
     if [ -d "$rawalchemy_dir" ]; then
         local bt_upper
         if [ "$BUILD_TYPE" = "debug" ]; then
@@ -84,7 +84,7 @@ build_windows() {
     move_to_out "$SRC_PATH" "$DEST_NAME" "Windows $BUILD_TYPE"
 
     # Copy RawAlchemyCpp DLL alongside the exe
-    local rawalchemy_dir="${RAWALCHEMY_DIR:-../RawAlchemyCpp}"
+    local rawalchemy_dir="${RAWALCHEMY_DIR:-src-tauri/lib/rawalchemy}"
     if [ -d "$rawalchemy_dir" ]; then
         local dll_src
         if [ "$BUILD_TYPE" = "debug" ]; then
