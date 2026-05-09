@@ -7,23 +7,21 @@ use std::sync::OnceLock;
 
 use crate::error::AppError;
 
-const RESOURCE_VERSION: &str = "1";
+const RESOURCE_VERSION: &str = "2";
 
 pub struct ResourcePaths {
     pub lensfun_db_dir: PathBuf,
-    pub lut_presets_dir: PathBuf,
 }
 
 static GLOBAL_RESOURCES: OnceLock<ResourcePaths> = OnceLock::new();
 
 pub fn ensure_resources(
     app_data_dir: &std::path::Path,
-) -> Result<&'static ResourcePaths, AppError> {
-    if let Some(res) = GLOBAL_RESOURCES.get() {
-        return Ok(res);
+) -> Result<(), AppError> {
+    if GLOBAL_RESOURCES.get().is_some() {
+        return Ok(());
     }
 
-    let lut_dir = app_data_dir.join("lut_presets");
     let lensfun_dir = app_data_dir.join("lensfun_db");
     let version_file = app_data_dir.join(".lut_filter_resources_version");
 
@@ -31,22 +29,17 @@ pub fn ensure_resources(
         || std::fs::read_to_string(&version_file).unwrap_or_default() != RESOURCE_VERSION;
 
     if needs_extraction {
-        extract_resources(app_data_dir, &lut_dir, &lensfun_dir)?;
+        extract_lensfun_db(app_data_dir, &lensfun_dir)?;
         std::fs::write(&version_file, RESOURCE_VERSION).map_err(|e| {
             AppError::LutFilterError(format!("Failed to write version marker: {}", e))
         })?;
     }
 
-    tracing::info!(
-        "LUT filter resources ready: luts={:?}, lensfun={:?}",
-        lut_dir,
-        lensfun_dir
-    );
+    tracing::info!("LUT filter resources ready: lensfun={:?}", lensfun_dir);
     let _ = GLOBAL_RESOURCES.set(ResourcePaths {
         lensfun_db_dir: lensfun_dir,
-        lut_presets_dir: lut_dir,
     });
-    Ok(GLOBAL_RESOURCES.get().unwrap())
+    Ok(())
 }
 
 pub fn get_resources() -> Result<&'static ResourcePaths, AppError> {
@@ -57,22 +50,17 @@ pub fn get_resources() -> Result<&'static ResourcePaths, AppError> {
     })
 }
 
-fn extract_resources(
+fn extract_lensfun_db(
     app_data_dir: &std::path::Path,
-    lut_dir: &std::path::Path,
     lensfun_dir: &std::path::Path,
 ) -> Result<(), AppError> {
     std::fs::create_dir_all(app_data_dir).map_err(|e| {
         AppError::LutFilterError(format!("Failed to create app data dir: {}", e))
     })?;
-    std::fs::create_dir_all(lut_dir)
-        .map_err(|e| AppError::LutFilterError(format!("Failed to create lut dir: {}", e)))?;
     std::fs::create_dir_all(lensfun_dir).map_err(|e| {
         AppError::LutFilterError(format!("Failed to create lensfun dir: {}", e))
     })?;
 
-    // On Android, Tauri extracts bundled resources to {app_data_dir}/resources/
-    // On Windows, resources are next to the exe at {exe_dir}/resources/
     #[cfg(target_os = "android")]
     let resource_base = app_data_dir.join("resources");
 
@@ -86,19 +74,12 @@ fn extract_resources(
         exe_dir.join("resources")
     };
 
-    let lut_sources = [
-        resource_base.join("luts"),
-        #[cfg(not(target_os = "android"))]
-        PathBuf::from("../../F-Log2C_LUT"),
-    ];
-
     let lensfun_sources = [
         resource_base.join("lensfun_db"),
         #[cfg(not(target_os = "android"))]
         PathBuf::from("../lib/lensfun/data/db"),
     ];
 
-    copy_files(&lut_sources, lut_dir, "*.cube")?;
     copy_files(&lensfun_sources, lensfun_dir, "*.xml")?;
 
     Ok(())

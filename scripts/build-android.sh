@@ -286,7 +286,7 @@ inject_raw_alchemy_so() {
 
     local staging_dir="src-tauri/gen/android/app/build/tauri-staging/jniLibs/arm64-v8a"
     if [ -d "$staging_dir" ]; then
-        cp "$so_path" "$staging_dir/"
+        cp "$so_path" "$staging_dir/libraw_alchemy_core.so"
         info "Injected libraw_alchemy_core.so into tauri-staging"
     fi
 }
@@ -319,12 +319,12 @@ build_android() {
 
         local abs_dir
         abs_dir="$(cd "$rawalchemy_dir" && pwd)"
-        if [ -f "$abs_dir/build-android-arm64/libraw_alchemy_core.so" ]; then
-            rawalchemy_so="$abs_dir/build-android-arm64/libraw_alchemy_core.so"
+        if [ -f "$abs_dir/build-android-arm64/libraw_alchemy.so" ]; then
+            rawalchemy_so="$abs_dir/build-android-arm64/libraw_alchemy.so"
             # Also copy to extra-jniLibs (included in APK via build.gradle.kts)
             local jni_dir="src-tauri/gen/android/app/extra-jniLibs/arm64-v8a"
             mkdir -p "$jni_dir"
-            cp "$rawalchemy_so" "$jni_dir/"
+            cp "$rawalchemy_so" "$jni_dir/libraw_alchemy_core.so"
             success "RawAlchemyCpp .so ready: $rawalchemy_so"
         fi
     else

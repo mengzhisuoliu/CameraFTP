@@ -163,7 +163,12 @@ pub fn run() {
                 }
 
                 if let Some(lib_path) = resolve_raw_alchemy_lib_path() {
-                    if lib_path.exists() {
+                    #[cfg(not(target_os = "android"))]
+                    let should_try = lib_path.exists();
+                    #[cfg(target_os = "android")]
+                    let should_try = true; // dlopen searches nativeLibraryDir by name
+
+                    if should_try {
                         if let Err(e) = lut_filter::ffi::RawAlchemyLib::load_global(&lib_path) {
                             tracing::error!("Failed to load RawAlchemyCpp: {}", e);
                         }
@@ -273,8 +278,9 @@ fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
 
 #[cfg(target_os = "android")]
 fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
-    let lib_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    Some(lib_dir.join("libraw_alchemy_core.so"))
+    // Kotlin side calls System.loadLibrary("raw_alchemy_core") in MainActivity.onCreate().
+    // After that, dlopen("libraw_alchemy_core.so") finds the already-loaded library.
+    Some(std::path::PathBuf::from("libraw_alchemy_core.so"))
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "android")))]

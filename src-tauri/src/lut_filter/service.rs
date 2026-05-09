@@ -182,22 +182,19 @@ async fn process_single_file(task: &LutFilterTask) -> Result<String, AppError> {
     let output_name = format!("{}_{}_{}.jpg", stem, preset.id, timestamp);
     let output_path = output_dir.join(output_name);
 
-    let resources = super::resources::get_resources()?;
-    let lut_path = resources.lut_presets_dir.join(&preset.cube_filename);
-    if !lut_path.exists() {
-        return Err(AppError::LutFilterError(format!(
-            "LUT file not found: {}",
-            lut_path.display()
-        )));
-    }
-
+    let lut_data = super::lut_data::get_lut_data(&preset.id)?;
     let lib = super::ffi::RawAlchemyLib::get()?;
-    lib.process_file(
+
+    let lensfun_path = super::resources::get_resources()
+        .ok()
+        .map(|r| r.lensfun_db_dir.to_string_lossy().into_owned());
+
+    lib.process_file_with_lut(
         &task.input_path,
         &output_path,
         Some(&preset.log_space),
-        Some(lut_path.to_string_lossy().as_ref()),
-        Some(resources.lensfun_db_dir.to_string_lossy().as_ref()),
+        lut_data,
+        lensfun_path.as_deref(),
     )?;
 
     Ok(output_path.to_string_lossy().into_owned())

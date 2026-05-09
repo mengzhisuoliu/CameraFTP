@@ -339,6 +339,7 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "filetime",
+ "flate2",
  "futures",
  "heic",
  "image",

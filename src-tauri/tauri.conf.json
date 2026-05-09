@@ -41,8 +41,6 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "resources": [
-      "resources/luts/*.cube"
-    ]
+    "resources": []
   }
 }

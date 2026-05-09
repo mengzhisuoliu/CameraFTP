@@ -71,13 +71,19 @@ build_raw_alchemy_android() {
 
     cd "$abs_dir"
     ANDROID_NDK="$ndk_path" cmake -B "build-android-arm64" \
-        -C "toolchains/android-arm64.cmake" \
+        -DCMAKE_TOOLCHAIN_FILE="$ndk_path/build/cmake/android.toolchain.cmake" \
+        -DANDROID_ABI=arm64-v8a \
+        -DANDROID_PLATFORM=android-33 \
         -DCMAKE_BUILD_TYPE="$build_type" \
-        -DANDROID_NDK="$ndk_path"
+        -DBUILD_SHARED=ON \
+        -DBUILD_CAPI=ON \
+        -DBUILD_CLI=OFF \
+        -DENABLE_LENS_CORRECTION=ON \
+        -DWITH_SIMD=OFF
     cmake --build "build-android-arm64" -j"$(nproc 2>/dev/null || echo 4)"
     cd - > /dev/null
 
-    local so_path="$abs_dir/build-android-arm64/libraw_alchemy_core.so"
+    local so_path="$abs_dir/build-android-arm64/libraw_alchemy.so"
     if [ -f "$so_path" ]; then
         success "RawAlchemyCpp .so built: $so_path"
     else
