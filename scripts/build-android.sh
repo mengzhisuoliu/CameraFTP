@@ -277,7 +277,23 @@ EOF
     fi
 }
 
-# Inject RawAlchemyCpp .so into Tauri's staging directory
+# Find libomp.so from the NDK (OpenMP runtime needed by RawAlchemyCpp)
+find_ndk_libomp() {
+    local ndk_home="${1:-$NDK_HOME}"
+    if [ -z "$ndk_home" ] || [ ! -d "$ndk_home" ]; then
+        return 1
+    fi
+    # NDK path pattern: $NDK/toolchains/llvm/prebuilt/<host>/lib/clang/<ver>/lib/linux/aarch64/libomp.so
+    local omp_so
+    omp_so="$(find "$ndk_home/toolchains/llvm/prebuilt" -path "*/aarch64/libomp.so" 2>/dev/null | head -1)"
+    if [ -n "$omp_so" ] && [ -f "$omp_so" ]; then
+        echo "$omp_so"
+        return 0
+    fi
+    return 1
+}
+
+# Inject RawAlchemyCpp .so + libomp.so into Tauri's staging directory
 inject_raw_alchemy_so() {
     local so_path="${1:-}"
     if [ -z "$so_path" ] || [ ! -f "$so_path" ]; then
@@ -288,6 +304,16 @@ inject_raw_alchemy_so() {
     if [ -d "$staging_dir" ]; then
         cp "$so_path" "$staging_dir/libraw_alchemy_core.so"
         info "Injected libraw_alchemy_core.so into tauri-staging"
+
+        # libomp.so (OpenMP runtime) is needed by libraw_alchemy_core.so
+        local omp_so
+        omp_so="$(find_ndk_libomp "$NDK_HOME")" || true
+        if [ -n "$omp_so" ]; then
+            cp "$omp_so" "$staging_dir/libomp.so"
+            info "Injected libomp.so into tauri-staging"
+        else
+            warn "libomp.so not found in NDK — OpenMP may fail at runtime"
+        fi
     fi
 }
 
@@ -321,11 +347,20 @@ build_android() {
         abs_dir="$(cd "$rawalchemy_dir" && pwd)"
         if [ -f "$abs_dir/build-android-arm64/libraw_alchemy.so" ]; then
             rawalchemy_so="$abs_dir/build-android-arm64/libraw_alchemy.so"
-            # Also copy to extra-jniLibs (included in APK via build.gradle.kts)
+            # Copy to extra-jniLibs (included in APK via build.gradle.kts)
             local jni_dir="src-tauri/gen/android/app/extra-jniLibs/arm64-v8a"
             mkdir -p "$jni_dir"
             cp "$rawalchemy_so" "$jni_dir/libraw_alchemy_core.so"
-            success "RawAlchemyCpp .so ready: $rawalchemy_so"
+            # Also copy libomp.so (OpenMP runtime required by libraw_alchemy_core.so)
+            local omp_so
+            omp_so="$(find_ndk_libomp "$NDK_HOME")" || true
+            if [ -n "$omp_so" ]; then
+                cp "$omp_so" "$jni_dir/libomp.so"
+                success "RawAlchemyCpp .so + libomp.so ready"
+            else
+                warn "libomp.so not found in NDK — OpenMP may fail at runtime"
+                success "RawAlchemyCpp .so ready (without libomp.so): $rawalchemy_so"
+            fi
         fi
     else
         warn "RawAlchemyCpp not found. LUT filter feature will be unavailable."
