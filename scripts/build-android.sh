@@ -289,6 +289,33 @@ build_android() {
     fi
     check_or_create_keystore
 
+    # Build RawAlchemyCpp .so if available (must be BEFORE Tauri build so it's in jniLibs)
+    local rawalchemy_dir="${RAWALCHEMY_DIR:-$SCRIPT_DIR/../RawAlchemyCpp}"
+    if [ -d "$rawalchemy_dir" ]; then
+        local bt_upper
+        if [ "$BUILD_TYPE" = "debug" ]; then
+            bt_upper="Debug"
+        else
+            bt_upper="Release"
+        fi
+        "$SCRIPT_DIR/build-raw-alchemy.sh" android "$bt_upper" || {
+            warn "RawAlchemyCpp Android build failed. LUT filter will be unavailable."
+        }
+
+        # Copy .so to jniLibs (Tauri includes pre-existing jniLibs files in the APK)
+        local jni_dir="src-tauri/gen/android/app/src/main/jniLibs/arm64-v8a"
+        mkdir -p "$jni_dir"
+        local abs_dir
+        abs_dir="$(cd "$rawalchemy_dir" && pwd)"
+        if [ -f "$abs_dir/build-android-arm64/libraw_alchemy.so" ]; then
+            cp "$abs_dir/build-android-arm64/libraw_alchemy.so" "$jni_dir/"
+            success "Copied RawAlchemyCpp .so to $jni_dir/"
+        fi
+    else
+        warn "RawAlchemyCpp not found. LUT filter feature will be unavailable."
+        warn "Set RAWALCHEMY_DIR to enable it."
+    fi
+
     local VERSION
     VERSION=$(get_version)
 

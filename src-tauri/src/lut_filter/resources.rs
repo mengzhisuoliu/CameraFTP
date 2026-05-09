@@ -71,19 +71,30 @@ fn extract_resources(
         AppError::LutFilterError(format!("Failed to create lensfun dir: {}", e))
     })?;
 
-    let exe_dir = std::env::current_exe()
-        .map_err(|e| AppError::LutFilterError(format!("Failed to get exe path: {}", e)))?
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_default();
+    // On Android, Tauri extracts bundled resources to {app_data_dir}/resources/
+    // On Windows, resources are next to the exe at {exe_dir}/resources/
+    #[cfg(target_os = "android")]
+    let resource_base = app_data_dir.join("resources");
+
+    #[cfg(not(target_os = "android"))]
+    let resource_base = {
+        let exe_dir = std::env::current_exe()
+            .map_err(|e| AppError::LutFilterError(format!("Failed to get exe path: {}", e)))?
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_default();
+        exe_dir.join("resources")
+    };
 
     let lut_sources = [
-        exe_dir.join("resources").join("luts"),
+        resource_base.join("luts"),
+        #[cfg(not(target_os = "android"))]
         PathBuf::from("../../F-Log2C_LUT"),
     ];
 
     let lensfun_sources = [
-        exe_dir.join("resources").join("lensfun_db"),
+        resource_base.join("lensfun_db"),
+        #[cfg(not(target_os = "android"))]
         PathBuf::from("../lib/lensfun/data/db"),
     ];
 

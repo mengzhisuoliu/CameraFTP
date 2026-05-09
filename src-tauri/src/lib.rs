@@ -154,7 +154,7 @@ pub fn run() {
             app.manage(AutoOpenService::new(app.handle().clone(), Arc::clone(&config_service)));
             app.manage(ai_edit::AiEditService::new(app.handle().clone(), config_service));
 
-            // Initialize LUT filter: load RawAlchemyCpp DLL + extract resources
+            // Initialize LUT filter: load RawAlchemyCpp library + extract resources
             {
                 let app_data_dir = app.path().app_data_dir()
                     .expect("Failed to resolve app data dir");
@@ -162,22 +162,13 @@ pub fn run() {
                     tracing::warn!("LUT filter resource extraction failed: {}", e);
                 }
 
-                let dll_name = if cfg!(target_os = "windows") {
-                    "raw_alchemy_core.dll"
-                } else {
-                    "libraw_alchemy.so"
-                };
-                let exe_dir = std::env::current_exe()
-                    .ok()
-                    .and_then(|p| p.parent().map(|d| d.to_path_buf()));
-                if let Some(dir) = exe_dir {
-                    let dll_path = dir.join(dll_name);
-                    if dll_path.exists() {
-                        if let Err(e) = lut_filter::ffi::RawAlchemyLib::load_global(&dll_path) {
-                            tracing::error!("Failed to load RawAlchemyCpp DLL: {}", e);
+                if let Some(lib_path) = resolve_raw_alchemy_lib_path() {
+                    if lib_path.exists() {
+                        if let Err(e) = lut_filter::ffi::RawAlchemyLib::load_global(&lib_path) {
+                            tracing::error!("Failed to load RawAlchemyCpp: {}", e);
                         }
                     } else {
-                        tracing::info!("RawAlchemyCpp DLL not found at {}, LUT filter unavailable", dll_path.display());
+                        tracing::info!("RawAlchemyCpp not found at {}, LUT filter unavailable", lib_path.display());
                     }
                 }
             }
@@ -271,7 +262,24 @@ pub fn run() {
         .unwrap_or_else(|e| {
             eprintln!("Fatal error running Tauri application: {}", e);
             std::process::exit(1);
-        });
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    Some(exe_dir.join("raw_alchemy_core.dll"))
+}
+
+#[cfg(target_os = "android")]
+fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
+    let lib_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    Some(lib_dir.join("libraw_alchemy.so"))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "android")))]
+fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
+    None
 }
 
 /// 设置主窗口关闭请求处理器（桌面平台）

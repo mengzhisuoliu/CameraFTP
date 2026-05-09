@@ -38,14 +38,66 @@ build_raw_alchemy_windows() {
     fi
 }
 
+build_raw_alchemy_android() {
+    local build_type="${1:-Release}"
+
+    if [ ! -d "$RAWALCHEMY_DIR" ]; then
+        warn "RawAlchemyCpp not found at $RAWALCHEMY_DIR"
+        warn "Skipping RawAlchemyCpp build. LUT filter will not be available."
+        warn "Set RAWALCHEMY_DIR to the RawAlchemyCpp directory to enable it."
+        return 0
+    fi
+
+    # Resolve NDK path
+    local ndk_path="${NDK_HOME:-}"
+    if [ -z "$ndk_path" ] && [ -d "${ANDROID_HOME:-}/ndk" ]; then
+        for ndk_version in "${ANDROID_HOME}/ndk"/*; do
+            if [ -d "$ndk_version" ]; then
+                ndk_path="$ndk_version"
+                break
+            fi
+        done
+    fi
+
+    if [ -z "$ndk_path" ] || [ ! -d "$ndk_path" ]; then
+        warn "Android NDK not found. Skipping RawAlchemyCpp Android build."
+        return 0
+    fi
+
+    task "[RawAlchemyCpp] Building Android arm64 .so ($build_type)..."
+
+    local abs_dir
+    abs_dir="$(cd "$RAWALCHEMY_DIR" && pwd)"
+
+    cd "$abs_dir"
+    ANDROID_NDK="$ndk_path" cmake -B "build-android-arm64" \
+        -C "toolchains/android-arm64.cmake" \
+        -DCMAKE_BUILD_TYPE="$build_type" \
+        -DANDROID_NDK="$ndk_path"
+    cmake --build "build-android-arm64" -j"$(nproc 2>/dev/null || echo 4)"
+    cd - > /dev/null
+
+    local so_path="$abs_dir/build-android-arm64/libraw_alchemy.so"
+    if [ -f "$so_path" ]; then
+        success "RawAlchemyCpp .so built: $so_path"
+    else
+        error "RawAlchemyCpp .so not found at expected path"
+        return 1
+    fi
+}
+
 # Entry point
 case "${1:-}" in
     windows)
         shift
         build_raw_alchemy_windows "${1:-Release}"
         ;;
+    android)
+        shift
+        build_raw_alchemy_android "${1:-Release}"
+        ;;
     *)
-        echo "Usage: $0 windows [Release|Debug]"
+        echo "Usage: $0 windows|android [Release|Debug]"
         exit 1
         ;;
 esac
