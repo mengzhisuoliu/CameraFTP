@@ -148,7 +148,7 @@ prepare_lut_resources() {
     fi
 
     # Copy Lensfun DB from submodule
-    local lensfun_source="src-tauri/lib/lensfun/data/db"
+    local lensfun_source="src-tauri/lib/rawalchemy/third_party/lensfun/data/db"
     if [ -d "$lensfun_source" ]; then
         local xml_count=$(find "$lensfun_source" -name "*.xml" 2>/dev/null | wc -l)
         if [ "$xml_count" -gt 0 ]; then
