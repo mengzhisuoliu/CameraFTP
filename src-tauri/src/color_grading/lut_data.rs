@@ -26,26 +26,26 @@ static LUT_CACHE: OnceLock<std::collections::HashMap<&'static str, LutData>> = O
 
 fn compressed_luts() -> Vec<(&'static str, &'static [u8])> {
     vec![
-        lut_embed!("acros", "FLog2C_to_ACROS_65grid_V.1.00.cube"),
-        lut_embed!("astia", "FLog2C_to_ASTIA_65grid_V.1.00.cube"),
-        lut_embed!(
-            "classic-chrome",
-            "FLog2C_to_CLASSIC-CHROME_65grid_V.1.00.cube"
-        ),
-        lut_embed!(
-            "classic-neg",
-            "FLog2C_to_CLASSIC-Neg._65grid_V.1.00.cube"
-        ),
-        lut_embed!("eterna", "FLog2C_to_ETERNA_65grid_V.1.00.cube"),
-        lut_embed!("eterna-bb", "FLog2C_to_ETERNA-BB_65grid_V.1.00.cube"),
-        lut_embed!("flog2c-709", "FLog2C_to_FLog2C-709_65grid_V.1.00.cube"),
-        lut_embed!(
-            "pro-neg-std",
-            "FLog2C_to_PRO-Neg.Std_65grid_V.1.00.cube"
-        ),
-        lut_embed!("provia", "FLog2C_to_PROVIA_65grid_V.1.00.cube"),
-        lut_embed!("reala-ace", "FLog2C_to_REALA-ACE_65grid_V.1.00.cube"),
-        lut_embed!("velvia", "FLog2C_to_Velvia_65grid_V.1.00.cube"),
+        lut_embed!("arri-alexa-classic-709", "ARRI_ALEXA_Classic-709_VLog.cube"),
+        lut_embed!("fujifilm-acros", "Fujifilm_ACROS_VLog.cube"),
+        lut_embed!("fujifilm-astia", "Fujifilm_ASTIA_VLog.cube"),
+        lut_embed!("fujifilm-classic-chrome", "Fujifilm_CLASSIC-CHROME_VLog.cube"),
+        lut_embed!("fujifilm-classic-neg", "Fujifilm_CLASSIC-Neg_VLog.cube"),
+        lut_embed!("fujifilm-eterna-3513di", "Fujifilm_ETERNA-3513DI_VLog.cube"),
+        lut_embed!("fujifilm-eterna-bb", "Fujifilm_ETERNA-BB_VLog.cube"),
+        lut_embed!("fujifilm-eterna", "Fujifilm_ETERNA_VLog.cube"),
+        lut_embed!("fujifilm-pro-neg-std", "Fujifilm_PRO-Neg.-Std_VLog.cube"),
+        lut_embed!("fujifilm-provia", "Fujifilm_PROVIA_VLog.cube"),
+        lut_embed!("fujifilm-reala-ace", "Fujifilm_REALA-ACE_VLog.cube"),
+        lut_embed!("fujifilm-velvia", "Fujifilm_Velvia_VLog.cube"),
+        lut_embed!("kodak-vision-2383", "Kodak_VISION-2383_VLog.cube"),
+        lut_embed!("leica-classic", "Leica_Classic_VLog.cube"),
+        lut_embed!("leica-natural", "Leica_Natural_VLog.cube"),
+        lut_embed!("red-achromic", "RED_Achromic_VLog.cube"),
+        lut_embed!("red-filmbias-bb", "RED_FilmBias-BB_VLog.cube"),
+        lut_embed!("red-filmbias-offset", "RED_FilmBias-Offset_VLog.cube"),
+        lut_embed!("red-filmbias", "RED_FilmBias_VLog.cube"),
+        lut_embed!("red-rec-709", "RED_Rec.709_VLog.cube"),
     ]
 }
 

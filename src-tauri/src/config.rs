@@ -146,7 +146,7 @@ impl Default for AutoColorGradingConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            preset_id: "provia".to_string(),
+            preset_id: "fujifilm-provia".to_string(),
         }
     }
 }

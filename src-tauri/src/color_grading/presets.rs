@@ -20,17 +20,26 @@ static COLOR_GRADING_PRESETS: OnceLock<Vec<ColorGradingPreset>> = OnceLock::new(
 
 pub fn all_presets() -> &'static [ColorGradingPreset] {
     COLOR_GRADING_PRESETS.get_or_init(|| vec![
-        ColorGradingPreset { id: "acros".into(), display_name: "ACROS".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_ACROS_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "astia".into(), display_name: "Astia".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_ASTIA_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "classic-chrome".into(), display_name: "Classic Chrome".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_CLASSIC-CHROME_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "classic-neg".into(), display_name: "Classic Neg".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_CLASSIC-Neg._65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "eterna".into(), display_name: "ETERNA".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_ETERNA_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "eterna-bb".into(), display_name: "ETERNA Bleach Bypass".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_ETERNA-BB_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "pro-neg-std".into(), display_name: "PRO Neg. Std".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_PRO-Neg.Std_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "provia".into(), display_name: "Provia".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_PROVIA_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "reala-ace".into(), display_name: "REALA ACE".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_REALA-ACE_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "velvia".into(), display_name: "Velvia".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_Velvia_65grid_V.1.00.cube".into() },
-        ColorGradingPreset { id: "flog2c-709".into(), display_name: "F-Log2C → Rec.709".into(), log_space: "F-Log2C".into(), cube_filename: "FLog2C_to_FLog2C-709_65grid_V.1.00.cube".into() },
+        ColorGradingPreset { id: "arri-alexa-classic-709".into(), display_name: "ARRI ALEXA Classic 709".into(), log_space: "V-Log".into(), cube_filename: "ARRI_ALEXA_Classic-709_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-acros".into(), display_name: "Fujifilm ACROS".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_ACROS_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-astia".into(), display_name: "Fujifilm ASTIA".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_ASTIA_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-classic-chrome".into(), display_name: "Fujifilm CLASSIC CHROME".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_CLASSIC-CHROME_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-classic-neg".into(), display_name: "Fujifilm CLASSIC Neg".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_CLASSIC-Neg_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-eterna-3513di".into(), display_name: "Fujifilm ETERNA 3513DI".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_ETERNA-3513DI_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-eterna-bb".into(), display_name: "Fujifilm ETERNA BB".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_ETERNA-BB_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-eterna".into(), display_name: "Fujifilm ETERNA".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_ETERNA_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-pro-neg-std".into(), display_name: "Fujifilm PRO Neg. Std".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_PRO-Neg.-Std_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-provia".into(), display_name: "Fujifilm PROVIA".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_PROVIA_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-reala-ace".into(), display_name: "Fujifilm REALA ACE".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_REALA-ACE_VLog.cube".into() },
+        ColorGradingPreset { id: "fujifilm-velvia".into(), display_name: "Fujifilm Velvia".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_Velvia_VLog.cube".into() },
+        ColorGradingPreset { id: "kodak-vision-2383".into(), display_name: "Kodak VISION 2383".into(), log_space: "V-Log".into(), cube_filename: "Kodak_VISION-2383_VLog.cube".into() },
+        ColorGradingPreset { id: "leica-classic".into(), display_name: "Leica Classic".into(), log_space: "V-Log".into(), cube_filename: "Leica_Classic_VLog.cube".into() },
+        ColorGradingPreset { id: "leica-natural".into(), display_name: "Leica Natural".into(), log_space: "V-Log".into(), cube_filename: "Leica_Natural_VLog.cube".into() },
+        ColorGradingPreset { id: "red-achromic".into(), display_name: "RED Achromic".into(), log_space: "V-Log".into(), cube_filename: "RED_Achromic_VLog.cube".into() },
+        ColorGradingPreset { id: "red-filmbias-bb".into(), display_name: "RED FilmBias BB".into(), log_space: "V-Log".into(), cube_filename: "RED_FilmBias-BB_VLog.cube".into() },
+        ColorGradingPreset { id: "red-filmbias-offset".into(), display_name: "RED FilmBias Offset".into(), log_space: "V-Log".into(), cube_filename: "RED_FilmBias-Offset_VLog.cube".into() },
+        ColorGradingPreset { id: "red-filmbias".into(), display_name: "RED FilmBias".into(), log_space: "V-Log".into(), cube_filename: "RED_FilmBias_VLog.cube".into() },
+        ColorGradingPreset { id: "red-rec-709".into(), display_name: "RED Rec.709".into(), log_space: "V-Log".into(), cube_filename: "RED_Rec.709_VLog.cube".into() },
     ])
 }
 
@@ -44,9 +53,9 @@ mod tests {
 
     #[test]
     fn find_existing_preset() {
-        let p = find_preset("classic-neg").unwrap();
-        assert_eq!(p.display_name, "Classic Neg");
-        assert_eq!(p.log_space, "F-Log2C");
+        let p = find_preset("fujifilm-classic-neg").unwrap();
+        assert_eq!(p.display_name, "Fujifilm CLASSIC Neg");
+        assert_eq!(p.log_space, "V-Log");
     }
 
     #[test]
