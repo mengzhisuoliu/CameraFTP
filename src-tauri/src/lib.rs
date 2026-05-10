@@ -13,6 +13,8 @@ pub mod error;
 pub mod file_index;
 pub mod ftp;
 pub mod color_grading;
+#[cfg(target_os = "windows")]
+pub mod image_preview;
 pub mod network;
 pub mod platform;
 pub mod utils;
@@ -20,6 +22,9 @@ pub mod utils;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tauri::Manager;
+
+#[cfg(target_os = "windows")]
+use image_preview::ImagePreviewCache;
 
 use auto_open::AutoOpenService;
 use config_service::ConfigService;
@@ -145,7 +150,7 @@ pub fn run() {
         tracing::info!("Running in autostart mode - window will be hidden");
     }
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(FtpServerState(Arc::new(Mutex::new(None))))
         .setup(move |app| {
@@ -167,6 +172,10 @@ pub fn run() {
             // 在 setup 中管理 AutoOpenService
             app.manage(AutoOpenService::new(app.handle().clone(), Arc::clone(&config_service)));
             app.manage(ai_edit::AiEditService::new(app.handle().clone(), Arc::clone(&config_service)));
+
+            // Image preview cache with memory caching (Windows only)
+            #[cfg(target_os = "windows")]
+            app.manage(Arc::new(ImagePreviewCache::new()));
 
             // Initialize color grading (Android only): load RawAlchemyCpp library + extract resources
             #[cfg(target_os = "android")]
@@ -271,12 +280,61 @@ pub fn run() {
             cancel_color_grading,
             #[cfg(target_os = "android")]
             is_raw_file,
-        ])
-        .run(tauri::generate_context!())
+        ]);
+
+    #[cfg(target_os = "windows")]
+    let builder = builder.register_asynchronous_uri_scheme_protocol(
+        "image-preview",
+        |ctx, request, responder| {
+            use std::path::PathBuf;
+            use std::sync::Arc;
+
+            let cache: Arc<ImagePreviewCache> = ctx
+                .app_handle()
+                .state::<Arc<ImagePreviewCache>>()
+                .inner()
+                .clone();
+            let path_encoded = request
+                .uri()
+                .path()
+                .strip_prefix('/')
+                .unwrap_or("")
+                .to_string();
+
+            std::thread::spawn(move || {
+                let path = PathBuf::from(percent_decode(&path_encoded));
+                let content_type = image_preview::content_type_for(&path);
+                match cache.get_or_load(&path) {
+                    Ok(bytes) => responder.respond(
+                        tauri::http::Response::builder()
+                            .status(200)
+                            .header("Content-Type", content_type)
+                            .body(bytes.to_vec())
+                            .unwrap(),
+                    ),
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to load image preview for {}: {}",
+                            path_encoded,
+                            e
+                        );
+                        responder.respond(
+                            tauri::http::Response::builder()
+                                .status(500)
+                                .body(b"Failed to load image".to_vec())
+                                .unwrap(),
+                        );
+                    }
+                }
+            });
+        },
+    );
+
+    builder.run(tauri::generate_context!())
         .unwrap_or_else(|e| {
             eprintln!("Fatal error running Tauri application: {}", e);
             std::process::exit(1);
-    });
+        });
 }
 
 #[cfg(target_os = "android")]
@@ -301,6 +359,26 @@ fn setup_window_close_handler(app_handle: &tauri::AppHandle) {
             }
         });
     }
+}
+
+/// Percent-decode a URI path component (handles UTF-8 encoded file paths).
+#[cfg(target_os = "windows")]
+fn percent_decode(input: &str) -> String {
+    let mut result = Vec::with_capacity(input.len());
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(byte) = u8::from_str_radix(&input[i + 1..i + 3], 16) {
+                result.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        result.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&result).into_owned()
 }
 
 /// 启动后台任务（文件扫描、文件监听等）

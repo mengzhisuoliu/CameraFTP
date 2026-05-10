@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo, memo } from 'react';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useConfigStore } from '../stores/configStore';
 import { PREVIEW_NAVIGATE_EVENT } from '../hooks/preview-window-events';
@@ -223,8 +223,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
     );
   }
 
-  // 使用 convertFileSrc 将文件路径转换为可用的 URL
-  const imageSrc = convertFileSrc(imagePath);
+  // All images served through cached image-preview protocol
+  const imageSrc = `http://image-preview.localhost/${encodeURIComponent(imagePath)}`;
 
   const fileName = imagePath.split(/[/\\]/).pop() || '';
 

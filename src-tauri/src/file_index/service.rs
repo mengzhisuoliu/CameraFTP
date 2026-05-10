@@ -212,14 +212,18 @@ impl FileIndexService {
         })
     }
 
-    /// 检查文件是否是支持的图片格式
+    /// Check if a file is a supported image format (including RAW files).
     pub fn is_supported_image(path: &Path) -> bool {
         let ext = path.extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
         
-        matches!(ext.as_str(), "jpg" | "jpeg" | "heif" | "hif" | "heic")
+        matches!(ext.as_str(), 
+            "jpg" | "jpeg" | "heif" | "hif" | "heic" |
+            "nef" | "nrw" | "cr2" | "cr3" | "arw" | "sr2" |
+            "raf" | "orf" | "rw2" | "pef" | "dng" | "x3f" | "raw" | "srw"
+        )
     }
 
     /// 获取文件信息（包括EXIF时间）
