@@ -6,11 +6,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(target_os = "android")]
 use std::fs;
 use std::path::PathBuf;
-#[cfg(target_os = "android")]
 use std::sync::OnceLock;
-#[cfg(target_os = "android")]
 use tracing::info;
-#[cfg(target_os = "android")]
 use tracing::warn;
 use ts_rs::TS;
 
@@ -154,32 +151,40 @@ impl Default for AutoColorGradingConfig {
     }
 }
 
-/// Android 配置路径（在应用初始化时设置，使用 OnceLock 实现高效缓存）
-#[cfg(target_os = "android")]
-static ANDROID_CONFIG_PATH: OnceLock<PathBuf> = OnceLock::new();
+/// 应用数据目录（在应用初始化时设置，使用 OnceLock 实现高效缓存）
+static APP_CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-/// 设置 Android 配置路径（在应用初始化时调用）
-#[cfg(target_os = "android")]
-pub fn set_android_config_path(config_path: PathBuf) {
-    match ANDROID_CONFIG_PATH.set(config_path) {
+/// 设置应用数据目录（在应用初始化时调用）
+pub fn set_app_config_dir(dir: PathBuf) {
+    match APP_CONFIG_DIR.set(dir) {
         Ok(()) => {
-            info!(
-                "Android config path set: {:?}",
-                ANDROID_CONFIG_PATH.get().unwrap()
-            );
+            info!("App config dir set: {:?}", APP_CONFIG_DIR.get().unwrap());
         }
         Err(_) => {
-            warn!("Android config path already set, ignoring duplicate initialization");
+            warn!("App config dir already set, ignoring duplicate initialization");
         }
     }
 }
 
-/// 获取 Android 配置路径（从缓存读取，无需加锁）
-#[cfg(target_os = "android")]
-fn get_android_config_path() -> PathBuf {
-    ANDROID_CONFIG_PATH.get().cloned().unwrap_or_else(|| {
-        PathBuf::from("/sdcard/Android/data/com.gjk.cameraftpcompanion/files/config.json")
+/// 获取应用数据目录（从缓存读取，无需加锁）
+fn get_app_config_dir() -> PathBuf {
+    APP_CONFIG_DIR.get().cloned().unwrap_or_else(|| {
+        #[cfg(target_os = "android")]
+        {
+            PathBuf::from("/sdcard/Android/data/com.gjk.cameraftpcompanion/files")
+        }
+        #[cfg(target_os = "windows")]
+        {
+            dirs::config_dir()
+                .map(|d| d.join("cameraftp"))
+                .unwrap_or_else(|| PathBuf::from("./config"))
+        }
     })
+}
+
+/// 获取应用数据目录的公共接口
+pub fn app_config_dir() -> PathBuf {
+    get_app_config_dir()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -283,17 +288,7 @@ impl AppConfig {
     }
 
     pub fn config_path() -> PathBuf {
-        #[cfg(target_os = "android")]
-        {
-            get_android_config_path()
-        }
-        #[cfg(target_os = "windows")]
-        {
-            dirs::config_dir()
-                .map(|d| d.join("cameraftp"))
-                .unwrap_or_else(|| PathBuf::from("./config"))
-                .join("config.json")
-        }
+        get_app_config_dir().join("config.json")
     }
 
     pub fn normalized_for_current_platform(self) -> Self {
@@ -323,44 +318,44 @@ impl AppConfig {
     }
 }
 
-/// 初始化 Android 路径（在应用启动时调用）
-#[cfg(target_os = "android")]
-pub fn init_android_paths(app_handle: &tauri::AppHandle) {
+/// 初始化应用数据目录（在应用启动时调用）
+pub fn init_app_paths(app_handle: &tauri::AppHandle) {
     use tauri::Manager;
 
-    // 配置文件存储在应用私有目录
-    let config_path = app_handle
+    #[cfg(target_os = "android")]
+    let config_dir = app_handle
         .path()
         .data_dir()
-        .unwrap_or_else(|_| PathBuf::from("/data/data/com.gjk.cameraftpcompanion/files"))
-        .join("config.json");
+        .unwrap_or_else(|_| PathBuf::from("/data/data/com.gjk.cameraftpcompanion/files"));
+
+    #[cfg(target_os = "windows")]
+    let config_dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("Failed to resolve app data dir");
 
     // 确保配置目录存在
-    if let Some(parent) = config_path.parent() {
-        if let Err(e) = fs::create_dir_all(parent) {
-            warn!("Failed to create config directory {:?}: {}", parent, e);
-        }
+    if let Err(e) = std::fs::create_dir_all(&config_dir) {
+        warn!("Failed to create config directory {:?}: {}", config_dir, e);
     }
 
-    set_android_config_path(config_path.clone());
-    info!("Android config path initialized: {:?}", config_path);
+    set_app_config_dir(config_dir.clone());
+    info!("App config dir initialized: {:?}", config_dir);
 
-    // 通过 PlatformService 获取默认存储路径
-    let save_path = crate::platform::get_platform().get_default_storage_path();
-    if !save_path.exists() {
-        match fs::create_dir_all(&save_path) {
-            Ok(_) => info!("Created storage directory: {:?}", save_path),
-            Err(e) => warn!(
-                "Could not create storage directory (permission may be required): {}",
-                e
-            ),
+    // Android: 创建默认存储路径
+    #[cfg(target_os = "android")]
+    {
+        let save_path = crate::platform::get_platform().get_default_storage_path();
+        if !save_path.exists() {
+            match fs::create_dir_all(&save_path) {
+                Ok(_) => info!("Created storage directory: {:?}", save_path),
+                Err(e) => warn!(
+                    "Could not create storage directory (permission may be required): {}",
+                    e
+                ),
+            }
         }
     }
-}
-
-#[cfg(target_os = "windows")]
-pub fn init_android_paths(_app_handle: &tauri::AppHandle) {
-    // 非 Android 平台无需初始化
 }
 
 #[cfg(test)]
