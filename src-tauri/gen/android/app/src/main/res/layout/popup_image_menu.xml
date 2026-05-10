@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/menu_container"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/menu_popup_bg"
+    android:orientation="vertical"
+    android:paddingVertical="6dp"
+    android:minWidth="168dp">
+
+    <LinearLayout
+        android:id="@+id/menu_item_ai_edit"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="14dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?android:attr/selectableItemBackground">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_ai_edit"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI修图"
+            android:textColor="#E5E7EB"
+            android:textSize="15sp"
+            android:layout_marginStart="10dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/menu_item_color_grading"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="14dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?android:attr/selectableItemBackground">
+
+        <ImageView
+            android:id="@+id/menu_item_color_grading_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_color_grading"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/menu_item_color_grading_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="调色"
+            android:textColor="#E5E7EB"
+            android:textSize="15sp"
+            android:layout_marginStart="10dp" />
+    </LinearLayout>
+
+</LinearLayout>
