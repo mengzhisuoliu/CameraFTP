@@ -164,7 +164,9 @@ pub fn run() {
 
             let config_service = Arc::new(ConfigService::new()?);
             app.manage(Arc::clone(&config_service));
-            app.manage(Arc::new(FileIndexService::new(Arc::clone(&config_service))));
+            let file_index = Arc::new(FileIndexService::new(Arc::clone(&config_service)));
+            tauri::async_runtime::block_on(file_index.set_app_handle(app.handle().clone()));
+            app.manage(file_index);
 
             // 在 setup 中管理 AutoOpenService
             app.manage(AutoOpenService::new(app.handle().clone(), Arc::clone(&config_service)));

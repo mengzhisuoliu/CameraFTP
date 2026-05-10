@@ -17,8 +17,8 @@ use tracing::error;
 use crate::config::AppConfig;
 use crate::config_service::ConfigService;
 use crate::error::AppError;
-use crate::ftp::EventBus;
 use super::types::{FileIndex, FileInfo};
+use tauri::Emitter;
 #[cfg(target_os = "windows")]
 use super::watcher::FileWatcher;
 
@@ -29,8 +29,7 @@ pub struct FileIndexService {
     save_path: RwLock<PathBuf>,
     #[cfg(target_os = "windows")]
     watcher: Mutex<Option<FileWatcher>>,
-    // 使用 Arc<RwLock<...>> 使 event_bus 可以在克隆实例间共享
-    event_bus: Arc<RwLock<Option<EventBus>>>,
+    app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
 }
 
 impl FileIndexService {
@@ -44,25 +43,22 @@ impl FileIndexService {
             save_path: RwLock::new(config.save_path.clone()),
             #[cfg(target_os = "windows")]
             watcher: Mutex::new(Some(FileWatcher::new(config.save_path))),
-            event_bus: Arc::new(RwLock::new(None)),
+            app_handle: Arc::new(RwLock::new(None)),
         }
     }
 
-    /// 设置事件总线
-    pub async fn set_event_bus(&self, event_bus: EventBus) {
-        *self.event_bus.write().await = Some(event_bus);
+    pub async fn set_app_handle(&self, app_handle: tauri::AppHandle) {
+        *self.app_handle.write().await = Some(app_handle);
     }
 
-    /// 发射文件索引变化事件（仅投递给已订阅的瞬时消费者）
+    /// 发射文件索引变化事件到前端
     async fn emit_file_index_changed(&self) {
-        // 获取 event_bus（使用阻塞锁确保获取成功）
-        let event_bus_opt = {
-            let guard = self.event_bus.read().await;
+        let app_handle_opt = {
+            let guard = self.app_handle.read().await;
             guard.clone()
         };
 
-        if let Some(ref event_bus) = event_bus_opt {
-            // 获取索引信息
+        if let Some(ref app_handle) = app_handle_opt {
             let count;
             let latest_filename;
             {
@@ -71,7 +67,15 @@ impl FileIndexService {
                 latest_filename = index.files().first().map(|f| f.filename.clone());
             }
             trace!("File index changed event emitted: count={}, latest={:?}", count, latest_filename);
-            event_bus.emit_file_index_changed(count, latest_filename);
+            if let Err(e) = app_handle.emit(
+                "file-index-changed",
+                serde_json::json!({
+                    "count": count,
+                    "latestFilename": latest_filename
+                }),
+            ) {
+                warn!(event = "file-index-changed", error = %e, "Failed to emit frontend event");
+            }
         }
     }
 

@@ -200,9 +200,6 @@ pub async fn start_server_with_event_pipeline(
         info!("Event processor readiness timed out during startup");
     }
 
-    let file_index = app_handle.state::<Arc<crate::file_index::FileIndexService>>();
-    file_index.set_event_bus(ctx.event_bus.clone()).await;
-
     Ok(ctx)
 }
 
