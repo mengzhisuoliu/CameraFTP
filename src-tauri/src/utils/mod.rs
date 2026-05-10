@@ -7,6 +7,7 @@
 //! 提供跨平台的通用辅助函数和 trait。
 
 pub mod fs;
+pub(crate) mod batch_state;
 
 // 公开常用函数以便直接使用
 pub use fs::{is_path_writable, wait_for_file_ready};

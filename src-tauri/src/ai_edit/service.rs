@@ -15,6 +15,7 @@ use tokio_util::sync::CancellationToken;
 use crate::config_service::ConfigService;
 use crate::error::AppError;
 use crate::file_index::FileIndexService;
+use crate::utils::batch_state::BatchState;
 use super::image_processor;
 use super::providers;
 
@@ -166,37 +167,6 @@ impl AiEditService {
     }
 }
 
-struct WorkerState {
-    completed_count: u32,
-    failed_count: u32,
-    failed_files: Vec<String>,
-    output_files: Vec<String>,
-}
-
-impl Default for WorkerState {
-    fn default() -> Self {
-        Self {
-            completed_count: 0,
-            failed_count: 0,
-            failed_files: Vec::new(),
-            output_files: Vec::new(),
-        }
-    }
-}
-
-impl WorkerState {
-    fn processed_count(&self) -> u32 {
-        self.completed_count + self.failed_count
-    }
-
-    fn reset(&mut self) {
-        self.completed_count = 0;
-        self.failed_count = 0;
-        self.failed_files.clear();
-        self.output_files.clear();
-    }
-}
-
 enum SelectOutcome {
     Task(AiEditTask),
     Cancelled,
@@ -245,14 +215,14 @@ async fn worker_loop(
 ) {
     info!("AI edit worker started");
 
-    let mut state = WorkerState::default();
+    let mut state = BatchState::default();
 
     let mut cached_provider: Option<Box<dyn providers::AiEditProvider>> = None;
     let mut cached_api_key: Option<String> = None;
     let mut cached_model: Option<String> = None;
 
     fn emit_batch_done(
-        state: &mut WorkerState,
+        state: &mut BatchState,
         app_handle: &AppHandle,
         cancelled: bool,
     ) {
@@ -536,7 +506,7 @@ mod tests {
 
     #[test]
     fn worker_state_tracks_output_files() {
-        let mut state = WorkerState::default();
+        let mut state = BatchState::default();
 
         state.completed_count += 1;
         state.output_files.push("/output/AIEdit/photo1_AIEdit.jpg".to_string());
