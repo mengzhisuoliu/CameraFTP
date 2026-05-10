@@ -17,11 +17,6 @@ import { usePreviewToolbarAutoHide } from '../hooks/usePreviewToolbarAutoHide';
 import { PromptDialog } from './PromptDialog';
 import { AiEditProgressBar } from './AiEditProgressBar';
 import { useAiEditProgressListener, enqueueAiEdit } from '../hooks/useAiEditProgress';
-import { Palette } from 'lucide-react';
-import { LutFilterDialog } from './LutFilterDialog';
-import { LutFilterProgressBar } from './LutFilterProgressBar';
-import { enqueueLutFilter, useLutFilterProgressListener } from '../hooks/useLutFilterProgress';
-import type { PresetLut } from '../types';
 
 export function PreviewWindow() {
   const state = usePreviewWindowLifecycle();
@@ -48,14 +43,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   const [imageError, setImageError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   useAiEditProgressListener();
-  useLutFilterProgressListener();
   const [showPromptDialog, setShowPromptDialog] = useState(false);
-  const [showLutFilterDialog, setShowLutFilterDialog] = useState(false);
-  const [presetLuts, setPresetLuts] = useState<PresetLut[]>([]);
-
-  useEffect(() => {
-    invoke<PresetLut[]>('get_preset_luts').then(setPresetLuts).catch(console.error);
-  }, []);
 
   const draft = useConfigStore(state => state.draft);
   const updateDraft = useConfigStore(state => state.updateDraft);
@@ -160,8 +148,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         case 'Escape':
           if (showPromptDialog) {
             setShowPromptDialog(false);
-          } else if (showLutFilterDialog) {
-            setShowLutFilterDialog(false);
           } else if (isFullscreen) {
             await appWindow.setFullscreen(false);
             await appWindow.setAlwaysOnTop(false);
@@ -177,7 +163,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
       window.removeEventListener('mouseup', handleGlobalMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest, stopDragging, showPromptDialog, showLutFilterDialog]);
+  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest, stopDragging, showPromptDialog]);
 
   const handleOpenFolder = async () => {
     if (imagePath) {
@@ -196,23 +182,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   const handleAiEdit = useCallback(() => {
     if (!imagePath) return;
     setShowPromptDialog(true);
-  }, [imagePath]);
-
-  const isRaw = useMemo(() => {
-    if (!imagePath) return false;
-    const ext = imagePath.split('.').pop()?.toLowerCase() ?? '';
-    return ['nef', 'nrw', 'cr2', 'cr3', 'arw', 'sr2', 'raf', 'orf', 'rw2', 'pef', 'dng', 'x3f', 'raw', 'srw'].includes(ext);
-  }, [imagePath]);
-
-  const handleLutFilter = useCallback(() => {
-    setShowLutFilterDialog(true);
-  }, []);
-
-  const handleLutFilterConfirm = useCallback(async (lutId: string) => {
-    setShowLutFilterDialog(false);
-    if (imagePath) {
-      await enqueueLutFilter([imagePath], lutId);
-    }
   }, [imagePath]);
 
   const flushConfigSave = useConfigStore(state => state.flushConfigSave);
@@ -475,17 +444,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
             </svg>
           </button>
 
-          {/* LUT滤镜按钮 — 仅 RAW 文件显示 */}
-          {isRaw && (
-            <button
-              onClick={handleLutFilter}
-              className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
-              title="LUT滤镜"
-            >
-              <Palette className="w-5 h-5" />
-            </button>
-          )}
-
           {/* 全屏按钮 */}
           <button
             onClick={toggleFullscreen}
@@ -526,13 +484,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         onConfirm={handlePromptConfirm}
         onCancel={() => setShowPromptDialog(false)}
       />
-      <LutFilterDialog
-        isOpen={showLutFilterDialog}
-        presetLuts={presetLuts}
-        onConfirm={handleLutFilterConfirm}
-        onCancel={() => setShowLutFilterDialog(false)}
-      />
-      <LutFilterProgressBar position="absolute" />
     </div>
   );
 });

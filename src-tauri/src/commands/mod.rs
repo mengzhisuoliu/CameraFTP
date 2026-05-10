@@ -10,6 +10,7 @@ use crate::ftp::FtpServerHandle;
 pub(crate) mod config;
 mod ai_edit;
 mod exif;
+#[cfg(target_os = "android")]
 mod lut_filter;
 mod file_index;
 mod server;
@@ -55,6 +56,7 @@ pub use server::{
 
 pub use ai_edit::{cancel_ai_edit, enqueue_ai_edit, trigger_ai_edit};
 
+#[cfg(target_os = "android")]
 pub use lut_filter::{get_preset_luts, enqueue_lut_filter, cancel_lut_filter, is_raw_file};
 
 pub use storage::{

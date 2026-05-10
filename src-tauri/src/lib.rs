@@ -56,12 +56,16 @@ use commands::{
     trigger_ai_edit,
     enqueue_ai_edit,
     cancel_ai_edit,
+    update_preview_config,
+    FtpServerState,
+};
+
+#[cfg(target_os = "android")]
+use commands::{
     get_preset_luts,
     enqueue_lut_filter,
     cancel_lut_filter,
     is_raw_file,
-    update_preview_config,
-    FtpServerState,
 };
 
 fn setup_logging() {
@@ -164,7 +168,8 @@ pub fn run() {
             app.manage(AutoOpenService::new(app.handle().clone(), Arc::clone(&config_service)));
             app.manage(ai_edit::AiEditService::new(app.handle().clone(), config_service));
 
-            // Initialize LUT filter: load RawAlchemyCpp library + extract resources
+            // Initialize LUT filter (Android only): load RawAlchemyCpp library + extract resources
+            #[cfg(target_os = "android")]
             {
                 let app_data_dir = app.path().app_data_dir()
                     .expect("Failed to resolve app data dir");
@@ -172,23 +177,13 @@ pub fn run() {
                     tracing::warn!("LUT filter resource extraction failed: {}", e);
                 }
 
-                if let Some(lib_path) = resolve_raw_alchemy_lib_path() {
-                    #[cfg(not(target_os = "android"))]
-                    let should_try = lib_path.exists();
-                    #[cfg(target_os = "android")]
-                    let should_try = true; // dlopen searches nativeLibraryDir by name
-
-                    if should_try {
-                        if let Err(e) = lut_filter::ffi::RawAlchemyLib::load_global(&lib_path) {
-                            tracing::error!("Failed to load RawAlchemyCpp: {}", e);
-                        }
-                    } else {
-                        tracing::info!("RawAlchemyCpp not found at {}, LUT filter unavailable", lib_path.display());
-                    }
+                let lib_path = resolve_raw_alchemy_lib_path();
+                if let Err(e) = lut_filter::ffi::RawAlchemyLib::load_global(&lib_path) {
+                    tracing::error!("Failed to load RawAlchemyCpp: {}", e);
                 }
-            }
 
-            app.manage(lut_filter::LutFilterService::new(app.handle().clone()));
+                app.manage(lut_filter::LutFilterService::new(app.handle().clone()));
+            }
 
             // 开机自启模式：隐藏窗口
             if is_autostart {
@@ -267,10 +262,14 @@ pub fn run() {
             enqueue_ai_edit,
             cancel_ai_edit,
 
-            // LUT 滤镜
+            // LUT 滤镜（Android only）
+            #[cfg(target_os = "android")]
             get_preset_luts,
+            #[cfg(target_os = "android")]
             enqueue_lut_filter,
+            #[cfg(target_os = "android")]
             cancel_lut_filter,
+            #[cfg(target_os = "android")]
             is_raw_file,
         ])
         .run(tauri::generate_context!())
@@ -280,22 +279,11 @@ pub fn run() {
     });
 }
 
-#[cfg(target_os = "windows")]
-fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
-    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    Some(exe_dir.join("raw_alchemy_core.dll"))
-}
-
 #[cfg(target_os = "android")]
-fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
+fn resolve_raw_alchemy_lib_path() -> std::path::PathBuf {
     // Kotlin side calls System.loadLibrary("raw_alchemy_core") in MainActivity.onCreate().
     // After that, dlopen("libraw_alchemy_core.so") finds the already-loaded library.
-    Some(std::path::PathBuf::from("libraw_alchemy_core.so"))
-}
-
-#[cfg(not(any(target_os = "windows", target_os = "android")))]
-fn resolve_raw_alchemy_lib_path() -> Option<std::path::PathBuf> {
-    None
+    std::path::PathBuf::from("libraw_alchemy_core.so")
 }
 
 /// 设置主窗口关闭请求处理器（桌面平台）
