@@ -10,7 +10,6 @@ use crate::ftp::FtpServerHandle;
 pub(crate) mod config;
 mod ai_edit;
 mod exif;
-#[cfg(target_os = "android")]
 mod color_grading;
 mod file_index;
 mod server;
@@ -56,7 +55,6 @@ pub use server::{
 
 pub use ai_edit::{cancel_ai_edit, enqueue_ai_edit, trigger_ai_edit};
 
-#[cfg(target_os = "android")]
 pub use color_grading::{get_color_grading_presets, enqueue_color_grading, cancel_color_grading, is_raw_file};
 
 pub use storage::{

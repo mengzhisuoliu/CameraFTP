@@ -17,6 +17,10 @@ import { usePreviewToolbarAutoHide } from '../hooks/usePreviewToolbarAutoHide';
 import { PromptDialog } from './PromptDialog';
 import { AiEditProgressBar } from './AiEditProgressBar';
 import { useAiEditProgressListener, enqueueAiEdit } from '../hooks/useAiEditProgress';
+import { ColorGradingDialog } from './ColorGradingDialog';
+import { ColorGradingProgressBar } from './ColorGradingProgressBar';
+import { useColorGradingProgressListener, enqueueColorGrading } from '../hooks/useColorGradingProgress';
+import type { ColorGradingPreset } from '../types';
 
 export function PreviewWindow() {
   const state = usePreviewWindowLifecycle();
@@ -44,6 +48,16 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   const [isFullscreen, setIsFullscreen] = useState(false);
   useAiEditProgressListener();
   const [showPromptDialog, setShowPromptDialog] = useState(false);
+  useColorGradingProgressListener();
+  const [showColorGradingDialog, setShowColorGradingDialog] = useState(false);
+  const [colorGradingPresets, setColorGradingPresets] = useState<ColorGradingPreset[]>([]);
+
+  // Detect if current file is RAW
+  const isRawFile = useMemo(() => {
+    if (!imagePath) return false;
+    const ext = imagePath.split('.').pop()?.toLowerCase() || '';
+    return ['nef', 'nrw', 'cr2', 'cr3', 'arw', 'sr2', 'raf', 'orf', 'rw2', 'pef', 'dng', 'x3f', 'raw', 'srw'].includes(ext);
+  }, [imagePath]);
 
   const draft = useConfigStore(state => state.draft);
   const updateDraft = useConfigStore(state => state.updateDraft);
@@ -148,6 +162,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         case 'Escape':
           if (showPromptDialog) {
             setShowPromptDialog(false);
+          } else if (showColorGradingDialog) {
+            setShowColorGradingDialog(false);
           } else if (isFullscreen) {
             await appWindow.setFullscreen(false);
             await appWindow.setAlwaysOnTop(false);
@@ -163,7 +179,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
       window.removeEventListener('mouseup', handleGlobalMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest, stopDragging, showPromptDialog]);
+  }, [isFullscreen, appWindow, goToPrevious, goToNext, goToLatest, goToOldest, stopDragging, showPromptDialog, showColorGradingDialog]);
 
   const handleOpenFolder = async () => {
     if (imagePath) {
@@ -182,6 +198,20 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   const handleAiEdit = useCallback(() => {
     if (!imagePath) return;
     setShowPromptDialog(true);
+  }, [imagePath]);
+
+  const handleColorGrading = useCallback(() => {
+    if (!imagePath) return;
+    invoke<ColorGradingPreset[]>('get_color_grading_presets')
+      .then(setColorGradingPresets)
+      .catch(() => {});
+    setShowColorGradingDialog(true);
+  }, [imagePath]);
+
+  const handleColorGradingConfirm = useCallback(async (lutId: string) => {
+    if (!imagePath) return;
+    setShowColorGradingDialog(false);
+    await enqueueColorGrading([imagePath], lutId);
   }, [imagePath]);
 
   const flushConfigSave = useConfigStore(state => state.flushConfigSave);
@@ -272,6 +302,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
 
       {/* AI修图进度条 */}
       <AiEditProgressBar position="absolute" />
+      {/* 调色进度条 */}
+      <ColorGradingProgressBar position="absolute" />
 
       {/* 底部工具栏 - 浮动覆盖在图片上，半透明磨砂效果 */}
       <div
@@ -444,6 +476,22 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
             </svg>
           </button>
 
+          {/* 调色按钮 - 仅RAW文件显示 */}
+          {isRawFile && (
+            <button
+              onClick={handleColorGrading}
+              className="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
+              title="调色"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.4 2.3-1l.7-.7c.4-.4.4-1 0-1.4l-.1-.1c-.3-.3-.4-.7-.2-1.1.2-.4.6-.7 1-.7H18c2.2 0 4-1.8 4-4 0-4.4-3.6-8-8-10z"/>
+                <circle cx="7.5" cy="11.5" r="1.5"/>
+                <circle cx="10.5" cy="7.5" r="1.5"/>
+                <circle cx="15" cy="8" r="1.5"/>
+              </svg>
+            </button>
+          )}
+
           {/* 全屏按钮 */}
           <button
             onClick={toggleFullscreen}
@@ -483,6 +531,14 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         hasApiKey={draft?.aiEdit?.provider?.type === 'seed-edit' ? !!draft.aiEdit.provider.apiKey : true}
         onConfirm={handlePromptConfirm}
         onCancel={() => setShowPromptDialog(false)}
+      />
+
+      {/* 调色对话框 */}
+      <ColorGradingDialog
+        isOpen={showColorGradingDialog}
+        colorGradingPresets={colorGradingPresets}
+        onConfirm={handleColorGradingConfirm}
+        onCancel={() => setShowColorGradingDialog(false)}
       />
     </div>
   );

@@ -33,8 +33,13 @@ use commands::{
     check_permission_status,
     check_port_available,
     check_server_start_prerequisites,
+    cancel_ai_edit,
+    cancel_color_grading,
     ensure_storage_ready,
+    enqueue_ai_edit,
+    enqueue_color_grading,
     get_autostart_status,
+    get_color_grading_presets,
     get_current_file_index,
     get_file_list,
     get_image_exif,
@@ -43,6 +48,7 @@ use commands::{
     get_server_runtime_state,
     get_storage_info,
     hide_main_window,
+    is_raw_file,
     load_config,
     navigate_to_file,
     open_external_link,
@@ -59,18 +65,8 @@ use commands::{
     start_server,
     stop_server,
     trigger_ai_edit,
-    enqueue_ai_edit,
-    cancel_ai_edit,
     update_preview_config,
     FtpServerState,
-};
-
-#[cfg(target_os = "android")]
-use commands::{
-    get_color_grading_presets,
-    enqueue_color_grading,
-    cancel_color_grading,
-    is_raw_file,
 };
 
 fn setup_logging() {
@@ -177,8 +173,7 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             app.manage(Arc::new(ImagePreviewCache::new()));
 
-            // Initialize color grading (Android only): load RawAlchemyCpp library + extract resources
-            #[cfg(target_os = "android")]
+            // Initialize color grading: load RawAlchemyCpp library + extract resources
             {
                 let app_data_dir = app.path().app_data_dir()
                     .expect("Failed to resolve app data dir");
@@ -271,14 +266,10 @@ pub fn run() {
             enqueue_ai_edit,
             cancel_ai_edit,
 
-            // 调色（Android only）
-            #[cfg(target_os = "android")]
+            // 调色
             get_color_grading_presets,
-            #[cfg(target_os = "android")]
             enqueue_color_grading,
-            #[cfg(target_os = "android")]
             cancel_color_grading,
-            #[cfg(target_os = "android")]
             is_raw_file,
         ]);
 
@@ -337,11 +328,22 @@ pub fn run() {
         });
 }
 
-#[cfg(target_os = "android")]
 fn resolve_raw_alchemy_lib_path() -> std::path::PathBuf {
-    // Kotlin side calls System.loadLibrary("raw_alchemy_core") in MainActivity.onCreate().
-    // After that, dlopen("libraw_alchemy_core.so") finds the already-loaded library.
-    std::path::PathBuf::from("libraw_alchemy_core.so")
+    #[cfg(target_os = "android")]
+    {
+        // Kotlin side calls System.loadLibrary("raw_alchemy_core") in MainActivity.onCreate().
+        // After that, dlopen("libraw_alchemy_core.so") finds the already-loaded library.
+        std::path::PathBuf::from("libraw_alchemy_core.so")
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // DLL is placed alongside the exe by the build script.
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        exe_dir.join("raw_alchemy_core.dll")
+    }
 }
 
 /// 设置主窗口关闭请求处理器（桌面平台）

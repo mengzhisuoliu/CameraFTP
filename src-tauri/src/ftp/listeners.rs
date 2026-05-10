@@ -88,9 +88,8 @@ impl DataListener for FtpDataListener {
                         info!(file = %path, "Non-image file uploaded, skipping auto-preview");
                     }
 
-                    // Auto color grading for RAW files (Android only)
+                    // Auto color grading for RAW files
                     // RAW files are NOT in is_supported_image, so must be handled separately.
-                    #[cfg(target_os = "android")]
                     if let Some(handle) = app_handle.as_ref() {
                         let file_path = std::path::Path::new(&path);
                         if crate::color_grading::is_raw_file_path(file_path) {

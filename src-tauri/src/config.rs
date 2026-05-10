@@ -133,7 +133,7 @@ impl Default for AndroidImageViewerConfig {
     }
 }
 
-/// 自动调色配置（仅 Android）
+/// 自动调色配置
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", default)]
@@ -206,7 +206,7 @@ pub struct AppConfig {
     /// AI修图配置
     #[serde(default)]
     pub ai_edit: crate::ai_edit::config::AiEditConfig,
-    /// 自动调色配置（仅 Android 有效，其他平台为 None）
+    /// 自动调色配置
     #[serde(
         skip_serializing_if = "Option::is_none",
         default = "default_auto_color_grading",
@@ -225,14 +225,8 @@ const fn default_android_image_viewer() -> Option<AndroidImageViewerConfig> {
     None
 }
 
-#[cfg(target_os = "android")]
 fn default_auto_color_grading() -> Option<AutoColorGradingConfig> {
     Some(AutoColorGradingConfig::default())
-}
-
-#[cfg(not(target_os = "android"))]
-const fn default_auto_color_grading() -> Option<AutoColorGradingConfig> {
-    None
 }
 
 impl Default for AppConfig {
@@ -258,11 +252,7 @@ impl Default for AppConfig {
             None
         };
 
-        let auto_color_grading = if cfg!(target_os = "android") {
-            Some(AutoColorGradingConfig::default())
-        } else {
-            None
-        };
+        let auto_color_grading = Some(AutoColorGradingConfig::default());
 
         Self {
             save_path: Self::default_pictures_dir(),

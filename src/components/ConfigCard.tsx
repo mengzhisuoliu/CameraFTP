@@ -224,8 +224,8 @@ export const ConfigCard = memo(function ConfigCard() {
       {/* 预览配置卡片（Windows 专属） */}
       <PreviewConfigCard />
 
-      {/* 自动调色配置（Android 专属） */}
-      {isAndroid && <AutoColorGradingConfigCard />}
+      {/* 自动调色配置 */}
+      <AutoColorGradingConfigCard />
 
       {/* AI修图配置 */}
       <AiEditConfigCard />
