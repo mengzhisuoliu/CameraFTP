@@ -175,22 +175,13 @@ export const ConfigCard = memo(function ConfigCard() {
         )}
       </Card>
 
-      {/* AI修图配置 */}
-      <AiEditConfigCard />
-
-      {/* 自动调色配置（Android 专属） */}
-      {isAndroid && <AutoColorGradingConfigCard />}
-
-      {/* 预览配置卡片（Windows 专属） */}
-      <PreviewConfigCard />
-
       {/* 图片查看设置（Android 专属） */}
       {isAndroid && draft?.androidImageViewer && (
         <Card className="overflow-hidden">
           <CardHeader
             title="图片查看设置"
             description="配置图片查看相关选项"
-            icon={<Image className="w-5 h-5 text-violet-600" />}
+            icon={<Image className="w-5 h-5 text-rose-600" />}
           />
           <div className="p-4 space-y-4">
             <ToggleSwitch
@@ -229,6 +220,15 @@ export const ConfigCard = memo(function ConfigCard() {
           </div>
         </Card>
       )}
+
+      {/* 预览配置卡片（Windows 专属） */}
+      <PreviewConfigCard />
+
+      {/* 自动调色配置（Android 专属） */}
+      {isAndroid && <AutoColorGradingConfigCard />}
+
+      {/* AI修图配置 */}
+      <AiEditConfigCard />
 
       {/* 权限状态 - Android 特有，放在最后 */}
       {isAndroid && typeof window !== 'undefined' && window.PermissionAndroid && (

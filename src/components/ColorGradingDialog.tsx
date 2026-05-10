@@ -53,7 +53,7 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
       subtitle="使用胶片模拟调色处理 RAW 照片"
       icon={
         <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-          <Palette className="w-5 h-5 text-amber-600" />
+          <Palette className="w-5 h-5 text-violet-600" />
         </div>
       }
       footer={

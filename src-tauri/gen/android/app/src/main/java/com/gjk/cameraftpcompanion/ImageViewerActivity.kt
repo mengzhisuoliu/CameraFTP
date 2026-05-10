@@ -497,7 +497,7 @@ class ImageViewerActivity : AppCompatActivity() {
                 -webkit-tap-highlight-color: transparent;
               }
               .dropdown-opt:hover { background: #f9fafb; }
-              .dropdown-opt.selected { background: #f5f3ff; color: #7c3aed; font-weight: 500; }
+              .dropdown-opt.selected { background: #eff6ff; color: #1d4ed8; font-weight: 500; }
               .footer {
                 display: flex; align-items: center; justify-content: flex-end;
                 padding: 16px; border-top: 1px solid #e5e7eb; gap: 8px;
@@ -508,8 +508,8 @@ class ImageViewerActivity : AppCompatActivity() {
               }
               .btn-cancel { background: #f3f4f6; color: #374151; }
               .btn-cancel:hover { background: #e5e7eb; }
-              .btn-confirm { background: #7c3aed; color: #fff; }
-              .btn-confirm:hover { background: #6d28d9; }
+              .btn-confirm { background: #2563eb; color: #fff; }
+              .btn-confirm:hover { background: #1d4ed8; }
               .header-icon { color: #7c3aed; flex-shrink: 0; }
             </style>
             </head>
