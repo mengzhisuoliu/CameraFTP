@@ -223,7 +223,7 @@ async fn process_single_file(task: &ColorGradingTask) -> Result<String, AppError
     Ok(output_path.to_string_lossy().into_owned())
 }
 
-fn is_raw_file_path(path: &std::path::Path) -> bool {
+pub fn is_raw_file_path(path: &std::path::Path) -> bool {
     let ext = path.extension()
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();

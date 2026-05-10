@@ -12,3 +12,4 @@ pub mod service;
 
 pub use presets::ColorGradingPreset;
 pub use service::ColorGradingService;
+pub use service::is_raw_file_path;

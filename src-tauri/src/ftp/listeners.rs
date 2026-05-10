@@ -72,13 +72,6 @@ impl DataListener for FtpDataListener {
                                 let ai_edit: tauri::State<'_, crate::ai_edit::AiEditService> = handle_clone.state();
                                 ai_edit.on_file_uploaded(full_path.clone()).await;
 
-                                // Auto color grading (Android only)
-                                #[cfg(target_os = "android")]
-                                {
-                                    let color_grading: tauri::State<'_, crate::color_grading::ColorGradingService> = handle_clone.state();
-                                    color_grading.on_file_uploaded(full_path.clone()).await;
-                                }
-
                                 // Auto-open (Windows only)
                                 #[cfg(target_os = "windows")]
                                 {
@@ -87,12 +80,31 @@ impl DataListener for FtpDataListener {
                                         tracing::error!("Failed to auto open image: {}", e);
                                     }
                                 }
-                                #[cfg(not(any(target_os = "windows", target_os = "android")))]
+                                #[cfg(not(target_os = "windows"))]
                                 let _ = &full_path; // suppress unused warning
                             });
                         }
                     } else {
                         info!(file = %path, "Non-image file uploaded, skipping auto-preview");
+                    }
+
+                    // Auto color grading for RAW files (Android only)
+                    // RAW files are NOT in is_supported_image, so must be handled separately.
+                    #[cfg(target_os = "android")]
+                    if let Some(handle) = app_handle.as_ref() {
+                        let file_path = std::path::Path::new(&path);
+                        if crate::color_grading::is_raw_file_path(file_path) {
+                            let full_path = save_path.join(&path);
+                            let handle_clone = handle.clone();
+                            tokio::spawn(async move {
+                                if !wait_for_file_ready(&full_path, Duration::from_secs(FILE_READY_TIMEOUT_SECS)).await {
+                                    tracing::warn!("RAW file not ready after timeout: {:?}", full_path);
+                                    return;
+                                }
+                                let color_grading: tauri::State<'_, crate::color_grading::ColorGradingService> = handle_clone.state();
+                                color_grading.on_file_uploaded(full_path).await;
+                            });
+                        }
                     }
                 }
                 DataEvent::Got { path, bytes } => {
