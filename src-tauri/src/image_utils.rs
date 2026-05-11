@@ -28,15 +28,14 @@ pub fn is_raw_file(path: &Path) -> bool {
 
 /// Check if a file path is a supported image format (JPEG/HEIF + all RAW).
 pub fn is_supported_image(path: &Path) -> bool {
+    if is_raw_file(path) {
+        return true;
+    }
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| {
             let ext = e.to_lowercase();
-            matches!(ext.as_str(),
-                "jpg" | "jpeg" | "heif" | "hif" | "heic" |
-                "nef" | "nrw" | "cr2" | "cr3" | "arw" | "sr2" |
-                "raf" | "orf" | "rw2" | "pef" | "dng" | "x3f" | "raw" | "srw"
-            )
+            matches!(ext.as_str(), "jpg" | "jpeg" | "heif" | "hif" | "heic")
         })
         .unwrap_or(false)
 }
