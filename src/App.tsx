@@ -13,7 +13,7 @@ import { InfoCard } from './components/InfoCard';
 import { LatestPhotoCard } from './components/LatestPhotoCard';
 import { ConfigCard } from './components/ConfigCard';
 import { GalleryCard } from './components/GalleryCard';
-import { AiEditProgressBar } from './components/AiEditProgressBar';
+import { TaskProgressPanel } from './components/TaskProgressPanel';
 import { BottomNav } from './components/BottomNav';
 import { PermissionDialog } from './components/PermissionDialog';
 import { PreviewWindow } from './components/PreviewWindow';
@@ -225,8 +225,8 @@ function App() {
         )}
       </div>
 
-      {/* AI Edit Progress - always visible overlay */}
-      <AiEditProgressBar position="fixed" />
+      {/* Task Progress - always visible overlay */}
+      <TaskProgressPanel position="fixed" />
 
       {/* Bottom Navigation */}
       <BottomNav />

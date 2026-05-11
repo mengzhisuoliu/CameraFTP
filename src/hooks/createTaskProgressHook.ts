@@ -30,7 +30,6 @@ export const initialTaskProgressState: TaskProgressState = {
 };
 
 const GALLERY_REFRESH_DELAY_MS = 500;
-const DONE_AUTO_RESET_DELAY_MS = 3000;
 
 /** Discriminated union for type-safe event switching inside the factory. */
 export type StandardTaskEvent =
@@ -99,7 +98,6 @@ export function createTaskProgressHook<TEvent extends { type: string }>(
         });
         break;
       case 'done': {
-        const hasFailures = mapped.failedCount > 0;
         const outputFiles = mapped.outputFiles ?? [];
 
         if (mapped.cancelled) {
@@ -130,12 +128,6 @@ export function createTaskProgressHook<TEvent extends { type: string }>(
         }, GALLERY_REFRESH_DELAY_MS);
 
         config.onDone?.(mapped);
-
-        if (!hasFailures) {
-          setTimeout(() => {
-            store.setState({ ...initialTaskProgressState });
-          }, DONE_AUTO_RESET_DELAY_MS);
-        }
         break;
       }
     }

@@ -23,7 +23,6 @@ import { RefreshButton } from './ui';
 import { PromptDialog } from './PromptDialog';
 import { invoke } from '@tauri-apps/api/core';
 import { ColorGradingDialog } from './ColorGradingDialog';
-import { ColorGradingProgressBar } from './ColorGradingProgressBar';
 import { enqueueColorGrading } from '../hooks/useColorGradingProgress';
 import type { ColorGradingPreset } from '../types';
 import { isRawFile } from '../utils/raw';
@@ -363,7 +362,6 @@ export const GalleryCard = memo(function GalleryCard() {
         onConfirm={handleColorGradingConfirm}
         onCancel={() => setShowColorGradingDialog(false)}
       />
-      <ColorGradingProgressBar position="fixed" />
     </div>
   );
 });

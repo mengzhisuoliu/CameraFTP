@@ -68,6 +68,7 @@ describe('useColorGradingProgress', () => {
 
   beforeEach(async () => {
     requestMediaLibraryRefreshMock.mockClear();
+    invokeMock.mockClear();
     window.ImageViewerAndroid = undefined;
     dismissColorGradingDone();
     eventHandler = capturedHandler.current;
@@ -145,24 +146,15 @@ describe('useColorGradingProgress', () => {
     expect(getText('is-processing')).toBe('no');
   });
 
-  it('handleEvent "done" with no failures auto-resets after timeout', async () => {
-    vi.useFakeTimers();
-
+  it('handleEvent "done" with no failures shows done state persistently', async () => {
     eventHandler!(doneEvent());
 
     await act(async () => { await flush(); });
 
     expect(getText('is-done')).toBe('yes');
 
-    await act(async () => {
-      vi.advanceTimersByTime(3000);
-      await flush();
-    });
-
-    expect(getText('is-done')).toBe('no');
-    expect(getText('current')).toBe('0');
-
-    vi.useRealTimers();
+    // State persists — auto-reset is handled by the TaskProgressPanel, not the hook
+    expect(getText('is-done')).toBe('yes');
   });
 
   it('handleEvent "done" with failures does not auto-reset', async () => {
@@ -232,6 +224,9 @@ describe('useColorGradingProgress', () => {
     expect(invokeMock).toHaveBeenCalledWith('enqueue_color_grading', {
       filePaths: ['/tmp/a.nef', '/tmp/b.nef'],
       lutId: 'preset-1',
+      useAutoExposure: true,
+      meteringMode: 'highlight-safe',
+      manualEv: 0,
     });
   });
 });

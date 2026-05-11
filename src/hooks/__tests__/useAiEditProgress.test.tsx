@@ -274,9 +274,7 @@ describe('useAiEditProgress', () => {
     expect(updateAiEditProgress).toHaveBeenCalledWith(2, 5, 0);
   });
 
-  it('handleEvent "done" with no failures shows done state then resets after timeout', async () => {
-    vi.useFakeTimers();
-
+  it('handleEvent "done" with no failures shows done state persistently', async () => {
     eventHandler!(doneEvent());
 
     await act(async () => { await flush(); });
@@ -284,17 +282,8 @@ describe('useAiEditProgress', () => {
     expect(getText('is-editing')).toBe('no');
     expect(getText('is-done')).toBe('yes');
 
-    await act(async () => {
-      vi.advanceTimersByTime(3000);
-      await flush();
-    });
-
-    expect(getText('is-done')).toBe('no');
-    expect(getText('current')).toBe('0');
-    expect(getText('total')).toBe('0');
-    expect(getText('failed-count')).toBe('0');
-
-    vi.useRealTimers();
+    // State persists — auto-reset is handled by the TaskProgressPanel, not the hook
+    expect(getText('is-done')).toBe('yes');
   });
 
   it('handleEvent "done" with failures does not auto-reset', async () => {

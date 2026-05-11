@@ -44,14 +44,24 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         var isColorGrading: Boolean = false
             private set
 
+        @Volatile
+        var isAiEditDone: Boolean = false
+            private set
+
+        @Volatile
+        var isColorGradingDone: Boolean = false
+            private set
+
         fun clearProgress() {
             lastProgress = null
             isAiEditing = false
+            isAiEditDone = false
         }
 
         fun clearColorGradingProgress() {
             lastColorGradingProgress = null
             isColorGrading = false
+            isColorGradingDone = false
         }
     }
 
@@ -106,7 +116,11 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
      */
     @android.webkit.JavascriptInterface
     fun onAiEditComplete(success: Boolean, message: String?, cancelled: Boolean) {
-        if (success || cancelled) clearProgress()
+        isAiEditing = false
+        if (cancelled) {
+            clearProgress()
+        }
+        isAiEditDone = !cancelled && success
         val viewer = ImageViewerActivity.instance ?: return
         viewer.onAiEditComplete(success, message, cancelled)
     }
@@ -140,8 +154,19 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
 
     @android.webkit.JavascriptInterface
     fun onColorGradingComplete(success: Boolean, message: String?, cancelled: Boolean) {
-        if (success || cancelled) clearColorGradingProgress()
+        isColorGrading = false
+        if (cancelled) {
+            clearColorGradingProgress()
+        }
+        isColorGradingDone = !cancelled && success
         val viewer = ImageViewerActivity.instance ?: return
         viewer.onColorGradingComplete(success, message, cancelled)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun dismissAllTaskProgress() {
+        clearProgress()
+        clearColorGradingProgress()
+        ImageViewerActivity.instance?.dismissAllTaskProgress()
     }
 }

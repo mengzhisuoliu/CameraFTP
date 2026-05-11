@@ -21,9 +21,6 @@ import android.text.TextUtils
 import android.util.Log
 import android.view.Gravity
 import android.view.View
-import android.view.animation.Animation
-import android.view.animation.LinearInterpolator
-import android.view.animation.TranslateAnimation
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.FrameLayout
@@ -35,7 +32,6 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -160,15 +156,18 @@ class ImageViewerActivity : AppCompatActivity() {
     private lateinit var btnMenu: ImageButton
     private lateinit var btnRotate: ImageButton
     private lateinit var btnDelete: ImageButton
-    private lateinit var aiEditProgressContainer: FrameLayout
-    private lateinit var aiEditProgressFill: FrameLayout
-    private lateinit var aiEditProgressHighlight: View
-    private lateinit var aiEditProgressEdge: View
-    private lateinit var aiEditStatusText: TextView
-    private lateinit var aiEditProgressText: TextView
-    private lateinit var aiEditFailureText: TextView
-    private lateinit var aiEditCancelBtn: TextView
-    private var aiEditHighlightAnimation: TranslateAnimation? = null
+    private lateinit var taskProgressPanel: LinearLayout
+    private lateinit var taskRowAiEdit: LinearLayout
+    private lateinit var taskRowColorGrading: LinearLayout
+    private lateinit var taskAiEditCount: TextView
+    private lateinit var taskAiEditFailed: TextView
+    private lateinit var taskAiEditCancel: TextView
+    private lateinit var taskCgCount: TextView
+    private lateinit var taskCgFailed: TextView
+    private lateinit var taskCgCancel: TextView
+    private lateinit var taskPanelFooter: TextView
+    private var taskPanelAutoDismissHandler: android.os.Handler? = null
+    private var taskPanelAutoDismissRunnable: Runnable? = null
     private var uris: MutableList<String> = mutableListOf()
     private var currentDisplayName: String? = null
     private var currentIndex: Int = 0
@@ -219,14 +218,16 @@ class ImageViewerActivity : AppCompatActivity() {
         btnRotate = findViewById(R.id.btn_rotate)
         btnDelete = findViewById(R.id.btn_delete)
 
-        aiEditProgressContainer = findViewById(R.id.ai_edit_progress_container)
-        aiEditProgressFill = findViewById(R.id.ai_edit_progress_fill)
-        aiEditProgressHighlight = findViewById(R.id.ai_edit_progress_highlight)
-        aiEditProgressEdge = findViewById(R.id.ai_edit_progress_edge)
-        aiEditStatusText = findViewById(R.id.ai_edit_status_text)
-        aiEditProgressText = findViewById(R.id.ai_edit_progress_text)
-        aiEditFailureText = findViewById(R.id.ai_edit_failure_text)
-        aiEditCancelBtn = findViewById(R.id.ai_edit_cancel_btn)
+        taskProgressPanel = findViewById(R.id.task_progress_panel)
+        taskRowAiEdit = findViewById(R.id.task_row_ai_edit)
+        taskRowColorGrading = findViewById(R.id.task_row_color_grading)
+        taskAiEditCount = findViewById(R.id.task_ai_edit_count)
+        taskAiEditFailed = findViewById(R.id.task_ai_edit_failed)
+        taskAiEditCancel = findViewById(R.id.task_ai_edit_cancel)
+        taskCgCount = findViewById(R.id.task_cg_count)
+        taskCgFailed = findViewById(R.id.task_cg_failed)
+        taskCgCancel = findViewById(R.id.task_cg_cancel)
+        taskPanelFooter = findViewById(R.id.task_panel_footer)
     }
 
     private fun setupViewPager() {
@@ -285,28 +286,24 @@ class ImageViewerActivity : AppCompatActivity() {
                 .withEndAction { bottomBar.visibility = View.GONE }
                 .start()
         }
-        updateProgressBarPosition()
+        updateTaskPanelPosition()
     }
 
-    private fun updateProgressBarPosition() {
-        val lp = aiEditProgressContainer.layoutParams as? FrameLayout.LayoutParams ?: return
-        val screenWidth = resources.displayMetrics.widthPixels
-        lp.width = screenWidth * 2 / 3
-        lp.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-        lp.marginStart = 0
-        lp.marginEnd = 0
+    private fun updateTaskPanelPosition() {
+        val lp = taskProgressPanel.layoutParams as? FrameLayout.LayoutParams ?: return
+        lp.gravity = Gravity.BOTTOM or Gravity.START
+        lp.marginStart = 12.dpToPx()
         lp.bottomMargin = if (isBottomBarVisible && bottomBar.visibility != View.GONE) {
             val barHeight = bottomBar.height
             if (barHeight > 0) {
                 barHeight + (bottomBar.layoutParams as? FrameLayout.LayoutParams)?.bottomMargin?.let { if (it > 0) it else 8.dpToPx() }!! + 12.dpToPx()
             } else {
-                // bottomBar not laid out yet, use default spacing
                 92.dpToPx()
             }
         } else {
             16.dpToPx()
         }
-        aiEditProgressContainer.layoutParams = lp
+        taskProgressPanel.layoutParams = lp
     }
 
     private fun Int.dpToPx(): Int {
@@ -1464,14 +1461,6 @@ class ImageViewerActivity : AppCompatActivity() {
         return resolveUriToFilePath(this, uriString)
     }
 
-    private fun resetProgressAppearance() {
-        aiEditProgressContainer.background = ContextCompat.getDrawable(this, R.drawable.progress_bar_bg)
-        aiEditProgressFill.setBackgroundColor(0)
-        aiEditProgressFill.background = ContextCompat.getDrawable(this, R.drawable.progress_bar_fill)
-        aiEditProgressEdge.setBackgroundColor(0)
-        aiEditProgressEdge.background = ContextCompat.getDrawable(this, R.drawable.progress_bar_edge)
-        aiEditStatusText.setTextColor(0xFF60A5FA.toInt())
-    }
 
     /**
      * Called from JS bridge when AI edit completes (success or failure)
@@ -1479,86 +1468,22 @@ class ImageViewerActivity : AppCompatActivity() {
     fun onAiEditComplete(success: Boolean, message: String?, cancelled: Boolean) {
         runOnUiThread {
             isAiEditing = false
-            isColorGrading = false
-            stopHighlightSweepAnimation()
             if (isFinishing || isDestroyed) return@runOnUiThread
 
-            // On cancel, silently hide the progress bar without showing success/failure
             if (cancelled) {
-                resetProgressAppearance()
-                aiEditProgressContainer.visibility = View.GONE
+                taskRowAiEdit.visibility = View.GONE
+                updateTaskPanelVisibility()
                 return@runOnUiThread
             }
 
-            val containerColor: Int
-            val strokeColor: Int
-            val fillColors: IntArray?
-            val fillColor: Int?
-            val edgeColors: IntArray?
-            val edgeColor: Int?
-
-            if (success) {
-                containerColor = 0xBF1A3C1A.toInt()
-                strokeColor = 0x3322C55E.toInt()
-                fillColors = intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
-                fillColor = null
-                edgeColors = intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
-                edgeColor = null
-            } else {
-                containerColor = 0xB35C1A1A.toInt()
-                strokeColor = 0x33EF4444.toInt()
-                fillColors = null
-                fillColor = 0x33EF4444.toInt()
-                edgeColors = null
-                edgeColor = 0x99F87171.toInt()
+            taskAiEditCancel.visibility = View.GONE
+            val state = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.lastProgress
+            if (state != null) {
+                taskAiEditCount.text = "${state.total} / ${state.total}"
             }
 
-            val dp = resources.displayMetrics.density
-
-            aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                setColor(containerColor)
-                cornerRadius = 12f * dp
-                setStroke(dp.toInt(), strokeColor)
-            }
-
-            aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            if (fillColors != null) {
-                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fillColors
-                )
-            } else {
-                aiEditProgressFill.setBackgroundColor(fillColor!!)
-            }
-            aiEditProgressFill.visibility = View.VISIBLE
-            aiEditProgressHighlight.visibility = View.GONE
-
-            aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                2,
-                Gravity.BOTTOM
-            )
-            if (edgeColors != null) {
-                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, edgeColors
-                )
-            } else {
-                aiEditProgressEdge.setBackgroundColor(edgeColor!!)
-            }
-
-            aiEditStatusText.text = "修图完成"
-            aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
-            aiEditProgressText.text = message ?: ""
-            aiEditFailureText.visibility = View.GONE
-            aiEditCancelBtn.visibility = View.VISIBLE
-            aiEditCancelBtn.text = "✕"
-            aiEditCancelBtn.setOnClickListener {
-                resetProgressAppearance()
-                aiEditProgressContainer.visibility = View.GONE
-            }
+            updateTaskPanelFooter()
+            checkAutoDismiss()
         }
     }
 
@@ -1567,15 +1492,20 @@ class ImageViewerActivity : AppCompatActivity() {
             if (isFinishing || isDestroyed) return@runOnUiThread
 
             isAiEditing = true
-            isColorGrading = false
 
-            resetProgressAppearance()
-            aiEditProgressContainer.visibility = View.VISIBLE
-            aiEditStatusText.visibility = View.VISIBLE
-            aiEditStatusText.text = "AI修图中..."
-            aiEditCancelBtn.visibility = View.VISIBLE
-            aiEditCancelBtn.text = "取消"
-            aiEditCancelBtn.setOnClickListener {
+            taskProgressPanel.visibility = View.VISIBLE
+            taskRowAiEdit.visibility = View.VISIBLE
+            taskAiEditCount.text = "$current / $total"
+
+            if (failedCount > 0) {
+                taskAiEditFailed.visibility = View.VISIBLE
+                taskAiEditFailed.text = "(失败 $failedCount)"
+            } else {
+                taskAiEditFailed.visibility = View.GONE
+            }
+
+            taskAiEditCancel.visibility = View.VISIBLE
+            taskAiEditCancel.setOnClickListener {
                 val mainActivity = MainActivity.instance
                 mainActivity?.runOnUiThread {
                     mainActivity.getWebView()?.evaluateJavascript(
@@ -1584,110 +1514,32 @@ class ImageViewerActivity : AppCompatActivity() {
                 }
             }
 
-            // Position after layout so bottomBar height is available
-            aiEditProgressContainer.post { updateProgressBarPosition() }
-
-            val percent = if (total > 0) (current * 100) / total else 0
-
-            val containerWidth = aiEditProgressContainer.width
-            if (containerWidth > 0) {
-                applyProgressLayout(containerWidth, percent)
-            } else {
-                // Container not laid out yet — post to run after the next layout pass
-                aiEditProgressContainer.post {
-                    if (isFinishing || isDestroyed) return@post
-                    val w = aiEditProgressContainer.width
-                    if (w > 0) applyProgressLayout(w, percent)
-                }
-            }
-
-            aiEditProgressText.text = "第${current}张/共${total}张"
-
-            if (failedCount > 0) {
-                aiEditFailureText.visibility = View.VISIBLE
-                aiEditFailureText.text = "失败${failedCount}张"
-            } else {
-                aiEditFailureText.visibility = View.GONE
-            }
+            updateTaskPanelPosition()
+            updateTaskPanelFooter()
         }
     }
 
-    private fun applyProgressLayout(containerWidth: Int, percent: Int) {
-        val fillWidth = (containerWidth * percent) / 100
-
-        aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
-            fillWidth.coerceAtLeast(8),
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-
-        val highlightWidth = (fillWidth * 0.4).toInt().coerceIn(20, containerWidth / 2)
-        aiEditProgressHighlight.layoutParams = FrameLayout.LayoutParams(
-            highlightWidth,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        aiEditProgressHighlight.visibility = View.VISIBLE
-
-        aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
-            fillWidth.coerceAtLeast(8),
-            2,
-            Gravity.BOTTOM
-        )
-
-        startHighlightSweepAnimation(fillWidth)
-    }
-
-    private fun startHighlightSweepAnimation(fillWidth: Int) {
-        // Cancel previous animation if any (e.g. progress updated)
-        aiEditHighlightAnimation?.let {
-            aiEditProgressHighlight.clearAnimation()
-        }
-        aiEditHighlightAnimation = null
-
-        val highlightWidth = aiEditProgressHighlight.width
-        if (highlightWidth <= 0) {
-            // Highlight not laid out yet — post after layout
-            aiEditProgressHighlight.post {
-                if (isFinishing || isDestroyed) return@post
-                val hw = aiEditProgressHighlight.width
-                if (hw > 0) {
-                    startHighlightSweepAnimationWithDimensions(hw, fillWidth)
-                }
-            }
-            return
-        }
-
-        startHighlightSweepAnimationWithDimensions(highlightWidth, fillWidth)
-    }
-
-    private fun startHighlightSweepAnimationWithDimensions(highlightWidth: Int, fillWidth: Int) {
-        val anim = TranslateAnimation(
-            Animation.ABSOLUTE, (-highlightWidth).toFloat(),
-            Animation.ABSOLUTE, fillWidth.toFloat(),
-            Animation.ABSOLUTE, 0f,
-            Animation.ABSOLUTE, 0f
-        ).apply {
-            duration = 2000
-            interpolator = LinearInterpolator()
-            repeatCount = Animation.INFINITE
-        }
-        aiEditProgressHighlight.startAnimation(anim)
-        aiEditHighlightAnimation = anim
-    }
-
-    private fun stopHighlightSweepAnimation() {
-        aiEditHighlightAnimation?.let {
-            aiEditProgressHighlight.clearAnimation()
-            aiEditProgressHighlight.visibility = View.GONE
-        }
-        aiEditHighlightAnimation = null
-    }
 
     private fun syncAiEditProgressFromWebView() {
         val progress = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.lastProgress
         val editing = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.isAiEditing
+        val done = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.isAiEditDone
         if (editing && progress != null) {
             isAiEditing = true
             updateAiEditProgress(progress.current, progress.total, progress.failedCount)
+        } else if (done) {
+            taskRowAiEdit.visibility = View.VISIBLE
+            taskAiEditCancel.visibility = View.GONE
+            val state = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.lastProgress
+            if (state != null) {
+                taskAiEditCount.text = "${state.total} / ${state.total}"
+                if (state.failedCount > 0) {
+                    taskAiEditFailed.visibility = View.VISIBLE
+                    taskAiEditFailed.text = "(失败 ${state.failedCount})"
+                }
+            }
+            taskProgressPanel.visibility = View.VISIBLE
+            updateTaskPanelFooter()
         }
     }
 
@@ -1696,14 +1548,20 @@ class ImageViewerActivity : AppCompatActivity() {
             if (isFinishing || isDestroyed) return@runOnUiThread
 
             isColorGrading = true
-            isAiEditing = false
-            resetProgressAppearance()
-            aiEditProgressContainer.visibility = View.VISIBLE
-            aiEditStatusText.visibility = View.VISIBLE
-            aiEditStatusText.text = "调色中..."
-            aiEditCancelBtn.visibility = View.VISIBLE
-            aiEditCancelBtn.text = "取消"
-            aiEditCancelBtn.setOnClickListener {
+
+            taskProgressPanel.visibility = View.VISIBLE
+            taskRowColorGrading.visibility = View.VISIBLE
+            taskCgCount.text = "$current / $total"
+
+            if (failedCount > 0) {
+                taskCgFailed.visibility = View.VISIBLE
+                taskCgFailed.text = "(失败 $failedCount)"
+            } else {
+                taskCgFailed.visibility = View.GONE
+            }
+
+            taskCgCancel.visibility = View.VISIBLE
+            taskCgCancel.setOnClickListener {
                 val mainActivity = MainActivity.instance
                 mainActivity?.runOnUiThread {
                     mainActivity.getWebView()?.evaluateJavascript(
@@ -1712,122 +1570,136 @@ class ImageViewerActivity : AppCompatActivity() {
                 }
             }
 
-            aiEditProgressContainer.post { updateProgressBarPosition() }
-
-            val percent = if (total > 0) (current * 100) / total else 0
-
-            val containerWidth = aiEditProgressContainer.width
-            if (containerWidth > 0) {
-                applyProgressLayout(containerWidth, percent)
-            } else {
-                aiEditProgressContainer.post {
-                    if (isFinishing || isDestroyed) return@post
-                    val w = aiEditProgressContainer.width
-                    if (w > 0) applyProgressLayout(w, percent)
-                }
-            }
-
-            aiEditProgressText.text = "第${current}张/共${total}张"
-
-            if (failedCount > 0) {
-                aiEditFailureText.visibility = View.VISIBLE
-                aiEditFailureText.text = "失败${failedCount}张"
-            } else {
-                aiEditFailureText.visibility = View.GONE
-            }
+            updateTaskPanelPosition()
+            updateTaskPanelFooter()
         }
     }
 
     fun onColorGradingComplete(success: Boolean, message: String?, cancelled: Boolean) {
         runOnUiThread {
             isColorGrading = false
-            stopHighlightSweepAnimation()
             if (isFinishing || isDestroyed) return@runOnUiThread
 
             if (cancelled) {
-                resetProgressAppearance()
-                aiEditProgressContainer.visibility = View.GONE
+                taskRowColorGrading.visibility = View.GONE
+                updateTaskPanelVisibility()
                 return@runOnUiThread
             }
 
-            val containerColor: Int
-            val strokeColor: Int
-            val fillColors: IntArray?
-            val fillColor: Int?
-            val edgeColors: IntArray?
-            val edgeColor: Int?
-
-            if (success) {
-                containerColor = 0xBF1A3C1A.toInt()
-                strokeColor = 0x3322C55E.toInt()
-                fillColors = intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
-                fillColor = null
-                edgeColors = intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
-                edgeColor = null
-            } else {
-                containerColor = 0xB35C1A1A.toInt()
-                strokeColor = 0x33EF4444.toInt()
-                fillColors = null
-                fillColor = 0x33EF4444.toInt()
-                edgeColors = null
-                edgeColor = 0x99F87171.toInt()
+            taskCgCancel.visibility = View.GONE
+            val state = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.lastColorGradingProgress
+            if (state != null) {
+                taskCgCount.text = "${state.total} / ${state.total}"
             }
 
-            val dp = resources.displayMetrics.density
-
-            aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                setColor(containerColor)
-                cornerRadius = 12f * dp
-                setStroke(dp.toInt(), strokeColor)
-            }
-
-            aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            if (fillColors != null) {
-                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fillColors
-                )
-            } else {
-                aiEditProgressFill.setBackgroundColor(fillColor!!)
-            }
-            aiEditProgressFill.visibility = View.VISIBLE
-            aiEditProgressHighlight.visibility = View.GONE
-
-            aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                2,
-                Gravity.BOTTOM
-            )
-            if (edgeColors != null) {
-                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
-                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, edgeColors
-                )
-            } else {
-                aiEditProgressEdge.setBackgroundColor(edgeColor!!)
-            }
-
-            aiEditStatusText.text = "调色完成"
-            aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
-            aiEditProgressText.text = message ?: ""
-            aiEditFailureText.visibility = View.GONE
-            aiEditCancelBtn.visibility = View.VISIBLE
-            aiEditCancelBtn.text = "✕"
-            aiEditCancelBtn.setOnClickListener {
-                resetProgressAppearance()
-                aiEditProgressContainer.visibility = View.GONE
-            }
+            updateTaskPanelFooter()
+            checkAutoDismiss()
         }
     }
 
     private fun syncColorGradingProgressFromWebView() {
         val progress = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.lastColorGradingProgress
         val grading = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.isColorGrading
+        val done = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.isColorGradingDone
         if (grading && progress != null) {
             isColorGrading = true
             updateColorGradingProgress(progress.current, progress.total, progress.failedCount)
+        } else if (done) {
+            taskRowColorGrading.visibility = View.VISIBLE
+            taskCgCancel.visibility = View.GONE
+            val state = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.lastColorGradingProgress
+            if (state != null) {
+                taskCgCount.text = "${state.total} / ${state.total}"
+                if (state.failedCount > 0) {
+                    taskCgFailed.visibility = View.VISIBLE
+                    taskCgFailed.text = "(失败 ${state.failedCount})"
+                }
+            }
+            taskProgressPanel.visibility = View.VISIBLE
+            updateTaskPanelFooter()
+        }
+    }
+
+    private fun updateTaskPanelFooter() {
+        val aiEditActive = taskRowAiEdit.visibility == View.VISIBLE
+        val cgActive = taskRowColorGrading.visibility == View.VISIBLE
+        val aiEditDone = !aiEditActive || !isAiEditing
+        val cgDone = !cgActive || !isColorGrading
+        val hasVisibleRow = aiEditActive || cgActive
+
+        if (hasVisibleRow && aiEditDone && cgDone) {
+            taskPanelFooter.text = "已完成"
+            taskPanelFooter.setTextColor(0xFF4ADE80.toInt())
+            taskPanelFooter.setOnClickListener(null)
+        } else {
+            taskPanelFooter.text = "全部取消"
+            taskPanelFooter.setTextColor(0x66FFFFFF.toInt())
+            taskPanelFooter.setOnClickListener {
+                if (isAiEditing) {
+                    val mainActivity = MainActivity.instance
+                    mainActivity?.runOnUiThread {
+                        mainActivity.getWebView()?.evaluateJavascript(
+                            "(function(){try{window.__tauriCancelAiEdit?.()}catch(e){}})();", null
+                        )
+                    }
+                }
+                if (isColorGrading) {
+                    val mainActivity = MainActivity.instance
+                    mainActivity?.runOnUiThread {
+                        mainActivity.getWebView()?.evaluateJavascript(
+                            "(function(){try{window.__tauriCancelColorGrading?.()}catch(e){}})();", null
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updateTaskPanelVisibility() {
+        val hasVisibleRow = taskRowAiEdit.visibility == View.VISIBLE || taskRowColorGrading.visibility == View.VISIBLE
+        if (!hasVisibleRow) {
+            taskProgressPanel.visibility = View.GONE
+        }
+        updateTaskPanelFooter()
+    }
+
+    private fun checkAutoDismiss() {
+        val aiEditActive = taskRowAiEdit.visibility == View.VISIBLE
+        val cgActive = taskRowColorGrading.visibility == View.VISIBLE
+        val aiEditDone = !aiEditActive || (!isAiEditing && taskAiEditCancel.visibility == View.GONE)
+        val cgDone = !cgActive || (!isColorGrading && taskCgCancel.visibility == View.GONE)
+        val allDone = aiEditDone && cgDone && (aiEditActive || cgActive)
+
+        if (allDone) {
+            taskPanelAutoDismissRunnable?.let { taskPanelAutoDismissHandler?.removeCallbacks(it) }
+            if (taskPanelAutoDismissHandler == null) {
+                taskPanelAutoDismissHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            }
+            taskPanelAutoDismissRunnable = Runnable {
+                taskRowAiEdit.visibility = View.GONE
+                taskRowColorGrading.visibility = View.GONE
+                taskProgressPanel.visibility = View.GONE
+                resetTaskPanelState()
+                com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.clearProgress()
+                com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.clearColorGradingProgress()
+            }
+            taskPanelAutoDismissHandler?.postDelayed(taskPanelAutoDismissRunnable!!, 3000)
+        }
+    }
+
+    private fun resetTaskPanelState() {
+        taskPanelFooter.text = "全部取消"
+        taskPanelFooter.setTextColor(0x66FFFFFF.toInt())
+        taskAiEditFailed.visibility = View.GONE
+        taskCgFailed.visibility = View.GONE
+    }
+
+    fun dismissAllTaskProgress() {
+        runOnUiThread {
+            taskRowAiEdit.visibility = View.GONE
+            taskRowColorGrading.visibility = View.GONE
+            taskProgressPanel.visibility = View.GONE
+            resetTaskPanelState()
         }
     }
 
@@ -1991,6 +1863,9 @@ class ImageViewerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
 
+        taskPanelAutoDismissRunnable?.let { taskPanelAutoDismissHandler?.removeCallbacks(it) }
+        taskPanelAutoDismissRunnable = null
+
         dismissPromptWebView()
         dismissColorGradingWebView()
         setContentView(R.layout.activity_image_viewer)
@@ -2002,8 +1877,8 @@ class ImageViewerActivity : AppCompatActivity() {
         updateUI()
         syncAiEditProgressFromWebView()
         syncColorGradingProgressFromWebView()
-        if (aiEditProgressContainer.visibility == View.VISIBLE) {
-            updateProgressBarPosition()
+        if (taskProgressPanel.visibility == View.VISIBLE) {
+            updateTaskPanelPosition()
         }
     }
 
@@ -2018,6 +1893,9 @@ class ImageViewerActivity : AppCompatActivity() {
         isViewerVisible = true
         syncAiEditProgressFromWebView()
         syncColorGradingProgressFromWebView()
+        if (taskProgressPanel.visibility == View.VISIBLE) {
+            updateTaskPanelPosition()
+        }
     }
 
     override fun onPause() {
@@ -2036,6 +1914,8 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        taskPanelAutoDismissRunnable?.let { taskPanelAutoDismissHandler?.removeCallbacks(it) }
+        taskPanelAutoDismissRunnable = null
         dismissPromptWebView()
         dismissColorGradingWebView()
         if (instance == this) {

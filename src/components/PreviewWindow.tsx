@@ -16,10 +16,9 @@ import { usePreviewExif } from '../hooks/usePreviewExif';
 import { usePreviewZoomPan } from '../hooks/usePreviewZoomPan';
 import { usePreviewToolbarAutoHide } from '../hooks/usePreviewToolbarAutoHide';
 import { PromptDialog } from './PromptDialog';
-import { AiEditProgressBar } from './AiEditProgressBar';
+import { TaskProgressPanel } from './TaskProgressPanel';
 import { useAiEditProgressListener, enqueueAiEdit } from '../hooks/useAiEditProgress';
 import { ColorGradingDialog } from './ColorGradingDialog';
-import { ColorGradingProgressBar } from './ColorGradingProgressBar';
 import { useColorGradingProgressListener, enqueueColorGrading } from '../hooks/useColorGradingProgress';
 import type { ColorGradingPreset } from '../types';
 import { isRawFile as isRawFileType } from '../utils/raw';
@@ -299,10 +298,8 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         )}
       </div>
 
-      {/* AI修图进度条 */}
-      <AiEditProgressBar position="absolute" />
-      {/* 调色进度条 */}
-      <ColorGradingProgressBar position="absolute" />
+      {/* 后台任务进度 */}
+      <TaskProgressPanel position="absolute" />
 
       {/* 底部工具栏 - 浮动覆盖在图片上，半透明磨砂效果 */}
       <div
