@@ -89,7 +89,8 @@ impl DataListener for FtpDataListener {
                     }
 
                     // Auto color grading for RAW files
-                    // RAW files are NOT in is_supported_image, so must be handled separately.
+                    // RAW files are also matched by is_supported_image above (for indexing/auto-open),
+                    // but need an additional check here to trigger auto color grading separately.
                     if let Some(handle) = app_handle.as_ref() {
                         let file_path = std::path::Path::new(&path);
                         if crate::image_utils::is_raw_file(file_path) {
