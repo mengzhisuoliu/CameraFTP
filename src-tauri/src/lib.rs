@@ -12,6 +12,7 @@ pub mod crypto;
 pub mod error;
 pub mod file_index;
 pub mod ftp;
+pub mod image_utils;
 pub mod color_grading;
 #[cfg(target_os = "windows")]
 pub mod image_preview;
