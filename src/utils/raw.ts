@@ -11,6 +11,10 @@ const RAW_EXTENSIONS = new Set([
 
 /** Check if a filename/path has a RAW image extension. */
 export function isRawFile(filenameOrPath: string): boolean {
-  const ext = filenameOrPath.split('.').pop()?.toLowerCase() || '';
+  // Use lastIndexOf to extract extension, consistent with Rust's Path::extension()
+  // which returns None for dot-only filenames like ".nef"
+  const dotIndex = filenameOrPath.lastIndexOf('.');
+  if (dotIndex <= 0) return false; // no extension or dot-only filename
+  const ext = filenameOrPath.slice(dotIndex + 1).toLowerCase();
   return RAW_EXTENSIONS.has(ext);
 }
