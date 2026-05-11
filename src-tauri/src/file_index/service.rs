@@ -252,29 +252,11 @@ impl FileIndexService {
 
     /// 读取图片EXIF中的拍摄时间
     async fn read_exif_time(&self, path: &Path) -> Option<SystemTime> {
-        // 使用 spawn_blocking 因为 EXIF 读取是同步操作
         let path = path.to_path_buf();
-        tokio::task::spawn_blocking(move || {
-            use nom_exif::*;
-
-            let mut parser = MediaParser::new();
-            let ms = MediaSource::file_path(&path).ok()?;
-
-            if !ms.has_exif() {
-                return None;
-            }
-
-            let iter: ExifIter = parser.parse(ms).ok()?;
-            let exif: Exif = iter.into();
-
-            // 优先读取 DateTimeOriginal
-            let datetime = exif
-                .get(ExifTag::DateTimeOriginal)
-                .and_then(|v| v.as_time_components())
-                .map(|(ndt, _offset)| ndt)?;
-
-            // 转换为 SystemTime - 使用 chrono 的正确转换方法
-            datetime.and_utc().try_into().ok()
+        tokio::task::spawn_blocking(move || -> Option<SystemTime> {
+            crate::image_utils::parse_exif(&path).ok()??
+                .datetime_original
+                .map(|ndt| ndt.and_utc().try_into().ok())?
         }).await.ok()?
     }
 

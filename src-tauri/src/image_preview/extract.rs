@@ -49,20 +49,9 @@ pub fn extract_preview_jpeg(path: &Path) -> Result<Vec<u8>, String> {
     Ok(jpeg)
 }
 
-/// Read the EXIF Orientation tag value from a RAW file using nom-exif.
+/// Read the EXIF Orientation tag value from a RAW file using the shared parser.
 fn read_raw_orientation(path: &Path) -> Option<u8> {
-    use nom_exif::*;
-
-    let mut parser = MediaParser::new();
-    let ms = MediaSource::file_path(path).ok()?;
-    if !ms.has_exif() {
-        return None;
-    }
-    let iter: ExifIter = parser.parse(ms).ok()?;
-    let exif: Exif = iter.into();
-    exif.get(ExifTag::Orientation)
-        .and_then(|v| v.as_u16())
-        .map(|v| v as u8)
+    crate::image_utils::parse_exif(path).ok()??.orientation
 }
 
 /// Check if a JPEG already has an APP1/EXIF marker.
