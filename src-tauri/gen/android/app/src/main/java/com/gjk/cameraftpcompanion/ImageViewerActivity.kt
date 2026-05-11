@@ -171,6 +171,7 @@ class ImageViewerActivity : AppCompatActivity() {
     private var isBottomBarVisible = true
     private var pendingDeleteUri: String? = null
     private var isAiEditing = false
+    private var isColorGrading = false
     private var promptWebView: WebView? = null
     private var menuPopupWindow: android.widget.PopupWindow? = null
     private var colorGradingWebView: WebView? = null
@@ -1292,6 +1293,7 @@ class ImageViewerActivity : AppCompatActivity() {
     fun onAiEditComplete(success: Boolean, message: String?, cancelled: Boolean) {
         runOnUiThread {
             isAiEditing = false
+            isColorGrading = false
             stopHighlightSweepAnimation()
             if (isFinishing || isDestroyed) return@runOnUiThread
 
@@ -1377,6 +1379,9 @@ class ImageViewerActivity : AppCompatActivity() {
     fun updateAiEditProgress(current: Int, total: Int, failedCount: Int) {
         runOnUiThread {
             if (isFinishing || isDestroyed) return@runOnUiThread
+
+            isAiEditing = true
+            isColorGrading = false
 
             resetProgressAppearance()
             aiEditProgressContainer.visibility = View.VISIBLE
@@ -1497,6 +1502,146 @@ class ImageViewerActivity : AppCompatActivity() {
         if (editing && progress != null) {
             isAiEditing = true
             updateAiEditProgress(progress.current, progress.total, progress.failedCount)
+        }
+    }
+
+    fun updateColorGradingProgress(current: Int, total: Int, failedCount: Int) {
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+
+            isColorGrading = true
+            isAiEditing = false
+            resetProgressAppearance()
+            aiEditProgressContainer.visibility = View.VISIBLE
+            aiEditStatusText.visibility = View.VISIBLE
+            aiEditStatusText.text = "调色中..."
+            aiEditCancelBtn.visibility = View.VISIBLE
+            aiEditCancelBtn.text = "取消"
+            aiEditCancelBtn.setOnClickListener {
+                val mainActivity = MainActivity.instance
+                mainActivity?.runOnUiThread {
+                    mainActivity.getWebView()?.evaluateJavascript(
+                        "(function(){try{window.__tauriCancelColorGrading?.()}catch(e){}})();", null
+                    )
+                }
+            }
+
+            aiEditProgressContainer.post { updateProgressBarPosition() }
+
+            val percent = if (total > 0) (current * 100) / total else 0
+
+            val containerWidth = aiEditProgressContainer.width
+            if (containerWidth > 0) {
+                applyProgressLayout(containerWidth, percent)
+            } else {
+                aiEditProgressContainer.post {
+                    if (isFinishing || isDestroyed) return@post
+                    val w = aiEditProgressContainer.width
+                    if (w > 0) applyProgressLayout(w, percent)
+                }
+            }
+
+            aiEditProgressText.text = "第${current}张/共${total}张"
+
+            if (failedCount > 0) {
+                aiEditFailureText.visibility = View.VISIBLE
+                aiEditFailureText.text = "失败${failedCount}张"
+            } else {
+                aiEditFailureText.visibility = View.GONE
+            }
+        }
+    }
+
+    fun onColorGradingComplete(success: Boolean, message: String?, cancelled: Boolean) {
+        runOnUiThread {
+            isColorGrading = false
+            stopHighlightSweepAnimation()
+            if (isFinishing || isDestroyed) return@runOnUiThread
+
+            if (cancelled) {
+                resetProgressAppearance()
+                aiEditProgressContainer.visibility = View.GONE
+                return@runOnUiThread
+            }
+
+            val containerColor: Int
+            val strokeColor: Int
+            val fillColors: IntArray?
+            val fillColor: Int?
+            val edgeColors: IntArray?
+            val edgeColor: Int?
+
+            if (success) {
+                containerColor = 0xBF1A3C1A.toInt()
+                strokeColor = 0x3322C55E.toInt()
+                fillColors = intArrayOf(0x0022C55E.toInt(), 0x2622C55E.toInt(), 0x2622C55E.toInt(), 0x0022C55E.toInt())
+                fillColor = null
+                edgeColors = intArrayOf(0x004ADE80.toInt(), 0x994ADE80.toInt(), 0x994ADE80.toInt(), 0x004ADE80.toInt())
+                edgeColor = null
+            } else {
+                containerColor = 0xB35C1A1A.toInt()
+                strokeColor = 0x33EF4444.toInt()
+                fillColors = null
+                fillColor = 0x33EF4444.toInt()
+                edgeColors = null
+                edgeColor = 0x99F87171.toInt()
+            }
+
+            val dp = resources.displayMetrics.density
+
+            aiEditProgressContainer.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                setColor(containerColor)
+                cornerRadius = 12f * dp
+                setStroke(dp.toInt(), strokeColor)
+            }
+
+            aiEditProgressFill.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            if (fillColors != null) {
+                aiEditProgressFill.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, fillColors
+                )
+            } else {
+                aiEditProgressFill.setBackgroundColor(fillColor!!)
+            }
+            aiEditProgressFill.visibility = View.VISIBLE
+            aiEditProgressHighlight.visibility = View.GONE
+
+            aiEditProgressEdge.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                2,
+                Gravity.BOTTOM
+            )
+            if (edgeColors != null) {
+                aiEditProgressEdge.background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, edgeColors
+                )
+            } else {
+                aiEditProgressEdge.setBackgroundColor(edgeColor!!)
+            }
+
+            aiEditStatusText.text = "调色完成"
+            aiEditStatusText.setTextColor(0xFFFFFFFF.toInt())
+            aiEditProgressText.text = message ?: ""
+            aiEditFailureText.visibility = View.GONE
+            aiEditCancelBtn.visibility = View.VISIBLE
+            aiEditCancelBtn.text = "✕"
+            aiEditCancelBtn.setOnClickListener {
+                resetProgressAppearance()
+                aiEditProgressContainer.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun syncColorGradingProgressFromWebView() {
+        val progress = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.lastColorGradingProgress
+        val grading = com.gjk.cameraftpcompanion.bridges.ImageViewerBridge.isColorGrading
+        if (grading && progress != null) {
+            isColorGrading = true
+            updateColorGradingProgress(progress.current, progress.total, progress.failedCount)
         }
     }
 
@@ -1670,6 +1815,7 @@ class ImageViewerActivity : AppCompatActivity() {
         setupButtons()
         updateUI()
         syncAiEditProgressFromWebView()
+        syncColorGradingProgressFromWebView()
         if (aiEditProgressContainer.visibility == View.VISIBLE) {
             updateProgressBarPosition()
         }
@@ -1685,6 +1831,7 @@ class ImageViewerActivity : AppCompatActivity() {
         instance = this
         isViewerVisible = true
         syncAiEditProgressFromWebView()
+        syncColorGradingProgressFromWebView()
     }
 
     override fun onPause() {

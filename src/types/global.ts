@@ -214,6 +214,22 @@ interface ImageViewerAndroid {
    * @param filePath Absolute file path to scan
    */
   scanNewFile?(filePath: string): void;
+
+  /**
+   * Callback from JS when a color grading triggered from native viewer completes
+   * @param success Whether the grading succeeded
+   * @param message Status message, or null if cancelled
+   * @param cancelled Whether the grading was cancelled by user
+   */
+  onColorGradingComplete?(success: boolean, message: string | null, cancelled: boolean): void;
+
+  /**
+   * Update color grading progress in native UI
+   * @param current Current file index being processed
+   * @param total Total number of files to process
+   * @param failedCount Number of files that failed so far
+   */
+  updateColorGradingProgress?(current: number, total: number, failedCount: number): void;
 }
 
 // ===== 全局窗口扩展 =====
@@ -290,6 +306,26 @@ declare global {
      * Called by native ImageViewerActivity after user confirms the color grading dialog.
      */
     __tauriTriggerColorGrading?: (filePath: string, lutId: string) => Promise<void>;
+
+    /**
+     * Cancels the in-progress color grading batch.
+     * Called by native ImageViewerActivity when the user taps the cancel button on the progress bar.
+     */
+    __tauriCancelColorGrading?: () => Promise<void>;
+
+    /**
+     * Returns the current color grading progress state.
+     * Called by native ImageViewerActivity to sync progress when opening mid-grading.
+     */
+    __tauriGetColorGradingProgress?: () => {
+      isProcessing: boolean;
+      isDone: boolean;
+      current: number;
+      total: number;
+      currentFileName: string;
+      failedCount: number;
+      failedFiles: string[];
+    };
   }
 }
 

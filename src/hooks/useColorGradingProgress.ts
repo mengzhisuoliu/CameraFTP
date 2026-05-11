@@ -7,7 +7,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ColorGradingEvent } from '../types';
 import { createTaskProgressHook } from './createTaskProgressHook';
-import type { TaskProgressState } from './createTaskProgressHook';
+import type { TaskProgressState, DoneEvent } from './createTaskProgressHook';
 
 export interface ColorGradingProgressState {
   isProcessing: boolean;
@@ -38,7 +38,34 @@ const colorGrading = createTaskProgressHook<ColorGradingEvent>({
         return { type: 'done', total: event.total, failedCount: event.failedCount, failedFiles: event.failedFiles, outputFiles: event.outputFiles, cancelled: event.cancelled };
     }
   },
+  onAfterUpdate: (mapped) => {
+    if (mapped.type === 'progress') {
+      syncToNativeLayer();
+    }
+  },
+  onDone: (event) => {
+    syncToNativeLayer(event);
+    notifyNativeDone(event);
+  },
 });
+
+function syncToNativeLayer(overrides?: { total?: number; failedCount?: number }) {
+  const state = colorGrading.getProgressState();
+  const total = overrides?.total ?? state.total;
+  const failedCount = overrides?.failedCount ?? state.failedCount;
+  window.ImageViewerAndroid?.updateColorGradingProgress?.(state.current, total, failedCount);
+}
+
+function notifyNativeDone(event: DoneEvent) {
+  if (event.cancelled) {
+    window.ImageViewerAndroid?.onColorGradingComplete?.(false, null, true);
+    return;
+  }
+  const message = event.failedCount > 0
+    ? `成功${event.total - event.failedCount}张 失败${event.failedCount}张`
+    : `共${event.total}张`;
+  window.ImageViewerAndroid?.onColorGradingComplete?.(event.failedCount === 0, message, false);
+}
 
 export function useColorGradingProgress(): ColorGradingProgressState {
   return mapToState(colorGrading.useProgress());
@@ -54,6 +81,10 @@ export async function cancelColorGrading(): Promise<void> {
 
 export function dismissColorGradingDone() {
   colorGrading.dismissDone();
+}
+
+export function getCurrentColorGradingProgress(): ColorGradingProgressState {
+  return mapToState(colorGrading.getProgressState());
 }
 
 export function useColorGradingProgressListener() {

@@ -22,6 +22,12 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
             val failedCount: Int,
         )
 
+        data class ColorGradingProgressState(
+            val current: Int,
+            val total: Int,
+            val failedCount: Int,
+        )
+
         @Volatile
         var lastProgress: AiEditProgressState? = null
             private set
@@ -30,9 +36,22 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         var isAiEditing: Boolean = false
             private set
 
+        @Volatile
+        var lastColorGradingProgress: ColorGradingProgressState? = null
+            private set
+
+        @Volatile
+        var isColorGrading: Boolean = false
+            private set
+
         fun clearProgress() {
             lastProgress = null
             isAiEditing = false
+        }
+
+        fun clearColorGradingProgress() {
+            lastColorGradingProgress = null
+            isColorGrading = false
         }
     }
 
@@ -109,5 +128,20 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         val viewer = ImageViewerActivity.instance
         val context = (viewer ?: activity) as? android.content.Context ?: return
         android.media.MediaScannerConnection.scanFile(context, arrayOf(filePath), null, null)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun updateColorGradingProgress(current: Int, total: Int, failedCount: Int) {
+        isColorGrading = true
+        lastColorGradingProgress = ColorGradingProgressState(current, total, failedCount)
+        val viewer = ImageViewerActivity.instance ?: return
+        viewer.updateColorGradingProgress(current, total, failedCount)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun onColorGradingComplete(success: Boolean, message: String?, cancelled: Boolean) {
+        if (success || cancelled) clearColorGradingProgress()
+        val viewer = ImageViewerActivity.instance ?: return
+        viewer.onColorGradingComplete(success, message, cancelled)
     }
 }

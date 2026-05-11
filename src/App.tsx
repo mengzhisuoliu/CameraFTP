@@ -20,6 +20,7 @@ import { PreviewWindow } from './components/PreviewWindow';
 import { useAppBootstrap } from './bootstrap/useAppBootstrap';
 import { useQuitFlow } from './hooks/useQuitFlow';
 import { enqueueAiEdit, getCurrentAiEditProgress } from './hooks/useAiEditProgress';
+import { getCurrentColorGradingProgress } from './hooks/useColorGradingProgress';
 import { useServerStore } from './stores/serverStore';
 import { useConfigStore } from './stores/configStore';
 
@@ -87,12 +88,23 @@ function App() {
       await enqueueColorGrading([filePath], lutId);
     };
 
+    w.__tauriGetColorGradingProgress = () => {
+      return getCurrentColorGradingProgress();
+    };
+
+    w.__tauriCancelColorGrading = async () => {
+      const { cancelColorGrading } = await import('./hooks/useColorGradingProgress');
+      await cancelColorGrading();
+    };
+
     return () => {
       delete w.__tauriGetAiEditPrompt;
       delete w.__tauriTriggerAiEditWithPrompt;
       delete w.__tauriGetAiEditProgress;
       delete w.__tauriCancelAiEdit;
       delete w.__tauriTriggerColorGrading;
+      delete w.__tauriGetColorGradingProgress;
+      delete w.__tauriCancelColorGrading;
     };
   }, [updateDraft]);
 
