@@ -45,6 +45,7 @@ pub fn is_supported_image(path: &Path) -> bool {
 /// Callers extract the fields they need and apply their own formatting.
 /// Rational values use `nom_exif::URational` (`Rational<u32>`) — access
 /// numerator/denominator via `.0` and `.1`.
+#[derive(Debug)]
 pub struct ParsedExif {
     pub iso: Option<u32>,
     pub aperture: Option<URational>,

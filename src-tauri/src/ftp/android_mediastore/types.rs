@@ -29,6 +29,8 @@ pub const MIME_TYPE_ORF: &str = "image/x-olympus-orf";
 pub const MIME_TYPE_RW2: &str = "image/x-panasonic-rw2";
 pub const MIME_TYPE_PEF: &str = "image/x-pentax-pef";
 pub const MIME_TYPE_X3F: &str = "image/x-sigma-x3f";
+pub const MIME_TYPE_RAW: &str = "image/x-raw";
+pub const MIME_TYPE_SRW: &str = "image/x-samsung-srw";
 
 /// Default MIME type for unknown files.
 pub const MIME_TYPE_DEFAULT: &str = "application/octet-stream";
@@ -267,6 +269,10 @@ pub fn mime_type_from_filename(filename: &str) -> &'static str {
         MIME_TYPE_PEF
     } else if lower.ends_with(".x3f") {
         MIME_TYPE_X3F
+    } else if lower.ends_with(".raw") {
+        MIME_TYPE_RAW
+    } else if lower.ends_with(".srw") {
+        MIME_TYPE_SRW
     } else if lower.ends_with(".mp4") {
         MIME_TYPE_MP4
     } else if lower.ends_with(".mov") {

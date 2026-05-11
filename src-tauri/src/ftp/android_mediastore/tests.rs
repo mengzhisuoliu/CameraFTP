@@ -93,6 +93,8 @@ fn test_mime_type_raw_formats() {
         ("photo.rw2", "image/x-panasonic-rw2"),
         ("photo.pef", "image/x-pentax-pef"),
         ("photo.x3f", "image/x-sigma-x3f"),
+        ("photo.raw", "image/x-raw"),
+        ("photo.srw", "image/x-samsung-srw"),
     ];
     for (filename, expected) in cases {
         assert_eq!(mime_type_from_filename(filename), expected, "failed for {filename}");
