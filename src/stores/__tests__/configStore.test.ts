@@ -55,6 +55,7 @@ const baseConfig: AppConfig = {
     provider: { type: 'seed-edit', apiKey: '', model: 'doubao-seedream-5-0-260128' },
   },
   autoColorGrading: null,
+  colorGradingLastUsed: null,
 };
 
 describe('configStore coordination', () => {

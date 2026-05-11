@@ -247,6 +247,8 @@ impl RawAlchemyLib {
         log_space: Option<&str>,
         lut_path: Option<&str>,
         lensfun_db_path: Option<&str>,
+        use_auto_exposure: bool,
+        manual_ev: f32,
     ) -> Result<(), AppError> {
         let input_c = std::ffi::CString::new(input_path.to_string_lossy().into_owned())
             .map_err(|e| AppError::ColorGradingError(format!("Invalid input path: {}", e)))?;
@@ -276,8 +278,8 @@ impl RawAlchemyLib {
                     std::ptr::null()
                 },
                 metering_c.as_ptr(),
-                0.0, // manualEv — ignored when useAutoExposure=1
-                1,   // useAutoExposure
+                manual_ev,
+                if use_auto_exposure { 1 } else { 0 },
                 95,  // jpegQuality
                 1,   // enableLensCorrection
                 lensfun_c
@@ -317,6 +319,8 @@ impl RawAlchemyLib {
         log_space: Option<&str>,
         lut_data: &super::lut_data::LutData,
         lensfun_db_path: Option<&str>,
+        use_auto_exposure: bool,
+        manual_ev: f32,
     ) -> Result<(), AppError> {
         let input_c = std::ffi::CString::new(input_path.to_string_lossy().into_owned())
             .map_err(|e| AppError::ColorGradingError(format!("Invalid input path: {}", e)))?;
@@ -342,8 +346,8 @@ impl RawAlchemyLib {
                 lut_data.domain_min.as_ptr(),
                 lut_data.domain_max.as_ptr(),
                 metering_c.as_ptr(),
-                0.0,
-                1,
+                manual_ev,
+                if use_auto_exposure { 1 } else { 0 },
                 95,
                 1,
                 lensfun_c

@@ -414,17 +414,26 @@ class ImageViewerActivity : AppCompatActivity() {
         dismissColorGradingWebView()
 
         val presets = listOf(
-            "acros" to "ACROS",
-            "astia" to "Astia",
-            "classic-chrome" to "Classic Chrome",
-            "classic-neg" to "Classic Neg",
-            "eterna" to "ETERNA",
-            "eterna-bb" to "ETERNA Bleach Bypass",
-            "pro-neg-std" to "PRO Neg. Std",
-            "provia" to "Provia",
-            "reala-ace" to "REALA ACE",
-            "velvia" to "Velvia",
-            "flog2c-709" to "F-Log2C \u2192 Rec.709",
+            "arri-alexa-classic-709" to "ARRI ALEXA Classic 709",
+            "fujifilm-acros" to "Fujifilm ACROS",
+            "fujifilm-astia" to "Fujifilm ASTIA",
+            "fujifilm-classic-chrome" to "Fujifilm CLASSIC CHROME",
+            "fujifilm-classic-neg" to "Fujifilm CLASSIC Neg",
+            "fujifilm-eterna-3513di" to "Fujifilm ETERNA 3513DI",
+            "fujifilm-eterna-bb" to "Fujifilm ETERNA BB",
+            "fujifilm-eterna" to "Fujifilm ETERNA",
+            "fujifilm-pro-neg-std" to "Fujifilm PRO Neg. Std",
+            "fujifilm-provia" to "Fujifilm PROVIA",
+            "fujifilm-reala-ace" to "Fujifilm REALA ACE",
+            "fujifilm-velvia" to "Fujifilm Velvia",
+            "kodak-vision-2383" to "Kodak VISION 2383",
+            "leica-classic" to "Leica Classic",
+            "leica-natural" to "Leica Natural",
+            "red-achromic" to "RED Achromic",
+            "red-filmbias-bb" to "RED FilmBias BB",
+            "red-filmbias-offset" to "RED FilmBias Offset",
+            "red-filmbias" to "RED FilmBias",
+            "red-rec-709" to "RED Rec.709",
         )
         val firstId = presets.first().first
         val firstLabel = presets.first().second
@@ -457,16 +466,16 @@ class ImageViewerActivity : AppCompatActivity() {
                 padding: 16px; border-bottom: 1px solid #e5e7eb;
               }
               .title-group { display: flex; flex-direction: column; }
-              .title { font-size: 18px; font-weight: 600; color: #111827; }
-              .subtitle { font-size: 14px; color: #6b7280; margin-top: 2px; }
+              .title { font-size: 16px; font-weight: 600; color: #111827; }
+              .subtitle { font-size: 13px; color: #6b7280; margin-top: 2px; }
               .close-btn {
-                padding: 8px; border: none; background: none; cursor: pointer;
-                color: #9ca3af; border-radius: 8px;
+                width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+                border: none; background: none; cursor: pointer; color: #9ca3af; border-radius: 8px;
               }
-              .close-btn:hover { color: #4b5563; background: #f3f4f6; }
+              .close-btn:hover { background: #f3f4f6; color: #6b7280; }
               .close-btn svg { width: 20px; height: 20px; }
-              .content { padding: 16px; overflow: visible; }
-              .field-group { margin-bottom: 0; }
+              .content { padding: 16px; overflow-y: auto; }
+              .field-group { margin-bottom: 12px; }
               .field-label { font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px; }
               .dropdown { position: relative; }
               .dropdown-btn {
@@ -503,6 +512,46 @@ class ImageViewerActivity : AppCompatActivity() {
               }
               .dropdown-opt:hover { background: #f9fafb; }
               .dropdown-opt.selected { background: #eff6ff; color: #1d4ed8; font-weight: 500; }
+              .divider { border-top: 1px solid #f3f4f6; margin: 12px 0; }
+              .toggle-row {
+                display: flex; align-items: center; justify-content: space-between;
+                padding: 4px 0;
+              }
+              .toggle-label-group { flex: 1; }
+              .toggle-label { font-size: 14px; font-weight: 500; color: #374151; }
+              .toggle-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
+              .toggle-switch {
+                position: relative; width: 44px; height: 24px; flex-shrink: 0; margin-left: 12px;
+              }
+              .toggle-switch input { opacity: 0; width: 0; height: 0; }
+              .toggle-slider {
+                position: absolute; inset: 0; background: #d1d5db; border-radius: 12px;
+                transition: background 0.2s; cursor: pointer;
+              }
+              .toggle-slider:before {
+                content: ''; position: absolute; width: 20px; height: 20px;
+                left: 2px; bottom: 2px; background: #fff; border-radius: 50%;
+                transition: transform 0.2s;
+              }
+              .toggle-switch input:checked + .toggle-slider { background: #7c3aed; }
+              .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+              .slider-group { margin-top: 12px; }
+              .slider-header {
+                display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+              }
+              .slider-value { font-size: 13px; font-family: monospace; color: #6b7280; }
+              input[type="range"] {
+                -webkit-appearance: none; width: 100%; height: 6px;
+                background: #e5e7eb; border-radius: 3px; outline: none;
+              }
+              input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none; width: 20px; height: 20px;
+                background: #7c3aed; border-radius: 50%; cursor: pointer;
+              }
+              .slider-labels {
+                display: flex; justify-content: space-between;
+                font-size: 11px; color: #9ca3af; margin-top: 4px;
+              }
               .footer {
                 display: flex; align-items: center; justify-content: flex-end;
                 padding: 16px; border-top: 1px solid #e5e7eb; gap: 8px;
@@ -543,6 +592,25 @@ class ImageViewerActivity : AppCompatActivity() {
                       </button>
                       <div class="dropdown-panel" id="presetPanel">$presetOptionsHtml</div>
                     </div>
+                  </div>
+                  <div class="divider"></div>
+                  <div class="toggle-row">
+                    <div class="toggle-label-group">
+                      <div class="toggle-label">自动曝光</div>
+                      <div class="toggle-desc" id="exposureDesc">自动检测并调整曝光</div>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="autoExposureToggle" checked onchange="onExposureToggle()">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                  <div class="slider-group" id="evSliderGroup" style="display:none">
+                    <div class="slider-header">
+                      <span class="field-label" style="margin-bottom:0">曝光补偿</span>
+                      <span class="slider-value" id="evValue">0.0 EV</span>
+                    </div>
+                    <input type="range" id="evSlider" min="-5.0" max="5.0" step="0.1" value="0" oninput="onEvChange()">
+                    <div class="slider-labels"><span>-5.0</span><span>0</span><span>+5.0</span></div>
                   </div>
                 </div>
                 <div class="footer">
@@ -586,8 +654,19 @@ class ImageViewerActivity : AppCompatActivity() {
                   closeDropdown();
                 }
               });
+              function onExposureToggle() {
+                var checked = document.getElementById('autoExposureToggle').checked;
+                document.getElementById('evSliderGroup').style.display = checked ? 'none' : 'block';
+                document.getElementById('exposureDesc').textContent = checked ? '自动检测并调整曝光' : '手动设置曝光补偿值';
+              }
+              function onEvChange() {
+                var val = parseFloat(document.getElementById('evSlider').value);
+                document.getElementById('evValue').textContent = (val > 0 ? '+' : '') + val.toFixed(1) + ' EV';
+              }
               function onConfirm() {
-                NativeBridge.onConfirm(selectedPreset);
+                var autoExp = document.getElementById('autoExposureToggle').checked;
+                var ev = parseFloat(document.getElementById('evSlider').value);
+                NativeBridge.onConfirm(selectedPreset, autoExp, ev);
               }
             </script>
             </body>
@@ -602,10 +681,10 @@ class ImageViewerActivity : AppCompatActivity() {
             isHorizontalScrollBarEnabled = false
             addJavascriptInterface(object {
                 @JavascriptInterface
-                fun onConfirm(lutId: String) {
+                fun onConfirm(lutId: String, useAutoExposure: Boolean, manualEv: Float) {
                     runOnUiThread {
                         dismissColorGradingWebView()
-                        dispatchColorGrading(filePath, lutId)
+                        dispatchColorGrading(filePath, lutId, useAutoExposure, manualEv)
                     }
                 }
                 @JavascriptInterface
@@ -633,7 +712,7 @@ class ImageViewerActivity : AppCompatActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
-    private fun dispatchColorGrading(filePath: String, lutId: String) {
+    private fun dispatchColorGrading(filePath: String, lutId: String, useAutoExposure: Boolean, manualEv: Float) {
         val mainActivity = MainActivity.instance
         if (mainActivity == null) {
             Log.w(TAG, "MainActivity not available for color grading")
@@ -642,10 +721,12 @@ class ImageViewerActivity : AppCompatActivity() {
 
         val escapedFilePath = filePath.replace("\\", "\\\\").replace("'", "\\'")
         val escapedLutId = lutId.replace("\\", "\\\\").replace("'", "\\'")
+        val useAutoExpStr = useAutoExposure.toString()
+        val manualEvStr = manualEv.toString()
         val js = """
             (function(){
                 if(window.__tauriTriggerColorGrading){
-                    window.__tauriTriggerColorGrading('$escapedFilePath','$escapedLutId');
+                    window.__tauriTriggerColorGrading('$escapedFilePath','$escapedLutId','$useAutoExpStr','$manualEvStr');
                     return 'ok';
                 }
                 return 'no_handler';

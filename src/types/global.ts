@@ -305,7 +305,7 @@ declare global {
      * Triggers color grading for a single file.
      * Called by native ImageViewerActivity after user confirms the color grading dialog.
      */
-    __tauriTriggerColorGrading?: (filePath: string, lutId: string) => Promise<void>;
+    __tauriTriggerColorGrading?: (filePath: string, lutId: string, useAutoExposure: string, manualEv: string) => Promise<void>;
 
     /**
      * Cancels the in-progress color grading batch.

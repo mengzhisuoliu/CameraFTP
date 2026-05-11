@@ -71,8 +71,13 @@ export function useColorGradingProgress(): ColorGradingProgressState {
   return mapToState(colorGrading.useProgress());
 }
 
-export async function enqueueColorGrading(files: string[], lutId: string): Promise<void> {
-  await invoke('enqueue_color_grading', { filePaths: files, lutId });
+export async function enqueueColorGrading(
+  files: string[],
+  lutId: string,
+  useAutoExposure: boolean = true,
+  manualEv: number = 0.0,
+): Promise<void> {
+  await invoke('enqueue_color_grading', { filePaths: files, lutId, useAutoExposure, manualEv });
 }
 
 export async function cancelColorGrading(): Promise<void> {

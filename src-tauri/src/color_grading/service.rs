@@ -11,6 +11,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::config_service::ConfigService;
 use crate::error::AppError;
+use crate::image_utils;
 use crate::utils::batch_state::BatchState;
 use super::progress::ColorGradingEvent;
 use super::presets::find_preset;
@@ -18,6 +19,8 @@ use super::presets::find_preset;
 struct ColorGradingTask {
     input_path: PathBuf,
     lut_id: String,
+    use_auto_exposure: bool,
+    manual_ev: f32,
 }
 
 pub struct ColorGradingService {
@@ -44,7 +47,7 @@ impl ColorGradingService {
         Self { config_service, sender, queue_depth, cancel_token }
     }
 
-    pub async fn enqueue(&self, file_paths: Vec<PathBuf>, lut_id: String) -> Result<(), AppError> {
+    pub async fn enqueue(&self, file_paths: Vec<PathBuf>, lut_id: String, use_auto_exposure: bool, manual_ev: f32) -> Result<(), AppError> {
         let preset = find_preset(&lut_id)
             .ok_or_else(|| AppError::ColorGradingError(format!("Unknown LUT preset: {}", lut_id)))?;
 
@@ -54,6 +57,8 @@ impl ColorGradingService {
             self.sender.send(ColorGradingTask {
                 input_path: path,
                 lut_id: preset.id.clone(),
+                use_auto_exposure,
+                manual_ev,
             }).await.map_err(|e| AppError::ColorGradingError(format!("Queue send failed: {}", e)))?;
         }
         Ok(())
@@ -68,20 +73,24 @@ impl ColorGradingService {
     /// Auto-trigger: check config + RAW extension, then enqueue.
     pub async fn on_file_uploaded(&self, file_path: PathBuf) {
         let config = self.config_service.get().ok();
-        let should_enqueue = config.as_ref()
-            .and_then(|c| c.auto_color_grading.as_ref())
+        let auto_cg = config.as_ref()
+            .and_then(|c| c.auto_color_grading.as_ref());
+
+        let should_enqueue = auto_cg
             .map(|cg| cg.enabled && !cg.preset_id.is_empty())
             .unwrap_or(false);
 
-        if !should_enqueue || !crate::image_utils::is_raw_file(&file_path) {
+        if !should_enqueue || !image_utils::is_raw_file(&file_path) {
             return;
         }
 
-        let lut_id = config
-            .and_then(|c| c.auto_color_grading.map(|cg| cg.preset_id))
-            .unwrap_or_default();
-
-        if let Err(e) = self.enqueue(vec![file_path.clone()], lut_id).await {
+        let cg = auto_cg.unwrap();
+        if let Err(e) = self.enqueue(
+            vec![file_path.clone()],
+            cg.preset_id.clone(),
+            cg.use_auto_exposure,
+            cg.manual_ev,
+        ).await {
             tracing::warn!("Auto color grading enqueue failed for {}: {}", file_path.display(), e);
         }
     }
@@ -241,6 +250,8 @@ async fn process_single_file(task: &ColorGradingTask) -> Result<String, AppError
         Some(&preset.log_space),
         &lut_data,
         lensfun_path.as_deref(),
+        task.use_auto_exposure,
+        task.manual_ev,
     )?;
 
     Ok(output_path.to_string_lossy().into_owned())

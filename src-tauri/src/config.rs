@@ -140,13 +140,42 @@ pub struct AutoColorGradingConfig {
     /// 调色预设 ID
     #[serde(alias = "presetLutId")]
     pub preset_id: String,
+    /// 是否使用自动曝光
+    pub use_auto_exposure: bool,
+    /// 手动曝光补偿值（EV），仅当 use_auto_exposure=false 时有效
+    pub manual_ev: f32,
 }
 
 impl Default for AutoColorGradingConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            preset_id: "fujifilm-provia".to_string(),
+            preset_id: crate::color_grading::presets::DEFAULT_PRESET_ID.to_string(),
+            use_auto_exposure: true,
+            manual_ev: 0.0,
+        }
+    }
+}
+
+/// 调色对话框上次使用的参数
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ColorGradingLastUsed {
+    /// 调色预设 ID
+    pub preset_id: String,
+    /// 是否使用自动曝光
+    pub use_auto_exposure: bool,
+    /// 手动曝光补偿值（EV）
+    pub manual_ev: f32,
+}
+
+impl Default for ColorGradingLastUsed {
+    fn default() -> Self {
+        Self {
+            preset_id: crate::color_grading::presets::DEFAULT_PRESET_ID.to_string(),
+            use_auto_exposure: true,
+            manual_ev: 0.0,
         }
     }
 }
@@ -218,6 +247,12 @@ pub struct AppConfig {
         alias = "autoLut"
     )]
     pub auto_color_grading: Option<AutoColorGradingConfig>,
+    /// 调色对话框上次使用的参数
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default = "default_color_grading_last_used"
+    )]
+    pub color_grading_last_used: Option<ColorGradingLastUsed>,
 }
 
 #[cfg(target_os = "android")]
@@ -232,6 +267,10 @@ const fn default_android_image_viewer() -> Option<AndroidImageViewerConfig> {
 
 fn default_auto_color_grading() -> Option<AutoColorGradingConfig> {
     Some(AutoColorGradingConfig::default())
+}
+
+fn default_color_grading_last_used() -> Option<ColorGradingLastUsed> {
+    Some(ColorGradingLastUsed::default())
 }
 
 impl Default for AppConfig {
@@ -258,6 +297,7 @@ impl Default for AppConfig {
         };
 
         let auto_color_grading = Some(AutoColorGradingConfig::default());
+        let color_grading_last_used = Some(ColorGradingLastUsed::default());
 
         Self {
             save_path: Self::default_pictures_dir(),
@@ -268,6 +308,7 @@ impl Default for AppConfig {
             android_image_viewer,
             ai_edit: crate::ai_edit::config::AiEditConfig::default(),
             auto_color_grading,
+            color_grading_last_used,
         }
     }
 }

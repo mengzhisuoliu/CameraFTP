@@ -28,6 +28,7 @@ export type { AiEditProgressEvent } from '../../src-tauri/bindings/AiEditProgres
 export type { ColorGradingPreset } from '../../src-tauri/bindings/ColorGradingPreset';
 export type { ColorGradingEvent } from '../../src-tauri/bindings/ColorGradingEvent';
 export type { AutoColorGradingConfig } from '../../src-tauri/bindings/AutoColorGradingConfig';
+export type { ColorGradingLastUsed } from '../../src-tauri/bindings/ColorGradingLastUsed';
 
 // ===== Re-export from global.ts =====
 export * from './global';

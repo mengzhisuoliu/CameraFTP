@@ -20,9 +20,11 @@ pub async fn enqueue_color_grading(
     color_grading: State<'_, ColorGradingService>,
     file_paths: Vec<String>,
     lut_id: String,
+    use_auto_exposure: bool,
+    manual_ev: f32,
 ) -> Result<(), AppError> {
     let paths: Vec<PathBuf> = file_paths.iter().map(PathBuf::from).collect();
-    color_grading.enqueue(paths, lut_id).await
+    color_grading.enqueue(paths, lut_id, use_auto_exposure, manual_ev).await
 }
 
 #[command]

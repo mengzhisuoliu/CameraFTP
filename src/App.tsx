@@ -83,9 +83,9 @@ function App() {
       await cancelAiEdit();
     };
 
-    w.__tauriTriggerColorGrading = async (filePath: string, lutId: string) => {
+    w.__tauriTriggerColorGrading = async (filePath: string, lutId: string, useAutoExposure: string, manualEv: string) => {
       const { enqueueColorGrading } = await import('./hooks/useColorGradingProgress');
-      await enqueueColorGrading([filePath], lutId);
+      await enqueueColorGrading([filePath], lutId, useAutoExposure === 'true', parseFloat(manualEv));
     };
 
     w.__tauriGetColorGradingProgress = () => {

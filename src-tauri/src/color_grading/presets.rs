@@ -18,6 +18,9 @@ pub struct ColorGradingPreset {
 
 static COLOR_GRADING_PRESETS: OnceLock<Vec<ColorGradingPreset>> = OnceLock::new();
 
+/// Default preset ID used when no user preference is stored.
+pub const DEFAULT_PRESET_ID: &str = "fujifilm-provia";
+
 pub fn all_presets() -> &'static [ColorGradingPreset] {
     COLOR_GRADING_PRESETS.get_or_init(|| vec![
         ColorGradingPreset { id: "arri-alexa-classic-709".into(), display_name: "ARRI ALEXA Classic 709".into(), log_space: "V-Log".into(), cube_filename: "ARRI_ALEXA_Classic-709_VLog.cube".into() },

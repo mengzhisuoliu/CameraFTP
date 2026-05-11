@@ -8,13 +8,15 @@ import { useState, useEffect } from 'react';
 import { Palette } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Select } from './ui/Select';
+import { ToggleSwitch } from './ui/ToggleSwitch';
 import type { SelectOption } from './ui/Select';
 import type { ColorGradingPreset } from '../types';
+import { useConfigStore, useDraftConfig } from '../stores/configStore';
 
 interface ColorGradingDialogProps {
   isOpen: boolean;
   colorGradingPresets: ColorGradingPreset[];
-  onConfirm: (lutId: string) => void;
+  onConfirm: (lutId: string, useAutoExposure: boolean, manualEv: number) => void;
   onCancel: () => void;
 }
 
@@ -24,18 +26,47 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
     label: p.displayName,
   }));
 
-  const [selectedId, setSelectedId] = useState(colorGradingPresets[0]?.id ?? '');
+  const { updateDraft } = useConfigStore();
+  const draft = useDraftConfig();
+
+  const [selectedId, setSelectedId] = useState('');
+  const [useAutoExposure, setUseAutoExposure] = useState(true);
+  const [manualEv, setManualEv] = useState(0.0);
+  const [syncToAuto, setSyncToAuto] = useState(false);
 
   useEffect(() => {
-    if (isOpen && colorGradingPresets.length > 0) {
-      setSelectedId(colorGradingPresets[0].id);
+    if (isOpen) {
+      const lastUsed = draft?.colorGradingLastUsed;
+      // Matches DEFAULT_PRESET_ID in src-tauri/src/color_grading/presets.rs
+      const initialPreset = lastUsed?.presetId || colorGradingPresets[0]?.id || 'fujifilm-provia';
+      setSelectedId(initialPreset);
+      setUseAutoExposure(lastUsed?.useAutoExposure ?? true);
+      setManualEv(lastUsed?.manualEv ?? 0.0);
+      setSyncToAuto(false);
     }
   }, [isOpen, colorGradingPresets]);
 
   const handleConfirm = () => {
-    if (selectedId) {
-      onConfirm(selectedId);
-    }
+    if (!selectedId) return;
+
+    updateDraft(d => ({
+      ...d,
+      colorGradingLastUsed: {
+        presetId: selectedId,
+        useAutoExposure,
+        manualEv,
+      },
+      ...(syncToAuto && d.autoColorGrading ? {
+        autoColorGrading: {
+          ...d.autoColorGrading,
+          presetId: selectedId,
+          useAutoExposure,
+          manualEv,
+        },
+      } : {}),
+    }));
+
+    onConfirm(selectedId, useAutoExposure, manualEv);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -44,6 +75,8 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
       handleConfirm();
     }
   };
+
+  const autoColorGradingEnabled = draft?.autoColorGrading?.enabled ?? false;
 
   return (
     <Dialog
@@ -57,20 +90,30 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
         </div>
       }
       footer={
-        <div className="flex justify-end w-full gap-2">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!selectedId}
-            className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            应用
-          </button>
+        <div className="flex items-center justify-between w-full">
+          {autoColorGradingEnabled ? (
+            <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => setSyncToAuto(!syncToAuto)}>
+              <ToggleSwitch enabled={syncToAuto} onChange={setSyncToAuto} />
+              <span className="text-sm font-medium text-gray-700">同步到自动调色</span>
+            </div>
+          ) : (
+            <div />
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!selectedId}
+              className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              应用
+            </button>
+          </div>
         </div>
       }
     >
@@ -83,6 +126,38 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
             onChange={setSelectedId}
           />
         </div>
+
+        <div className="border-t border-gray-100 pt-3">
+          <ToggleSwitch
+            enabled={useAutoExposure}
+            onChange={setUseAutoExposure}
+            label="自动曝光"
+            description={useAutoExposure ? '自动检测并调整曝光' : '手动设置曝光补偿值'}
+          />
+        </div>
+
+        {!useAutoExposure && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">曝光补偿</label>
+              <span className="text-sm font-mono text-gray-500">{manualEv > 0 ? '+' : ''}{manualEv.toFixed(1)} EV</span>
+            </div>
+            <input
+              type="range"
+              min={-5.0}
+              max={5.0}
+              step={0.1}
+              value={manualEv}
+              onChange={(e) => setManualEv(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+            />
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>-5.0</span>
+              <span>0</span>
+              <span>+5.0</span>
+            </div>
+          </div>
+        )}
       </div>
     </Dialog>
   );
