@@ -96,11 +96,13 @@ class ImageViewerAdapter(
                 }
                 holder.imageView.setImage(ImageSource.uri(Uri.parse(uri)))
             }
-            // Cache miss: delay setImage until EXIF arrives.
-            // We can't detect RAW files from content:// URIs (no file extension),
-            // so we prefetch EXIF for ALL cache-miss positions. JPEG EXIF arrives
-            // in ~7ms (imperceptible), RAW in ~50ms (page is offscreen anyway).
+            // Cache miss: load image immediately and prefetch EXIF in parallel.
+            // JPEG/HEIC: ORIENTATION_USE_EXIF handles rotation correctly via Android ExifInterface.
+            // RAW: image may briefly show wrong orientation, corrected when EXIF arrives.
+            // This avoids blocking image display on a 6-hop async roundtrip through
+            // Native → JS → TS → Rust IPC → TS → JS → Native (100-300ms+ black screen).
             else -> {
+                holder.imageView.setImage(ImageSource.uri(Uri.parse(uri)))
                 onExifNeeded?.invoke(position, uri)
             }
         }

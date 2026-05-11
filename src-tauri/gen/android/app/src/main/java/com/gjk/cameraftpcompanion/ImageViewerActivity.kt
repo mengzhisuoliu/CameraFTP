@@ -37,7 +37,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.exifinterface.media.ExifInterface
 import androidx.viewpager2.widget.ViewPager2
-import com.davemorrissey.labs.subscaleview.ImageSource
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import org.json.JSONArray
 import java.text.SimpleDateFormat
@@ -1094,7 +1093,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
             if (exifJson == null || exifJson == "null") {
                 orientationCache[position] = SubsamplingScaleImageView.ORIENTATION_USE_EXIF
-                loadImageIfWaiting(position)
+                applyOrientationIfLoaded(position)
                 return@runOnUiThread
             }
 
@@ -1111,11 +1110,11 @@ class ImageViewerActivity : AppCompatActivity() {
                 orientationCache[position] = degrees
 
                 applyOrientationToHolder(position, degrees)
-                loadImageIfWaiting(position)
+                // Image already loaded in onBindViewHolder; orientation applied above
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse EXIF for position $position", e)
                 orientationCache[position] = SubsamplingScaleImageView.ORIENTATION_USE_EXIF
-                loadImageIfWaiting(position)
+                applyOrientationIfLoaded(position)
             }
         }
     }
@@ -1134,17 +1133,13 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     /**
-     * If a ViewHolder at [position] is bound but has no image loaded yet
-     * (waiting for EXIF prefetch), load the image now.
-     * This is only called from onExifResultForPosition (prefetch pipeline),
-     * never from onExifResult (initial-open pipeline).
+     * Apply cached orientation to a ViewHolder whose image was already loaded
+     * in onBindViewHolder. Called from onExifResultForPosition when EXIF arrives
+     * for a position that had a cache miss at bind time.
      */
-    private fun loadImageIfWaiting(position: Int) {
-        val rv = viewPager.getChildAt(0) as? androidx.recyclerview.widget.RecyclerView ?: return
-        val holder = rv.findViewHolderForAdapterPosition(position) as? ImageViewerAdapter.ViewHolder ?: return
-        if (holder.bindPosition != position) return
-        val uri = uris.getOrNull(position) ?: return
-        holder.imageView.setImage(ImageSource.uri(Uri.parse(uri)))
+    private fun applyOrientationIfLoaded(position: Int) {
+        val degrees = orientationCache[position] ?: return
+        applyOrientationToHolder(position, degrees)
     }
 
     private fun triggerAiEditForCurrentImage() {
