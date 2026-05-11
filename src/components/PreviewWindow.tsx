@@ -323,20 +323,20 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
         onMouseLeave={handleToolbarMouseLeave}
       >
         {/* 左侧：文件名和拍摄信息 */}
-        <div className="flex items-center gap-3 min-w-0">
-          {/* 文件名 - 跨两行 */}
-          <div className="flex flex-col justify-center min-w-0">
-            <span className="text-sm text-gray-200 truncate">
+        <div className="flex items-center gap-3 min-w-0 max-w-[40%]">
+          {/* 文件名 */}
+          <div className="flex flex-col justify-center min-w-0 shrink">
+            <span className="text-sm text-gray-200 truncate" title={fileName}>
               {fileName}
             </span>
           </div>
           {/* 竖线分隔符 - 跨两行高度 */}
           {exifInfo && (
-            <div className="w-px h-8 bg-gray-600 mx-1"></div>
+            <div className="w-px h-8 bg-gray-600 mx-1 shrink-0"></div>
           )}
           {/* 拍摄信息 - 双行布局 */}
           {exifInfo && (
-            <div className="flex flex-col text-xs text-gray-400 gap-0.5">
+            <div className="flex flex-col text-xs text-gray-400 gap-0.5 shrink-0 whitespace-nowrap">
               {/* 第一行：ISO | 光圈 | 快门速度 | 焦距 */}
               <div className="flex items-center gap-2">
                 {exifInfo.iso !== undefined && (
