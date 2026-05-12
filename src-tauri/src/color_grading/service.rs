@@ -54,16 +54,27 @@ impl ColorGradingService {
         let preset = find_preset(&lut_id)
             .ok_or_else(|| AppError::ColorGradingError(format!("Unknown LUT preset: {}", lut_id)))?;
 
-        for path in file_paths {
-            self.queue_depth.fetch_add(1, Ordering::Relaxed);
+        let total = file_paths.len() as u32;
+        if self.sender.is_closed() {
+            return Err(AppError::ColorGradingError("Color grading queue is closed".to_string()));
+        }
+        self.queue_depth.fetch_add(total, Ordering::Relaxed);
 
-            self.sender.send(ColorGradingTask {
+        let mut sent = 0u32;
+        for path in file_paths {
+            match self.sender.send(ColorGradingTask {
                 input_path: path,
                 lut_id: preset.id.clone(),
                 use_auto_exposure,
                 metering_mode: metering_mode.clone(),
                 manual_ev,
-            }).await.map_err(|e| AppError::ColorGradingError(format!("Queue send failed: {}", e)))?;
+            }).await {
+                Ok(()) => sent += 1,
+                Err(_) => {
+                    self.queue_depth.fetch_sub(total - sent, Ordering::Relaxed);
+                    return Err(AppError::ColorGradingError("Failed to enqueue task".to_string()));
+                }
+            }
         }
 
         let depth = self.queue_depth.load(Ordering::Relaxed);

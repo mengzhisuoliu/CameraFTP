@@ -4,26 +4,19 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { memo, useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { memo } from 'react';
 import { Palette } from 'lucide-react';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';
 import { Card, CardHeader, ToggleSwitch } from './ui';
 import { Select } from './ui/Select';
 import type { SelectOption } from './ui/Select';
-import type { ColorGradingPreset } from '../types';
-import { METERING_MODES } from '../constants/color-grading';
+import { useColorGradingPresets } from '../hooks/useColorGradingPresets';
+import { ExposureConfigSection } from './ExposureConfigSection';
 
 export const AutoColorGradingConfigCard = memo(function AutoColorGradingConfigCard() {
   const { isLoading, updateDraft } = useConfigStore();
   const draft = useDraftConfig();
-  const [colorGradingPresets, setColorGradingPresets] = useState<ColorGradingPreset[]>([]);
-
-  useEffect(() => {
-    invoke<ColorGradingPreset[]>('get_color_grading_presets')
-      .then(setColorGradingPresets)
-      .catch(() => {});
-  }, []);
+  const colorGradingPresets = useColorGradingPresets();
 
   if (!draft?.autoColorGrading) return null;
 
@@ -116,53 +109,15 @@ export const AutoColorGradingConfigCard = memo(function AutoColorGradingConfigCa
               )}
             </div>
 
-            <div className="border-t border-gray-100 pt-4">
-              <ToggleSwitch
-                enabled={draft.autoColorGrading.useAutoExposure}
-                onChange={handleExposureToggle}
-                label="自动曝光"
-                description={draft.autoColorGrading.useAutoExposure ? '自动检测并调整曝光' : '手动设置曝光补偿值'}
-                disabled={isLoading}
-              />
-            </div>
-
-            {draft.autoColorGrading.useAutoExposure && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">测光模式</label>
-                <Select
-                  value={draft.autoColorGrading.meteringMode}
-                  options={METERING_MODES}
-                  onChange={handleMeteringModeChange}
-                  disabled={isLoading}
-                />
-              </div>
-            )}
-
-            {!draft.autoColorGrading.useAutoExposure && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-700">曝光补偿</label>
-                  <span className="text-sm font-mono text-gray-500">
-                    {draft.autoColorGrading.manualEv > 0 ? '+' : ''}{draft.autoColorGrading.manualEv.toFixed(1)} EV
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={-5.0}
-                  max={5.0}
-                  step={0.1}
-                  value={draft.autoColorGrading.manualEv}
-                  onChange={(e) => handleManualEvChange(parseFloat(e.target.value))}
-                  disabled={isLoading}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50"
-                />
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>-5.0</span>
-                  <span>0</span>
-                  <span>+5.0</span>
-                </div>
-              </div>
-            )}
+            <ExposureConfigSection
+              useAutoExposure={draft.autoColorGrading.useAutoExposure}
+              onAutoExposureChange={handleExposureToggle}
+              meteringMode={draft.autoColorGrading.meteringMode}
+              onMeteringModeChange={handleMeteringModeChange}
+              manualEv={draft.autoColorGrading.manualEv}
+              onManualEvChange={handleManualEvChange}
+              disabled={isLoading}
+            />
           </div>
         )}
       </div>

@@ -119,7 +119,12 @@ pub fn has_exif_app1(jpeg: &[u8]) -> bool {
         }
         let marker = jpeg[i + 1];
         if marker == 0xE1 {
-            return true;
+            let seg_len = u16::from_be_bytes([jpeg[i + 2], jpeg[i + 3]]) as usize;
+            if i + 4 + 6 <= jpeg.len() && &jpeg[i + 4..i + 10] == b"Exif\x00\x00" {
+                return true;
+            }
+            i += 2 + seg_len;
+            continue;
         }
         if marker == 0xDA {
             return false;
@@ -203,9 +208,19 @@ mod tests {
 
     #[test]
     fn test_has_exif_app1() {
-        // JPEG with APP1 marker (0xFF 0xD8 0xFF 0xE1 ...)
-        let jpeg_with_app1 = vec![0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x04, 0x00, 0x00];
-        assert!(has_exif_app1(&jpeg_with_app1));
+        // JPEG with APP1/EXIF marker including "Exif\0\0" header
+        let jpeg_with_exif = vec![
+            0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x0A,
+            b'E', b'x', b'i', b'f', 0x00, 0x00, 0x00, 0x00,
+        ];
+        assert!(has_exif_app1(&jpeg_with_exif));
+
+        // JPEG with APP1 marker but XMP (not EXIF) — no "Exif\0\0" header
+        let jpeg_with_xmp = vec![
+            0xFF, 0xD8, 0xFF, 0xE1, 0x00, 0x04,
+            b'h', b't', b'm', b'l',
+        ];
+        assert!(!has_exif_app1(&jpeg_with_xmp));
 
         // JPEG without APP1 (SOI + APP0/DQT marker instead)
         let jpeg_without_app1 = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00];

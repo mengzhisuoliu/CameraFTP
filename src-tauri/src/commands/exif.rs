@@ -4,7 +4,6 @@
 
 use tauri::command;
 use crate::error::AppError;
-use std::path::Path;
 
 /// EXIF 信息结构体
 #[derive(Debug, Clone, serde::Serialize, ts_rs::TS)]
@@ -57,8 +56,13 @@ pub(crate) fn format_focal_length(
 pub async fn get_image_exif(file_path: String) -> Result<Option<ExifInfo>, AppError> {
     let start = std::time::Instant::now();
 
-    let parsed = crate::image_utils::parse_exif(std::path::Path::new(&file_path))
-        .map_err(|e| AppError::Io(e))?;
+    let path = std::path::PathBuf::from(&file_path);
+    let parsed = tokio::task::spawn_blocking(move || {
+        crate::image_utils::parse_exif(&path)
+    })
+    .await
+    .map_err(|e| AppError::Io(format!("Task join error: {}", e)))?
+    .map_err(|e| AppError::Io(e))?;
 
     let parsed = match parsed {
         Some(p) => p,
@@ -103,8 +107,13 @@ pub async fn get_image_exif(file_path: String) -> Result<Option<ExifInfo>, AppEr
 /// Returns `0` if the file has no EXIF or no Orientation tag (valid values are 1–8).
 #[command]
 pub async fn get_raw_orientation(file_path: String) -> Result<u8, AppError> {
-    let parsed = crate::image_utils::parse_exif(Path::new(&file_path))
-        .map_err(|e| AppError::Io(e))?;
+    let path = std::path::PathBuf::from(&file_path);
+    let parsed = tokio::task::spawn_blocking(move || {
+        crate::image_utils::parse_exif(&path)
+    })
+    .await
+    .map_err(|e| AppError::Io(format!("Task join error: {}", e)))?
+    .map_err(|e| AppError::Io(e))?;
     Ok(parsed.and_then(|p| p.orientation).unwrap_or(0))
 }
 
@@ -114,6 +123,7 @@ pub async fn get_raw_orientation(file_path: String) -> Result<u8, AppError> {
 /// Returns `true` if orientation was injected, `false` if not needed.
 #[command]
 pub async fn inject_exif_orientation(
+    app: tauri::AppHandle,
     thumbnail_path: String,
     orientation: u8,
 ) -> Result<bool, AppError> {
@@ -121,12 +131,31 @@ pub async fn inject_exif_orientation(
         return Ok(false);
     }
 
-    let jpeg = std::fs::read(&thumbnail_path)
-        .map_err(|e| AppError::Io(format!("Failed to read thumbnail: {}", e)))?;
+    let path = thumbnail_path.clone();
+    let jpeg = tokio::task::spawn_blocking(move || {
+        std::fs::read(&path).map_err(|e| AppError::Io(format!("Failed to read thumbnail: {}", e)))
+    })
+    .await
+    .map_err(|e| AppError::Io(format!("Task join error: {}", e)))??;
 
     let fixed = crate::image_utils::inject_orientation_exif(jpeg, orientation);
-    std::fs::write(&thumbnail_path, fixed)
-        .map_err(|e| AppError::Io(format!("Failed to write thumbnail: {}", e)))?;
+    let path = thumbnail_path.clone();
+    tokio::task::spawn_blocking(move || {
+        std::fs::write(&path, fixed).map_err(|e| AppError::Io(format!("Failed to write thumbnail: {}", e)))
+    })
+    .await
+    .map_err(|e| AppError::Io(format!("Task join error: {}", e)))??;
+
+    #[cfg(target_os = "windows")]
+    {
+        use tauri::Manager;
+        if let Some(cache) = app.try_state::<std::sync::Arc<crate::image_preview::ImagePreviewCache>>() {
+            let path = std::path::PathBuf::from(&thumbnail_path);
+            cache.invalidate(&path);
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = app;
 
     Ok(true)
 }

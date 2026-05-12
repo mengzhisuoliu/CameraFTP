@@ -15,12 +15,12 @@ import { usePreviewNavigation } from '../hooks/usePreviewNavigation';
 import { usePreviewExif } from '../hooks/usePreviewExif';
 import { usePreviewZoomPan } from '../hooks/usePreviewZoomPan';
 import { usePreviewToolbarAutoHide } from '../hooks/usePreviewToolbarAutoHide';
+import { useColorGradingPresets } from '../hooks/useColorGradingPresets';
 import { PromptDialog } from './PromptDialog';
 import { TaskProgressPanel } from './TaskProgressPanel';
 import { enqueueAiEdit } from '../hooks/useAiEditProgress';
 import { ColorGradingDialog } from './ColorGradingDialog';
 import { enqueueColorGrading } from '../hooks/useColorGradingProgress';
-import type { ColorGradingPreset } from '../types';
 import { isRawFile as isRawFileType } from '../utils/raw';
 
 export function PreviewWindow() {
@@ -49,7 +49,7 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [showColorGradingDialog, setShowColorGradingDialog] = useState(false);
-  const [colorGradingPresets, setColorGradingPresets] = useState<ColorGradingPreset[]>([]);
+  const colorGradingPresets = useColorGradingPresets();
 
   // Detect if current file is RAW
   const isRawFile = useMemo(() => imagePath ? isRawFileType(imagePath) : false, [imagePath]);
@@ -197,9 +197,6 @@ const PreviewWindowContent = memo(function PreviewWindowContent({
 
   const handleColorGrading = useCallback(() => {
     if (!imagePath) return;
-    invoke<ColorGradingPreset[]>('get_color_grading_presets')
-      .then(setColorGradingPresets)
-      .catch(() => {});
     setShowColorGradingDialog(true);
   }, [imagePath]);
 

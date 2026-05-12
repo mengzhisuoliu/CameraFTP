@@ -71,12 +71,13 @@ describe('useColorGradingProgress', () => {
     invokeMock.mockClear();
     window.ImageViewerAndroid = undefined;
     dismissColorGradingDone();
-    eventHandler = capturedHandler.current;
 
     await act(async () => {
       getRoot().render(<Harness />);
       await flush();
     });
+
+    eventHandler = capturedHandler.current;
   });
 
   afterEach(() => {

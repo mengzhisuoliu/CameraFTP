@@ -12,7 +12,7 @@ import { ToggleSwitch } from './ui/ToggleSwitch';
 import type { SelectOption } from './ui/Select';
 import type { ColorGradingPreset } from '../types';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';
-import { METERING_MODES } from '../constants/color-grading';
+import { ExposureConfigSection } from './ExposureConfigSection';
 
 interface ColorGradingDialogProps {
   isOpen: boolean;
@@ -96,7 +96,7 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
       footer={
         <div className="flex items-center justify-between w-full">
           {autoColorGradingEnabled ? (
-            <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => setSyncToAuto(!syncToAuto)}>
+            <div className="flex items-center gap-2 cursor-pointer select-none">
               <ToggleSwitch enabled={syncToAuto} onChange={setSyncToAuto} />
               <span className="text-sm font-medium text-gray-700">同步到自动调色</span>
             </div>
@@ -131,48 +131,14 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
           />
         </div>
 
-        <div className="border-t border-gray-100 pt-3">
-          <ToggleSwitch
-            enabled={useAutoExposure}
-            onChange={setUseAutoExposure}
-            label="自动曝光"
-            description={useAutoExposure ? '自动检测并调整曝光' : '手动设置曝光补偿值'}
-          />
-        </div>
-
-        {useAutoExposure && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">测光模式</label>
-            <Select
-              value={meteringMode}
-              options={METERING_MODES}
-              onChange={setMeteringMode}
-            />
-          </div>
-        )}
-
-        {!useAutoExposure && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-gray-700">曝光补偿</label>
-              <span className="text-sm font-mono text-gray-500">{manualEv > 0 ? '+' : ''}{manualEv.toFixed(1)} EV</span>
-            </div>
-            <input
-              type="range"
-              min={-5.0}
-              max={5.0}
-              step={0.1}
-              value={manualEv}
-              onChange={(e) => setManualEv(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-            />
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>-5.0</span>
-              <span>0</span>
-              <span>+5.0</span>
-            </div>
-          </div>
-        )}
+        <ExposureConfigSection
+          useAutoExposure={useAutoExposure}
+          onAutoExposureChange={setUseAutoExposure}
+          meteringMode={meteringMode}
+          onMeteringModeChange={setMeteringMode}
+          manualEv={manualEv}
+          onManualEvChange={setManualEv}
+        />
       </div>
     </Dialog>
   );

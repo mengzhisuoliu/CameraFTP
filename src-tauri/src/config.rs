@@ -361,6 +361,28 @@ impl AppConfig {
             return Err("Save path cannot be empty".to_string());
         }
 
+        if let Some(ref cg) = self.auto_color_grading {
+            let valid = crate::color_grading::presets::METERING_MODES
+                .iter().any(|(k, _)| k == &cg.metering_mode);
+            if !valid {
+                tracing::warn!(
+                    "Invalid metering_mode '{}', ignoring (will use FFI default)",
+                    cg.metering_mode
+                );
+            }
+        }
+
+        if let Some(ref lu) = self.color_grading_last_used {
+            let valid = crate::color_grading::presets::METERING_MODES
+                .iter().any(|(k, _)| k == &lu.metering_mode);
+            if !valid {
+                tracing::warn!(
+                    "Invalid last-used metering_mode '{}', ignoring (will use FFI default)",
+                    lu.metering_mode
+                );
+            }
+        }
+
         Ok(())
     }
 }

@@ -90,6 +90,10 @@ vi.mock('../../hooks/usePreviewToolbarAutoHide', () => ({
   }),
 }));
 
+vi.mock('../../hooks/useColorGradingPresets', () => ({
+  useColorGradingPresets: () => [],
+}));
+
 const { updatePreviewConfigMock } = vi.hoisted(() => ({
   updatePreviewConfigMock: vi.fn().mockResolvedValue({ autoBringToFront: false }),
 }));

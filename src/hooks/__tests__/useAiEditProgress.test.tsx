@@ -99,12 +99,13 @@ describe('useAiEditProgress', () => {
     });
     window.ImageViewerAndroid = undefined;
     dismissDone();
-    eventHandler = capturedHandler.current;
 
     await act(async () => {
       getRoot().render(<Harness />);
       await flush();
     });
+
+    eventHandler = capturedHandler.current;
   });
 
   afterEach(() => {

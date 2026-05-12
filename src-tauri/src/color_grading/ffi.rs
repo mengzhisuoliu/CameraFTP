@@ -10,6 +10,9 @@ use libloading::Library;
 
 use crate::error::AppError;
 
+const DEFAULT_JPEG_QUALITY: c_int = 95;
+const ENABLE_LENS_CORRECTION: c_int = 1;
+
 #[cfg(target_os = "windows")]
 pub mod embedded_dll {
     use super::*;
@@ -267,10 +270,17 @@ impl RawAlchemyLib {
         let output_c = std::ffi::CString::new(output_path.to_string_lossy().into_owned())
             .map_err(|e| AppError::ColorGradingError(format!("Invalid output path: {}", e)))?;
         let log_c = log_space
-            .map(|s| std::ffi::CString::new(s).unwrap())
-            .unwrap_or_else(|| std::ffi::CString::new("").unwrap());
-        let metering_c = std::ffi::CString::new(metering_mode).unwrap();
-        let lensfun_c = lensfun_db_path.map(|s| std::ffi::CString::new(s).unwrap());
+            .map(|s| std::ffi::CString::new(s).map_err(|e| AppError::ColorGradingError(format!("Invalid log space string: {}", e))))
+            .transpose()?
+            .unwrap_or_else(|| {
+                // Empty string is infallible for CString::new (no interior null bytes possible)
+                std::ffi::CString::new("").expect("empty string is valid CString")
+            });
+        let metering_c = std::ffi::CString::new(metering_mode)
+            .map_err(|e| AppError::ColorGradingError(format!("Invalid metering mode string: {}", e)))?;
+        let lensfun_c = lensfun_db_path
+            .map(|s| std::ffi::CString::new(s).map_err(|e| AppError::ColorGradingError(format!("Invalid lensfun path string: {}", e))))
+            .transpose()?;
 
         let result = unsafe {
             (self.process_file_with_lut)(
@@ -288,8 +298,8 @@ impl RawAlchemyLib {
                 metering_c.as_ptr(),
                 manual_ev,
                 if use_auto_exposure { 1 } else { 0 },
-                95,
-                1,
+                DEFAULT_JPEG_QUALITY,
+                ENABLE_LENS_CORRECTION,
                 lensfun_c
                     .as_ref()
                     .map(|c| c.as_ptr())

@@ -42,6 +42,7 @@ interface TestEvent {
 const testHook = createTaskProgressHook<TestEvent>({
   eventName: 'test-event',
   debugLabel: 'test-task',
+  refreshReason: 'ai-edit',
   mapEvent: (event) => {
     switch (event.type) {
       case 'progress':

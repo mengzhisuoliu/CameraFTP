@@ -401,6 +401,7 @@ clean_build_cache() {
 
 # Run Rust and frontend tests. Fails the build if any test fails.
 run_tests() {
+    set -o pipefail
     local cargo_cmd
     cargo_cmd=$(get_tool_cmd "cargo")
     if [ -z "$cargo_cmd" ]; then
@@ -421,6 +422,7 @@ run_tests() {
 
 # Run Android (Kotlin/Robolectric) unit tests. Fails the build if any test fails.
 run_android_tests() {
+    set -o pipefail
     task "正在运行 Android (Kotlin) 测试..."
     cd src-tauri/gen/android
     ./gradlew test 2>&1 | tail -10

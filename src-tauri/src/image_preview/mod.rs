@@ -4,9 +4,8 @@
 
 pub(crate) mod extract;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
 use crate::image_utils::is_raw_file;
@@ -28,16 +27,14 @@ pub fn content_type_for(path: &Path) -> &'static str {
 
 pub struct ImagePreviewCache {
     cache: RwLock<HashMap<String, Arc<Vec<u8>>>>,
-    insertion_order: RwLock<Vec<String>>,
-    size: AtomicUsize,
+    insertion_order: RwLock<VecDeque<String>>,
 }
 
 impl ImagePreviewCache {
     pub fn new() -> Self {
         Self {
             cache: RwLock::new(HashMap::new()),
-            insertion_order: RwLock::new(Vec::new()),
-            size: AtomicUsize::new(0),
+            insertion_order: RwLock::new(VecDeque::new()),
         }
     }
 
@@ -46,7 +43,13 @@ impl ImagePreviewCache {
 
         {
             let cache = self.cache.read().map_err(|e| e.to_string())?;
+            let mut order = self.insertion_order.write().map_err(|e| e.to_string())?;
             if let Some(bytes) = cache.get(&key) {
+                // Promote to back for LRU behavior
+                if let Some(pos) = order.iter().position(|k| k == &key) {
+                    order.remove(pos);
+                    order.push_back(key);
+                }
                 return Ok(Arc::clone(bytes));
             }
         }
@@ -67,17 +70,23 @@ impl ImagePreviewCache {
             }
 
             cache.insert(key.clone(), Arc::clone(&bytes));
-            order.push(key);
-            self.size.fetch_add(1, Ordering::Relaxed);
+            order.push_back(key);
 
             while order.len() > MAX_CACHE_ENTRIES {
-                let old_key = order.remove(0);
+                let old_key = order.pop_front().unwrap();
                 cache.remove(&old_key);
-                self.size.fetch_sub(1, Ordering::Relaxed);
             }
         }
 
         Ok(bytes)
+    }
+
+    pub fn invalidate(&self, path: &Path) {
+        let key = path.to_string_lossy().to_string();
+        let mut cache = self.cache.write().unwrap();
+        let mut order = self.insertion_order.write().unwrap();
+        cache.remove(&key);
+        order.retain(|k| k != &key);
     }
 }
 
@@ -139,7 +148,7 @@ mod tests {
             cache.get_or_load(&file_path).unwrap();
         }
 
-        let cache_size = cache.size.load(Ordering::Relaxed);
+        let cache_size = cache.cache.read().unwrap().len();
         assert!(
             cache_size <= MAX_CACHE_ENTRIES,
             "Cache should evict, size={}",

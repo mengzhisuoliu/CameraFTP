@@ -293,30 +293,6 @@ find_ndk_libomp() {
     return 1
 }
 
-# Inject RawAlchemyCpp .so + libomp.so into Tauri's staging directory
-inject_raw_alchemy_so() {
-    local so_path="${1:-}"
-    if [ -z "$so_path" ] || [ ! -f "$so_path" ]; then
-        return 0
-    fi
-
-    local staging_dir="src-tauri/gen/android/app/build/tauri-staging/jniLibs/arm64-v8a"
-    if [ -d "$staging_dir" ]; then
-        cp "$so_path" "$staging_dir/libraw_alchemy_core.so"
-        info "Injected libraw_alchemy_core.so into tauri-staging"
-
-        # libomp.so (OpenMP runtime) is needed by libraw_alchemy_core.so
-        local omp_so
-        omp_so="$(find_ndk_libomp "$NDK_HOME")" || true
-        if [ -n "$omp_so" ]; then
-            cp "$omp_so" "$staging_dir/libomp.so"
-            info "Injected libomp.so into tauri-staging"
-        else
-            warn "libomp.so not found in NDK — OpenMP may fail at runtime"
-        fi
-    fi
-}
-
 # 构建
 build_android() {
     local BUILD_TYPE="${1:-release}"
@@ -376,7 +352,6 @@ build_android() {
                 error "Android debug 构建失败"
                 exit 1
             }
-            inject_raw_alchemy_so "$rawalchemy_so"
             move_to_out \
                 "src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk" \
                 "CameraFTP_v${VERSION}-debug.apk" \
@@ -388,7 +363,6 @@ build_android() {
                 error "Android release 构建失败"
                 exit 1
             }
-            inject_raw_alchemy_so "$rawalchemy_so"
             move_to_out \
                 "src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk" \
                 "CameraFTP_v${VERSION}.apk" \

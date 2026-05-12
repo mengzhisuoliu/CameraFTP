@@ -21,10 +21,9 @@ import { useAndroidAutoOpenLatestPhoto } from '../hooks/useAndroidAutoOpenLatest
 import { VirtualGalleryGrid } from './VirtualGalleryGrid';
 import { RefreshButton } from './ui';
 import { PromptDialog } from './PromptDialog';
-import { invoke } from '@tauri-apps/api/core';
 import { ColorGradingDialog } from './ColorGradingDialog';
 import { enqueueColorGrading } from '../hooks/useColorGradingProgress';
-import type { ColorGradingPreset } from '../types';
+import { useColorGradingPresets } from '../hooks/useColorGradingPresets';
 import { isRawFile } from '../utils/raw';
 
 export const GalleryCard = memo(function GalleryCard() {
@@ -120,11 +119,7 @@ export const GalleryCard = memo(function GalleryCard() {
   const startPermissionPolling = usePermissionStore((state) => state.startPolling);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showColorGradingDialog, setShowColorGradingDialog] = useState(false);
-  const [colorGradingPresets, setColorGradingPresets] = useState<ColorGradingPreset[]>([]);
-
-  useEffect(() => {
-    invoke<ColorGradingPreset[]>('get_color_grading_presets').then(setColorGradingPresets).catch(console.error);
-  }, []);
+  const colorGradingPresets = useColorGradingPresets();
 
   const handleRefresh = useCallback(async () => {
     // Check permissions before loading — request if not granted

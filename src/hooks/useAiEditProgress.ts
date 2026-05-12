@@ -26,6 +26,7 @@ function mapToState(state: TaskProgressState): AiEditProgressState {
 const aiEdit = createTaskProgressHook<AiEditProgressEvent>({
   eventName: 'ai-edit-progress',
   debugLabel: 'ai-edit',
+  refreshReason: 'ai-edit',
   mapEvent: (event) => {
     switch (event.type) {
       case 'progress':

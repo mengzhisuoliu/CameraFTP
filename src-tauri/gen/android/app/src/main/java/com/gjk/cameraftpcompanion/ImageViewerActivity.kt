@@ -46,7 +46,10 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
-private class NativeColorGradingBridge(activity: ImageViewerActivity) {
+private class NativeColorGradingBridge(
+    activity: ImageViewerActivity,
+    private val filePath: String,
+) {
     private val activityRef: WeakReference<ImageViewerActivity> = WeakReference(activity)
 
     @JavascriptInterface
@@ -55,7 +58,7 @@ private class NativeColorGradingBridge(activity: ImageViewerActivity) {
         activity.runOnUiThread {
             activity.dismissColorGradingWebView()
             activity.dispatchColorGrading(
-                activity.currentColorGradingFilePath,
+                filePath,
                 lutId, useAutoExposure, meteringMode, manualEv, syncToAuto,
             )
         }
@@ -118,8 +121,9 @@ class ImageViewerActivity : AppCompatActivity() {
         const val EXTRA_URIS = "uris"
         const val EXTRA_TARGET_INDEX = "target_index"
         /** Active instance, set by onResume/cleared by onDestroy for bridge access */
-        var instance: ImageViewerActivity? = null
-            private set
+        private var _instance: WeakReference<ImageViewerActivity>? = null
+        val instance: ImageViewerActivity?
+            get() = _instance?.get()
 
         @Volatile
         var isViewerVisible: Boolean = false
@@ -253,7 +257,6 @@ class ImageViewerActivity : AppCompatActivity() {
     private var menuPopupWindow: android.widget.PopupWindow? = null
     private val exifExecutor = java.util.concurrent.Executors.newFixedThreadPool(2)
     private var colorGradingWebView: WebView? = null
-    internal var currentColorGradingFilePath: String = ""
 
     private val deleteRequestLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -390,7 +393,7 @@ class ImageViewerActivity : AppCompatActivity() {
         lp.bottomMargin = if (isBottomBarVisible && bottomBar.visibility != View.GONE) {
             val barHeight = bottomBar.height
             if (barHeight > 0) {
-                barHeight + (bottomBar.layoutParams as? FrameLayout.LayoutParams)?.bottomMargin?.let { if (it > 0) it else 8.dpToPx() }!! + 12.dpToPx()
+                barHeight + ((bottomBar.layoutParams as? FrameLayout.LayoutParams)?.bottomMargin?.let { if (it > 0) it else 8.dpToPx() } ?: 8.dpToPx()) + 12.dpToPx()
             } else {
                 92.dpToPx()
             }
@@ -518,8 +521,6 @@ class ImageViewerActivity : AppCompatActivity() {
 
         dismissColorGradingWebView()
 
-        currentColorGradingFilePath = filePath
-
         val presets = listOf(
             "arri-alexa-classic-709" to "ARRI ALEXA Classic 709",
             "fujifilm-acros" to "Fujifilm ACROS",
@@ -567,7 +568,7 @@ class ImageViewerActivity : AppCompatActivity() {
             setBackgroundColor(0)
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
-            addJavascriptInterface(NativeColorGradingBridge(this@ImageViewerActivity), "NativeBridge")
+            addJavascriptInterface(NativeColorGradingBridge(this@ImageViewerActivity, filePath), "NativeBridge")
             loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
         }
 
@@ -595,16 +596,18 @@ class ImageViewerActivity : AppCompatActivity() {
             return
         }
 
-        val escapedFilePath = filePath.replace("\\", "\\\\").replace("'", "\\'")
-        val escapedLutId = lutId.replace("\\", "\\\\").replace("'", "\\'")
-        val escapedMeteringMode = meteringMode.replace("\\", "\\\\").replace("'", "\\'")
-        val useAutoExpStr = useAutoExposure.toString()
-        val manualEvStr = manualEv.toString()
-        val syncToAutoStr = syncToAuto.toString()
+        val args = JSONArray().apply {
+            put(filePath)
+            put(lutId)
+            put(useAutoExposure)
+            put(meteringMode)
+            put(manualEv)
+            put(syncToAuto)
+        }
         val js = """
             (function(){
                 if(window.__tauriTriggerColorGrading){
-                    window.__tauriTriggerColorGrading('$escapedFilePath','$escapedLutId','$useAutoExpStr','$escapedMeteringMode','$manualEvStr','$syncToAutoStr');
+                    window.__tauriTriggerColorGrading(...${args.toString()});
                     return 'ok';
                 }
                 return 'no_handler';
@@ -1468,7 +1471,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        instance = this
+        _instance = WeakReference(this)
         isViewerVisible = true
         syncAiEditProgressFromWebView()
         syncColorGradingProgressFromWebView()
@@ -1500,7 +1503,7 @@ class ImageViewerActivity : AppCompatActivity() {
         dismissColorGradingWebView()
         if (instance == this) {
             isViewerVisible = false
-            instance = null
+            _instance = null
         }
         super.onDestroy()
     }

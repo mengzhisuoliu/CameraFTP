@@ -26,6 +26,7 @@ function mapToState(state: TaskProgressState): ColorGradingProgressState {
 const colorGrading = createTaskProgressHook<ColorGradingEvent>({
   eventName: 'color-grading-progress',
   debugLabel: 'color-grading',
+  refreshReason: 'color-grading',
   mapEvent: (event) => {
     switch (event.type) {
       case 'progress':

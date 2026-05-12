@@ -41,6 +41,7 @@ export type DoneEvent = Extract<StandardTaskEvent, { type: 'done' }>;
 export interface TaskProgressHookConfig<TEvent extends { type: string }> {
   eventName: string;
   debugLabel: string;
+  refreshReason: MediaLibraryRefreshReason;
   /** Map a domain event to a standard event. Return null to skip. */
   mapEvent: (event: TEvent) => StandardTaskEvent | null;
   /** Handle raw events that don't map to standard ones (e.g. 'queued'). Called BEFORE store update. */
@@ -91,7 +92,7 @@ export function createTaskProgressHook<TEvent extends { type: string }>(
           config.onAfterUpdate?.(mapped, store);
           scanOutputFiles(outputFiles);
           setTimeout(() => {
-            requestMediaLibraryRefresh({ reason: config.debugLabel as MediaLibraryRefreshReason });
+            requestMediaLibraryRefresh({ reason: config.refreshReason });
           }, GALLERY_REFRESH_DELAY_MS);
           config.onDone?.(mapped);
           break;
@@ -110,7 +111,7 @@ export function createTaskProgressHook<TEvent extends { type: string }>(
         scanOutputFiles(outputFiles);
 
         setTimeout(() => {
-          requestMediaLibraryRefresh({ reason: config.debugLabel as MediaLibraryRefreshReason });
+          requestMediaLibraryRefresh({ reason: config.refreshReason });
         }, GALLERY_REFRESH_DELAY_MS);
 
         config.onDone?.(mapped);
@@ -138,10 +139,14 @@ export function createTaskProgressHook<TEvent extends { type: string }>(
     }
   }
 
-  // Register eagerly at module load time
-  registerListener();
+  function ensureListener() {
+    if (!listenerRegistered) {
+      void registerListener();
+    }
+  }
 
   function useProgress(): TaskProgressState {
+    ensureListener();
     return store();
   }
 
