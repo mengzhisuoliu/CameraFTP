@@ -965,46 +965,55 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     private fun readExifParams(uri: Uri) {
-        try {
-            contentResolver.openInputStream(uri)?.use { stream ->
-                val exif = ExifInterface(stream)
+        Thread {
+            try {
                 val parts = mutableListOf<String>()
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    val exif = ExifInterface(stream)
 
-                exif.getAttributeInt(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, -1).takeIf { it >= 0 }?.let {
-                    parts.add("ISO $it")
-                }
+                    exif.getAttributeInt(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY, -1).takeIf { it >= 0 }?.let {
+                        parts.add("ISO $it")
+                    }
 
-                exif.getAttributeDouble(ExifInterface.TAG_F_NUMBER, 0.0).takeIf { it > 0 }?.let {
-                    parts.add("f/${"%.1f".format(it)}")
-                }
+                    exif.getAttributeDouble(ExifInterface.TAG_F_NUMBER, 0.0).takeIf { it > 0 }?.let {
+                        parts.add("f/${"%.1f".format(it)}")
+                    }
 
-                exif.getAttributeDouble(ExifInterface.TAG_EXPOSURE_TIME, 0.0).takeIf { it > 0 }?.let {
-                    if (it < 1.0) {
-                        val denom = (1.0 / it).roundToInt()
-                        parts.add("1/${denom}s")
-                    } else {
-                        parts.add("%.1fs".format(it))
+                    exif.getAttributeDouble(ExifInterface.TAG_EXPOSURE_TIME, 0.0).takeIf { it > 0 }?.let {
+                        if (it < 1.0) {
+                            val denom = (1.0 / it).roundToInt()
+                            parts.add("1/${denom}s")
+                        } else {
+                            parts.add("%.1fs".format(it))
+                        }
+                    }
+
+                    // Prefer 35mm equivalent focal length; fall back to native focal length
+                    val focalLength = exif.getAttributeInt(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM, 0).takeIf { it > 0 }
+                        ?: exif.getAttributeDouble(ExifInterface.TAG_FOCAL_LENGTH, 0.0).takeIf { it > 0 }?.roundToInt()
+                    focalLength?.let {
+                        parts.add("${it}mm")
                     }
                 }
 
-                // Prefer 35mm equivalent focal length; fall back to native focal length
-                val focalLength = exif.getAttributeInt(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM, 0).takeIf { it > 0 }
-                    ?: exif.getAttributeDouble(ExifInterface.TAG_FOCAL_LENGTH, 0.0).takeIf { it > 0 }?.roundToInt()
-                focalLength?.let {
-                    parts.add("${it}mm")
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (parts.isNotEmpty()) {
+                        exifParams.text = parts.joinToString(" • ")
+                        exifParams.visibility = View.VISIBLE
+                    } else {
+                        exifParams.visibility = View.GONE
+                    }
                 }
-
-                if (parts.isNotEmpty()) {
-                    exifParams.text = parts.joinToString(" • ")
-                    exifParams.visibility = View.VISIBLE
-                } else {
-                    exifParams.visibility = View.GONE
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read EXIF for $uri", e)
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        exifParams.visibility = View.GONE
+                    }
                 }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read EXIF for $uri", e)
-            exifParams.visibility = View.GONE
-        }
+        }.start()
     }
 
     /**
@@ -1037,19 +1046,21 @@ class ImageViewerActivity : AppCompatActivity() {
                     exifParams.visibility = View.VISIBLE
                 }
 
-                // Populate cache for the current page from sendExifToViewer pipeline
-                val orientation = exif.optInt("orientation", 0)
-                val degrees = when (orientation) {
-                    3 -> 180
-                    6 -> 90
-                    8 -> 270
-                    else -> SubsamplingScaleImageView.ORIENTATION_USE_EXIF
+                // Orientation caching and override are only needed for RAW files.
+                // JPEG/HEIC are handled correctly by SubsamplingScaleImageView's
+                // ORIENTATION_USE_EXIF — calling setOrientation() on them cancels
+                // the in-progress decode and triggers a redundant re-decode.
+                if (isRawFileByExtension(currentDisplayName)) {
+                    val orientation = exif.optInt("orientation", 0)
+                    val degrees = when (orientation) {
+                        3 -> 180
+                        6 -> 90
+                        8 -> 270
+                        else -> SubsamplingScaleImageView.ORIENTATION_USE_EXIF
+                    }
+                    orientationCache[currentIndex] = degrees
+                    applyOrientationFromExif(exif)
                 }
-                orientationCache[currentIndex] = degrees
-
-                // Apply orientation from backend EXIF for RAW files where
-                // Android's ExifInterface cannot read the orientation tag.
-                applyOrientationFromExif(exif)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse EXIF result", e)
             }
