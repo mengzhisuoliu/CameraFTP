@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq)]
@@ -16,13 +16,7 @@ pub struct ColorGradingPreset {
     pub cube_filename: String,
 }
 
-static COLOR_GRADING_PRESETS: OnceLock<Vec<ColorGradingPreset>> = OnceLock::new();
-
-/// Default preset ID used when no user preference is stored.
-pub const DEFAULT_PRESET_ID: &str = "fujifilm-provia";
-
-pub fn all_presets() -> &'static [ColorGradingPreset] {
-    COLOR_GRADING_PRESETS.get_or_init(|| vec![
+static COLOR_GRADING_PRESETS: LazyLock<Vec<ColorGradingPreset>> = LazyLock::new(|| vec![
         ColorGradingPreset { id: "arri-alexa-classic-709".into(), display_name: "ARRI ALEXA Classic 709".into(), log_space: "V-Log".into(), cube_filename: "ARRI_ALEXA_Classic-709_VLog.cube".into() },
         ColorGradingPreset { id: "fujifilm-acros".into(), display_name: "Fujifilm ACROS".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_ACROS_VLog.cube".into() },
         ColorGradingPreset { id: "fujifilm-astia".into(), display_name: "Fujifilm ASTIA".into(), log_space: "V-Log".into(), cube_filename: "Fujifilm_ASTIA_VLog.cube".into() },
@@ -43,13 +37,20 @@ pub fn all_presets() -> &'static [ColorGradingPreset] {
         ColorGradingPreset { id: "red-filmbias-offset".into(), display_name: "RED FilmBias Offset".into(), log_space: "V-Log".into(), cube_filename: "RED_FilmBias-Offset_VLog.cube".into() },
         ColorGradingPreset { id: "red-filmbias".into(), display_name: "RED FilmBias".into(), log_space: "V-Log".into(), cube_filename: "RED_FilmBias_VLog.cube".into() },
         ColorGradingPreset { id: "red-rec-709".into(), display_name: "RED Rec.709".into(), log_space: "V-Log".into(), cube_filename: "RED_Rec.709_VLog.cube".into() },
-    ])
+    ]);
+
+/// Default preset ID used when no user preference is stored.
+pub const DEFAULT_PRESET_ID: &str = "fujifilm-provia";
+
+pub fn all_presets() -> &'static [ColorGradingPreset] {
+    &COLOR_GRADING_PRESETS
 }
 
 pub fn find_preset(id: &str) -> Option<&'static ColorGradingPreset> {
     all_presets().iter().find(|p| p.id == id)
 }
 
+// TODO: Extract display names for i18n when locale support is added
 /// Supported automatic exposure metering modes (value, display name).
 pub const METERING_MODES: &[(&str, &str)] = &[
     ("highlight-safe", "高光保护"),

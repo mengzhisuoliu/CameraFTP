@@ -21,20 +21,26 @@ pub fn content_type_for(path: &Path) -> &'static str {
     match ext.as_str() {
         "jpg" | "jpeg" => "image/jpeg",
         "heif" | "hif" | "heic" => "image/heic",
-        _ => "image/jpeg",
+        _ => "application/octet-stream",
     }
 }
 
+struct CacheInner {
+    data: HashMap<String, Arc<Vec<u8>>>,
+    order: VecDeque<String>,
+}
+
 pub struct ImagePreviewCache {
-    cache: RwLock<HashMap<String, Arc<Vec<u8>>>>,
-    insertion_order: RwLock<VecDeque<String>>,
+    inner: RwLock<CacheInner>,
 }
 
 impl ImagePreviewCache {
     pub fn new() -> Self {
         Self {
-            cache: RwLock::new(HashMap::new()),
-            insertion_order: RwLock::new(VecDeque::new()),
+            inner: RwLock::new(CacheInner {
+                data: HashMap::new(),
+                order: VecDeque::new(),
+            }),
         }
     }
 
@@ -42,14 +48,8 @@ impl ImagePreviewCache {
         let key = path.to_string_lossy().to_string();
 
         {
-            let cache = self.cache.read().map_err(|e| e.to_string())?;
-            let mut order = self.insertion_order.write().map_err(|e| e.to_string())?;
-            if let Some(bytes) = cache.get(&key) {
-                // Promote to back for LRU behavior
-                if let Some(pos) = order.iter().position(|k| k == &key) {
-                    order.remove(pos);
-                    order.push_back(key);
-                }
+            let inner = self.inner.read().map_err(|e| e.to_string())?;
+            if let Some(bytes) = inner.data.get(&key) {
                 return Ok(Arc::clone(bytes));
             }
         }
@@ -61,20 +61,18 @@ impl ImagePreviewCache {
         };
 
         {
-            let mut cache = self.cache.write().map_err(|e| e.to_string())?;
-            let mut order = self.insertion_order.write().map_err(|e| e.to_string())?;
+            let mut inner = self.inner.write().map_err(|e| e.to_string())?;
 
-            // Double-check under write lock: another thread may have loaded this key
-            if let Some(existing) = cache.get(&key) {
+            if let Some(existing) = inner.data.get(&key) {
                 return Ok(Arc::clone(existing));
             }
 
-            cache.insert(key.clone(), Arc::clone(&bytes));
-            order.push_back(key);
+            inner.data.insert(key.clone(), Arc::clone(&bytes));
+            inner.order.push_back(key);
 
-            while order.len() > MAX_CACHE_ENTRIES {
-                let old_key = order.pop_front().unwrap();
-                cache.remove(&old_key);
+            while inner.order.len() > MAX_CACHE_ENTRIES {
+                let old_key = inner.order.pop_front().unwrap();
+                inner.data.remove(&old_key);
             }
         }
 
@@ -83,10 +81,9 @@ impl ImagePreviewCache {
 
     pub fn invalidate(&self, path: &Path) {
         let key = path.to_string_lossy().to_string();
-        let mut cache = self.cache.write().unwrap();
-        let mut order = self.insertion_order.write().unwrap();
-        cache.remove(&key);
-        order.retain(|k| k != &key);
+        let mut inner = self.inner.write().unwrap();
+        inner.data.remove(&key);
+        inner.order.retain(|k| k != &key);
     }
 }
 
@@ -111,11 +108,11 @@ mod tests {
     }
 
     #[test]
-    fn content_type_for_unknown_defaults_to_jpeg() {
-        assert_eq!(content_type_for(Path::new("photo.nef")), "image/jpeg");
-        assert_eq!(content_type_for(Path::new("photo.cr2")), "image/jpeg");
-        assert_eq!(content_type_for(Path::new("photo.png")), "image/jpeg");
-        assert_eq!(content_type_for(Path::new("photo")), "image/jpeg");
+    fn content_type_for_unknown_defaults_to_octet_stream() {
+        assert_eq!(content_type_for(Path::new("photo.nef")), "application/octet-stream");
+        assert_eq!(content_type_for(Path::new("photo.cr2")), "application/octet-stream");
+        assert_eq!(content_type_for(Path::new("photo.png")), "application/octet-stream");
+        assert_eq!(content_type_for(Path::new("photo")), "application/octet-stream");
     }
 
     #[test]
@@ -148,7 +145,7 @@ mod tests {
             cache.get_or_load(&file_path).unwrap();
         }
 
-        let cache_size = cache.cache.read().unwrap().len();
+        let cache_size = cache.inner.read().unwrap().data.len();
         assert!(
             cache_size <= MAX_CACHE_ENTRIES,
             "Cache should evict, size={}",

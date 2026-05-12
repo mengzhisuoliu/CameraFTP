@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+// TODO: Extract Chinese UI strings for i18n when locale support is added
+
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import { Select } from './ui/Select';
 import { METERING_MODES } from '../constants/color-grading';

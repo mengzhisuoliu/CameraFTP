@@ -1,7 +1,7 @@
 #!/bin/bash
 # Windows 构建脚本
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/build-common.sh"

@@ -22,6 +22,9 @@ pub struct ExifInfo {
 
 /// Format shutter speed from an exposure time ratio.
 pub(crate) fn format_shutter_speed(numerator: u32, denominator: u32) -> String {
+    if denominator == 0 {
+        return "N/A".to_string();
+    }
     let exposure = numerator as f64 / denominator as f64;
     if exposure < 1.0 && exposure > 0.0 {
         let denom = (1.0 / exposure).round() as u32;

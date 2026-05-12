@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+// TODO: Extract Chinese UI strings for i18n when locale support is added
+
 import { useState, useEffect } from 'react';
 import { Palette } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
@@ -46,6 +48,7 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
       setManualEv(lastUsed?.manualEv ?? 0.0);
       setSyncToAuto(false);
     }
+  // draft intentionally excluded — effect should only run on mount/dialog open
   }, [isOpen, colorGradingPresets]);
 
   const handleConfirm = () => {

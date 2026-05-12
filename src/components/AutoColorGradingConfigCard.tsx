@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+// TODO: Extract Chinese UI strings for i18n when locale support is added
+
 import { memo } from 'react';
 import { Palette } from 'lucide-react';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';

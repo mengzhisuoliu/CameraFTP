@@ -18,6 +18,7 @@ pub struct LutData {
 static LUT_ZIP: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/luts.zip"));
 
+// Fixed-size cache for the 20 built-in LUT presets — no eviction needed.
 static LUT_CACHE: LazyLock<DashMap<String, Arc<LutData>>> = LazyLock::new(DashMap::new);
 
 pub fn get_lut_data(preset_id: &str) -> Result<Arc<LutData>, AppError> {

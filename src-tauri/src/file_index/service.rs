@@ -2,9 +2,7 @@
 // Copyright (C) 2026 GoldJohnKing <GoldJohnKing@Live.cn>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::RwLock;
@@ -21,8 +19,6 @@ use super::types::{FileIndex, FileInfo};
 use tauri::Emitter;
 #[cfg(target_os = "windows")]
 use super::watcher::FileWatcher;
-
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub struct FileIndexService {
     index: RwLock<FileIndex>,
@@ -182,30 +178,28 @@ impl FileIndexService {
         Ok(())
     }
 
-    /// 递归扫描目录
-    fn scan_recursive<'a>(&'a self, dir: &'a Path, files: &'a mut Vec<FileInfo>) -> BoxFuture<'a, Result<(), AppError>> {
-        Box::pin(async move {
-            let mut entries = tokio::fs::read_dir(dir).await
+    /// Scan directories iteratively using a work stack
+    async fn scan_recursive(&self, root: &Path, files: &mut Vec<FileInfo>) -> Result<(), AppError> {
+        let mut dirs_to_process = vec![root.to_path_buf()];
+
+        while let Some(dir) = dirs_to_process.pop() {
+            let mut entries = tokio::fs::read_dir(&dir).await
                 .map_err(|e| AppError::Other(format!("Failed to read dir: {}", e)))?;
 
             while let Some(entry) = entries.next_entry().await
-                .map_err(|e| AppError::Other(format!("Failed to read entry: {}", e)))? 
+                .map_err(|e| AppError::Other(format!("Failed to read entry: {}", e)))?
             {
                 let path = entry.path();
                 let metadata = entry.metadata().await;
-                
+
                 let metadata = match metadata {
                     Ok(m) => m,
-                    Err(_) => continue, // 跳过无权限文件
+                    Err(_) => continue,
                 };
-                
+
                 if metadata.is_dir() {
-                    // 递归扫描子目录
-                    if let Err(e) = self.scan_recursive(&path, files).await {
-                        warn!("Failed to scan subdirectory {:?}: {}", path, e);
-                    }
+                    dirs_to_process.push(path);
                 } else if metadata.is_file() {
-                    // 检查是否是支持的图片格式
                     if crate::image_utils::is_supported_image(&path) {
                         match self.get_file_info(&path, &metadata).await {
                             Ok(file_info) => files.push(file_info),
@@ -214,9 +208,9 @@ impl FileIndexService {
                     }
                 }
             }
-            
-            Ok(())
-        })
+        }
+
+        Ok(())
     }
 
 

@@ -21,6 +21,20 @@ pub fn extract_preview_jpeg(path: &Path) -> Result<Vec<u8>, String> {
     let path_str = path.to_string_lossy();
     tracing::debug!("Extracting RAW preview from: {}", path_str);
 
+    let metadata = std::fs::metadata(path).map_err(|e| format!("Failed to stat {}: {}", path_str, e))?;
+    const MAX_RAW_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
+    if metadata.len() > MAX_RAW_SIZE {
+        tracing::warn!(
+            "RAW file too large for thumbnail extraction ({} MB): {}",
+            metadata.len() / (1024 * 1024),
+            path_str
+        );
+        return Err(format!(
+            "RAW file too large for preview extraction ({} MB)",
+            metadata.len() / (1024 * 1024)
+        ));
+    }
+
     let data =
         std::fs::read(path).map_err(|e| format!("Failed to read {}: {}", path_str, e))?;
 
@@ -102,7 +116,7 @@ fn find_largest_jpeg(data: &[u8]) -> Option<Vec<u8>> {
         }
     }
 
-    if best_size > 0 {
+    if best_size >= 8 {
         Some(data[best_start..best_start + best_size].to_vec())
     } else {
         None

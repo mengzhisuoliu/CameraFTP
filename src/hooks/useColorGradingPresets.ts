@@ -14,7 +14,7 @@ export function useColorGradingPresets() {
   useEffect(() => {
     invoke<ColorGradingPreset[]>('get_color_grading_presets')
       .then(setPresets)
-      .catch(() => {});
+      .catch((e) => console.error('Failed to load color grading presets:', e));
   }, []);
 
   return presets;
