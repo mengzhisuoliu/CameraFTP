@@ -419,6 +419,15 @@ run_tests() {
     success "前端测试通过"
 }
 
+# Run Android (Kotlin/Robolectric) unit tests. Fails the build if any test fails.
+run_android_tests() {
+    task "正在运行 Android (Kotlin) 测试..."
+    cd src-tauri/gen/android
+    ./gradlew test 2>&1 | tail -10
+    cd ../../..
+    success "Android (Kotlin) 测试通过"
+}
+
 show_build_help() {
     local script_name="${1:-build.sh}"
     local VERSION
