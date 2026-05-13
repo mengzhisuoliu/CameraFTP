@@ -263,6 +263,181 @@ describe('useAndroidAutoOpenLatestPhoto', () => {
     });
   });
 
+  it('inserts into active viewer and navigates when autoOpenLatestWhenVisible is true', async () => {
+    const insertImageMock = vi.fn().mockReturnValue(true);
+    const navigateToExistingUriMock = vi.fn();
+
+    window.ImageViewerAndroid = {
+      openOrNavigateTo: vi.fn(),
+      onExifResult: vi.fn(),
+      onExifResultForPosition: vi.fn(),
+      requestExifForPositions: vi.fn(),
+      resolveFilePath: vi.fn(),
+      isAppVisible: vi.fn().mockReturnValue(true),
+      insertImage: insertImageMock,
+      navigateToExistingUri: navigateToExistingUriMock,
+    };
+
+    const added = [
+      createItem('added-1', 'content://added/1'),
+      createItem('added-2', 'content://added/2'),
+    ];
+
+    await act(async () => {
+      getRoot().render(
+        <Harness
+          galleryItems={[]}
+          openMethod="built-in-viewer"
+          autoOpenLatestWhenVisible
+        />,
+      );
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('gallery-items-added', {
+          detail: { items: added, timestamp: Date.now() },
+        }),
+      );
+    });
+
+    // Items inserted newest→oldest, each at index 0
+    expect(insertImageMock).toHaveBeenCalledTimes(2);
+    expect(insertImageMock).toHaveBeenNthCalledWith(1, 'content://added/2', 0);
+    expect(insertImageMock).toHaveBeenNthCalledWith(2, 'content://added/1', 0);
+    expect(navigateToExistingUriMock).toHaveBeenCalledWith('content://added/2');
+    expect(openImagePreviewMock).not.toHaveBeenCalled();
+  });
+
+  it('inserts into active viewer without navigating when autoOpenLatestWhenVisible is false', async () => {
+    const insertImageMock = vi.fn().mockReturnValue(true);
+    const navigateToExistingUriMock = vi.fn();
+
+    window.ImageViewerAndroid = {
+      openOrNavigateTo: vi.fn(),
+      onExifResult: vi.fn(),
+      onExifResultForPosition: vi.fn(),
+      requestExifForPositions: vi.fn(),
+      resolveFilePath: vi.fn(),
+      isAppVisible: vi.fn().mockReturnValue(true),
+      insertImage: insertImageMock,
+      navigateToExistingUri: navigateToExistingUriMock,
+    };
+
+    const added = [
+      createItem('added-1', 'content://added/1'),
+      createItem('added-2', 'content://added/2'),
+    ];
+
+    await act(async () => {
+      getRoot().render(
+        <Harness
+          galleryItems={[]}
+          openMethod="built-in-viewer"
+          autoOpenLatestWhenVisible={false}
+        />,
+      );
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('gallery-items-added', {
+          detail: { items: added, timestamp: Date.now() },
+        }),
+      );
+    });
+
+    expect(insertImageMock).toHaveBeenCalledTimes(2);
+    expect(insertImageMock).toHaveBeenNthCalledWith(1, 'content://added/2', 0);
+    expect(insertImageMock).toHaveBeenNthCalledWith(2, 'content://added/1', 0);
+    expect(navigateToExistingUriMock).not.toHaveBeenCalled();
+    expect(openImagePreviewMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to openImagePreview when insertImage returns false', async () => {
+    const insertImageMock = vi.fn().mockReturnValue(false);
+    const navigateToExistingUriMock = vi.fn();
+
+    window.ImageViewerAndroid = {
+      openOrNavigateTo: vi.fn(),
+      onExifResult: vi.fn(),
+      onExifResultForPosition: vi.fn(),
+      requestExifForPositions: vi.fn(),
+      resolveFilePath: vi.fn(),
+      isAppVisible: vi.fn().mockReturnValue(true),
+      insertImage: insertImageMock,
+      navigateToExistingUri: navigateToExistingUriMock,
+    };
+
+    const added = [createItem('added-1', 'content://added/1')];
+
+    await act(async () => {
+      getRoot().render(
+        <Harness
+          galleryItems={[]}
+          openMethod="built-in-viewer"
+          autoOpenLatestWhenVisible
+        />,
+      );
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('gallery-items-added', {
+          detail: { items: added, timestamp: Date.now() },
+        }),
+      );
+    });
+
+    expect(insertImageMock).toHaveBeenCalledWith('content://added/1', 0);
+    expect(navigateToExistingUriMock).not.toHaveBeenCalled();
+    expect(openImagePreviewMock).toHaveBeenCalledWith({
+      filePath: 'content://added/1',
+      openMethod: 'built-in-viewer',
+      allUris: ['content://added/1'],
+    });
+  });
+
+  it('no side effects when autoOpenLatestWhenVisible is false and viewer not active', async () => {
+    const insertImageMock = vi.fn().mockReturnValue(false);
+    const navigateToExistingUriMock = vi.fn();
+
+    window.ImageViewerAndroid = {
+      openOrNavigateTo: vi.fn(),
+      onExifResult: vi.fn(),
+      onExifResultForPosition: vi.fn(),
+      requestExifForPositions: vi.fn(),
+      resolveFilePath: vi.fn(),
+      isAppVisible: vi.fn().mockReturnValue(true),
+      insertImage: insertImageMock,
+      navigateToExistingUri: navigateToExistingUriMock,
+    };
+
+    const added = [createItem('added-1', 'content://added/1')];
+
+    await act(async () => {
+      getRoot().render(
+        <Harness
+          galleryItems={[]}
+          openMethod="built-in-viewer"
+          autoOpenLatestWhenVisible={false}
+        />,
+      );
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('gallery-items-added', {
+          detail: { items: added, timestamp: Date.now() },
+        }),
+      );
+    });
+
+    expect(insertImageMock).toHaveBeenCalledWith('content://added/1', 0);
+    expect(navigateToExistingUriMock).not.toHaveBeenCalled();
+    expect(openImagePreviewMock).not.toHaveBeenCalled();
+  });
+
   it('accumulates earlier added batch for same-tick events without rerender', async () => {
     window.ImageViewerAndroid = {
       openOrNavigateTo: vi.fn(),
