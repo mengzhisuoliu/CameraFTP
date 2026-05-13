@@ -59,6 +59,8 @@ export function usePreviewNavigation({
   }, [imagePath]);
 
   useEffect(() => {
+    let aborted = false;
+
     const unlistenPromise = listen<{ count: number; latestFilename: string | null }>(
       'file-index-changed',
       async (event) => {
@@ -66,17 +68,22 @@ export function usePreviewNavigation({
 
         try {
           const backendIndex = await invoke<number | null>('get_current_file_index');
-          setCurrentIndex(backendIndex ?? 0);
+          if (!aborted) {
+            setCurrentIndex(backendIndex ?? 0);
+          }
         } catch {
-          setCurrentIndex((prev) => {
-            if (event.payload.count === 0) return 0;
-            return Math.min(prev, event.payload.count - 1);
-          });
+          if (!aborted) {
+            setCurrentIndex((prev) => {
+              if (event.payload.count === 0) return 0;
+              return Math.min(prev, event.payload.count - 1);
+            });
+          }
         }
       },
     );
 
     return () => {
+      aborted = true;
       unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
     };
   }, []);
