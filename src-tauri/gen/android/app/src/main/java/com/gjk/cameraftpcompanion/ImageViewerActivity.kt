@@ -491,8 +491,8 @@ class ImageViewerActivity : AppCompatActivity() {
             Log.w(TAG, "MainActivity not available for color grading"); return
         }
         val args = JSONArray().apply {
-            put(filePath); put(lutId); put(useAutoExposure)
-            put(meteringMode); put(manualEv); put(syncToAuto)
+            put(filePath); put(lutId); put(useAutoExposure.toString())
+            put(meteringMode); put(manualEv.toString()); put(syncToAuto.toString())
         }
         val js = """
             (function(){
