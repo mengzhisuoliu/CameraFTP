@@ -192,7 +192,10 @@ android {
     }
     sourceSets {
         getByName("main") {
-            assets.setSrcDirs(listOf(tauriStagingAssetsDir.get().asFile))
+            assets.setSrcDirs(listOf(
+                tauriStagingAssetsDir.get().asFile,
+                generatedAssetsSourceDir.asFile
+            ))
             jniLibs.setSrcDirs(listOf(
                 tauriStagingJniLibsDir.get().asFile,
                 file("${project.projectDir}/extra-jniLibs")
@@ -203,6 +206,14 @@ android {
 
 tasks.matching { it.name.endsWith("Assets") && it.name.contains("merge") }.configureEach {
     dependsOn(stageTauriAssets)
+    doFirst {
+        // HACK: Delete to avoid "Duplicate resources" with the staging copy.
+        // AGP's MergeSourceSetFolders has no public exclude API, so we remove
+        // the source-tree copy before the merge. The Tauri CLI regenerates it
+        // on each build, so this is safe for CI but fragile for bare Gradle.
+        val srcAsset = file("src/main/assets/tauri.conf.json")
+        if (srcAsset.exists()) srcAsset.delete()
+    }
 }
 
 tasks.matching { it.name.contains("lint", ignoreCase = true) }.configureEach {
