@@ -228,10 +228,26 @@ interface ImageViewerAndroid {
    * Triggers a MediaStore scan for a newly created file so it appears in the system gallery.
    * @param filePath Absolute file path to scan
    */
-  scanNewFile?(filePath: string): void;
+   scanNewFile?(filePath: string): void;
 
-  /**
-   * Callback from JS when a color grading triggered from native viewer completes
+   /**
+    * Insert a new image into the currently visible viewer at a specific position.
+    * No-op if the viewer is not visible or URI already exists in the list.
+    * @param uri Content URI of the new image
+    * @param insertIndex Position to insert at (clamped to valid range)
+    * @returns true if inserted into an active viewer
+    */
+   insertImage?(uri: string, insertIndex: number): boolean;
+
+   /**
+    * Navigate the active viewer to an existing URI already in its list.
+    * No-op if the viewer is not visible or URI is not in the list.
+    * @param uri Content URI to navigate to
+    */
+   navigateToExistingUri?(uri: string): void;
+
+   /**
+    * Callback from JS when a color grading triggered from native viewer completes
    * @param success Whether the grading succeeded
    * @param message Status message, or null if cancelled
    * @param cancelled Whether the grading was cancelled by user
