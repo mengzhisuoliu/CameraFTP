@@ -37,6 +37,21 @@ class DeleteController(
 
         val uri = Uri.parse(uriString)
 
+        // file:// URIs (from scanNewFile's synchronous insertion) need direct file deletion
+        if (uri.scheme == "file") {
+            val path = uri.path
+            if (path != null) {
+                val file = java.io.File(path)
+                val deleted = file.delete()
+                if (deleted || !file.exists()) {
+                    applyDeleteSuccess(activity, uriString, uris, currentIndex)
+                } else {
+                    Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+            return
+        }
+
         try {
             val rowsDeleted = activity.contentResolver.delete(uri, null, null)
             val stillExists = uriStillExists(activity, uri)

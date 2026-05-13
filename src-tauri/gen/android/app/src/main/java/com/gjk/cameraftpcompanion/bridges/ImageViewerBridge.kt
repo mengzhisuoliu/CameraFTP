@@ -108,16 +108,34 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
     }
 
     /**
-     * Triggers a MediaStore scan for a newly created file so it appears in the system gallery.
-     * On completion, emits a gallery-items-added event so the active viewer can insert it.
+     * Inserts a newly created file into the active viewer immediately via file:// URI,
+     * then triggers an async MediaStore scan so the file appears in the system gallery.
+     *
+     * The synchronous file:// insertion avoids depending on the async scan callback,
+     * which may not fire reliably when ImageViewerActivity is in the foreground
+     * (MainActivity's WebView may be paused, blocking the gallery-items-added event chain).
      */
     @android.webkit.JavascriptInterface
     fun scanNewFile(filePath: String?) {
         if (filePath == null) return
         val viewer = ImageViewerActivity.instance
         val context = (viewer ?: activity) as? android.content.Context ?: return
-        // Use MainActivity for emitting events since the WebView listener lives there
         val mainActivity = MainActivity.instance ?: return
+
+        // Insert into active viewer immediately using file:// URI.
+        // This is synchronous and does not depend on MediaStore scan completion.
+        if (viewer != null && ImageViewerActivity.isViewerVisible
+            && !viewer.isFinishing && !viewer.isDestroyed) {
+            val file = java.io.File(filePath)
+            if (file.exists()) {
+                val fileUri = android.net.Uri.fromFile(file).toString()
+                // Mark as file-scheme so later content:// insertions from the WebView
+                // event handler can detect and skip the duplicate.
+                viewer.insertImage(fileUri, 0)
+            }
+        }
+
+        // Also trigger async MediaStore scan for gallery visibility.
         android.media.MediaScannerConnection.scanFile(context, arrayOf(filePath), null,
             object : android.media.MediaScannerConnection.OnScanCompletedListener {
                 override fun onScanCompleted(path: String?, uri: android.net.Uri?) {
@@ -132,6 +150,8 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
     /**
      * Insert a new image into the currently visible viewer at a specific position.
      * No-op if the viewer is not visible or URI already exists in the list.
+     * Also skips if a file:// URI for the same file is already present (avoids
+     * inserting a content:// duplicate after scanNewFile's synchronous insertion).
      * @param uri Content URI of the new image
      * @param insertIndex Position to insert at (clamped to valid range by the activity)
      * @returns true if inserted into an active viewer
@@ -142,6 +162,15 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         val viewer = ImageViewerActivity.instance ?: return false
         if (!ImageViewerActivity.isViewerVisible) return false
         if (viewer.isFinishing || viewer.isDestroyed) return false
+        // Check if a file:// URI for the same file already exists in the list
+        val parsed = android.net.Uri.parse(uri)
+        if (parsed.scheme == "content") {
+            val filePath = ImageViewerActivity.resolveUriToFilePath(activity, uri)
+            if (filePath != null) {
+                val existingFileUri = android.net.Uri.fromFile(java.io.File(filePath)).toString()
+                if (viewer.uris.contains(existingFileUri)) return false
+            }
+        }
         viewer.insertImage(uri, insertIndex)
         return true
     }
