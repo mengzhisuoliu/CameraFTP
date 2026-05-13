@@ -124,8 +124,8 @@ class ImageViewerActivity : AppCompatActivity() {
             meteringMode: String, manualEv: Float, syncToAuto: Boolean,
         ): String {
             return JSONArray().apply {
-                put(filePath); put(lutId); put(useAutoExposure.toString())
-                put(meteringMode); put(manualEv.toString()); put(syncToAuto.toString())
+                put(filePath); put(lutId); put(useAutoExposure)
+                put(meteringMode); put(manualEv); put(syncToAuto)
             }.toString()
         }
 

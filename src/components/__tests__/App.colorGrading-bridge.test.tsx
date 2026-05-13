@@ -5,9 +5,10 @@
  */
 
 import { act } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { setupReactRoot } from '../../test-utils/react-root';
+import { flush } from '../../test-utils/flush';
 import type { AppConfig } from '../../types';
 
 const { enqueueColorGradingMock } = vi.hoisted(() => ({
@@ -98,9 +99,19 @@ const BASE_DRAFT: AppConfig = {
   },
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function setPartialDraft(overrides: Partial<AppConfig>) {
+  useConfigStore.setState((s: any) => ({
+    draft: { ...s.draft, ...overrides },
+  }));
+}
+
+type TriggerFn = (f: string, l: string, a: boolean, m: string, e: number, s: boolean) => Promise<void>;
+
 describe('Color grading bridge functions', () => {
   const { getRoot } = setupReactRoot();
   const w = window as unknown as Record<string, unknown>;
+  let trigger: TriggerFn;
 
   beforeEach(async () => {
     enqueueColorGradingMock.mockClear();
@@ -117,42 +128,47 @@ describe('Color grading bridge functions', () => {
 
     await act(async () => {
       getRoot().render(<App />);
-      await new Promise(r => setTimeout(r, 0));
+      await flush();
     });
+
+    trigger = w.__tauriTriggerColorGrading as TriggerFn;
   });
 
-  afterEach(() => {
-    act(() => { getRoot().unmount(); });
+  // --- __tauriGetAutoColorGradingEnabled ---
+
+  describe('__tauriGetAutoColorGradingEnabled', () => {
+    it('returns "true" when autoColorGrading is enabled', () => {
+      setPartialDraft({ autoColorGrading: { enabled: true, presetId: 'x', useAutoExposure: true, meteringMode: 'matrix', manualEv: 0 } });
+      const result = (w.__tauriGetAutoColorGradingEnabled as () => string)();
+      expect(result).toBe('true');
+    });
+
+    it('returns "false" when autoColorGrading is disabled', () => {
+      setPartialDraft({ autoColorGrading: { enabled: false, presetId: 'x', useAutoExposure: true, meteringMode: 'matrix', manualEv: 0 } });
+      const result = (w.__tauriGetAutoColorGradingEnabled as () => string)();
+      expect(result).toBe('false');
+    });
   });
 
   // --- __tauriGetColorGradingLastUsed ---
 
   describe('__tauriGetColorGradingLastUsed', () => {
     it('returns null JSON when no last-used config', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      useConfigStore.setState((s: any) => ({
-        draft: { ...s.draft, colorGradingLastUsed: null },
-      }));
-
+      setPartialDraft({ colorGradingLastUsed: null });
       const result = (w.__tauriGetColorGradingLastUsed as () => string)();
       expect(JSON.parse(result)).toBeNull();
     });
 
     it('returns last-used config as JSON', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      useConfigStore.setState((s: any) => ({
-        draft: {
-          ...s.draft,
-          colorGradingLastUsed: {
-            presetId: 'fujifilm-velvia', useAutoExposure: false,
-            meteringMode: 'matrix', manualEv: 1.5,
-          },
+      setPartialDraft({
+        colorGradingLastUsed: {
+          presetId: 'fujifilm-velvia', useAutoExposure: false,
+          meteringMode: 'matrix', manualEv: 1.5,
         },
-      }));
+      });
 
       const result = (w.__tauriGetColorGradingLastUsed as () => string)();
-      const parsed = JSON.parse(result);
-      expect(parsed).toEqual({
+      expect(JSON.parse(result)).toEqual({
         presetId: 'fujifilm-velvia', useAutoExposure: false,
         meteringMode: 'matrix', manualEv: 1.5,
       });
@@ -162,13 +178,9 @@ describe('Color grading bridge functions', () => {
   // --- __tauriTriggerColorGrading ---
 
   describe('__tauriTriggerColorGrading', () => {
-    it('parses string "true" to boolean true for useAutoExposure', async () => {
-      const trigger = w.__tauriTriggerColorGrading as (
-        f: string, l: string, a: string, m: string, e: string, s: string,
-      ) => Promise<void>;
-
+    it('passes native boolean true for useAutoExposure', async () => {
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'true', 'highlight-safe', '0.0', 'false');
+        await trigger('/photo.nef', 'fujifilm-provia', true, 'highlight-safe', 0, false);
       });
 
       expect(enqueueColorGradingMock).toHaveBeenCalledWith(
@@ -176,31 +188,22 @@ describe('Color grading bridge functions', () => {
       );
     });
 
-    it('parses string "false" to boolean false for useAutoExposure', async () => {
-      const trigger = w.__tauriTriggerColorGrading as (
-        f: string, l: string, a: string, m: string, e: string, s: string,
-      ) => Promise<void>;
-
+    it('passes native boolean false and negative EV', async () => {
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-velvia', 'false', 'matrix', '2.5', 'false');
+        await trigger('/photo.nef', 'fujifilm-velvia', false, 'matrix', -2.5, false);
       });
 
       expect(enqueueColorGradingMock).toHaveBeenCalledWith(
-        ['/photo.nef'], 'fujifilm-velvia', false, 'matrix', 2.5,
+        ['/photo.nef'], 'fujifilm-velvia', false, 'matrix', -2.5,
       );
     });
 
     it('always saves colorGradingLastUsed on confirm', async () => {
-      const trigger = w.__tauriTriggerColorGrading as (
-        f: string, l: string, a: string, m: string, e: string, s: string,
-      ) => Promise<void>;
-
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'true', 'highlight-safe', '0.0', 'false');
+        await trigger('/photo.nef', 'fujifilm-provia', true, 'highlight-safe', 0, false);
       });
 
-      const draft = useConfigStore.getState().draft;
-      expect(draft?.colorGradingLastUsed).toEqual({
+      expect(useConfigStore.getState().draft?.colorGradingLastUsed).toEqual({
         presetId: 'fujifilm-provia',
         useAutoExposure: true,
         meteringMode: 'highlight-safe',
@@ -209,70 +212,47 @@ describe('Color grading bridge functions', () => {
     });
 
     it('does not overwrite autoColorGrading when syncToAuto is false', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      useConfigStore.setState((s: any) => ({
-        draft: {
-          ...s.draft,
-          autoColorGrading: {
-            enabled: true, presetId: 'kodak-vision-2383',
-            useAutoExposure: false, meteringMode: 'average', manualEv: 3.0,
-          },
+      setPartialDraft({
+        autoColorGrading: {
+          enabled: true, presetId: 'kodak-vision-2383',
+          useAutoExposure: false, meteringMode: 'average', manualEv: 3.0,
         },
-      }));
-
-      const trigger = w.__tauriTriggerColorGrading as (
-        f: string, l: string, a: string, m: string, e: string, s: string,
-      ) => Promise<void>;
-
-      await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'true', 'highlight-safe', '0.0', 'false');
       });
 
-      const draft = useConfigStore.getState().draft;
-      expect(draft?.autoColorGrading).toEqual({
+      await act(async () => {
+        await trigger('/photo.nef', 'fujifilm-provia', true, 'highlight-safe', 0, false);
+      });
+
+      expect(useConfigStore.getState().draft?.autoColorGrading).toEqual({
         enabled: true, presetId: 'kodak-vision-2383',
         useAutoExposure: false, meteringMode: 'average', manualEv: 3.0,
       });
     });
 
     it('syncs to autoColorGrading when syncToAuto is true', async () => {
-      const trigger = w.__tauriTriggerColorGrading as (
-        f: string, l: string, a: string, m: string, e: string, s: string,
-      ) => Promise<void>;
-
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-velvia', 'false', 'matrix', '2.5', 'true');
+        await trigger('/photo.nef', 'fujifilm-velvia', false, 'matrix', 2.5, true);
       });
 
-      const draft = useConfigStore.getState().draft;
-      expect(draft?.autoColorGrading).toEqual({
+      expect(useConfigStore.getState().draft?.autoColorGrading).toEqual({
         enabled: true, presetId: 'fujifilm-velvia',
         useAutoExposure: false, meteringMode: 'matrix', manualEv: 2.5,
       });
     });
 
     it('preserves autoColorGrading.enabled when syncing', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      useConfigStore.setState((s: any) => ({
-        draft: {
-          ...s.draft,
-          autoColorGrading: {
-            enabled: false, presetId: 'old', useAutoExposure: true,
-            meteringMode: 'spot', manualEv: -1.0,
-          },
+      setPartialDraft({
+        autoColorGrading: {
+          enabled: false, presetId: 'old', useAutoExposure: true,
+          meteringMode: 'spot', manualEv: -1.0,
         },
-      }));
-
-      const trigger = w.__tauriTriggerColorGrading as (
-        f: string, l: string, a: string, m: string, e: string, s: string,
-      ) => Promise<void>;
-
-      await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'true', 'highlight-safe', '0.0', 'true');
       });
 
-      const draft = useConfigStore.getState().draft;
-      expect(draft?.autoColorGrading?.enabled).toBe(false);
+      await act(async () => {
+        await trigger('/photo.nef', 'fujifilm-provia', true, 'highlight-safe', 0, true);
+      });
+
+      expect(useConfigStore.getState().draft?.autoColorGrading?.enabled).toBe(false);
     });
   });
 });

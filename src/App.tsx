@@ -93,27 +93,25 @@ function App() {
       return JSON.stringify(draft?.colorGradingLastUsed ?? null);
     };
 
-    w.__tauriTriggerColorGrading = async (filePath: string, lutId: string, useAutoExposure: string, meteringMode: string, manualEv: string, syncToAuto: string) => {
+    w.__tauriTriggerColorGrading = async (filePath: string, lutId: string, useAutoExposure: boolean, meteringMode: string, manualEv: number, syncToAuto: boolean) => {
       const { enqueueColorGrading } = await import('./hooks/useColorGradingProgress');
-      const useAutoExp = useAutoExposure === 'true';
-      const ev = parseFloat(manualEv);
-      await enqueueColorGrading([filePath], lutId, useAutoExp, meteringMode, ev);
+      await enqueueColorGrading([filePath], lutId, useAutoExposure, meteringMode, manualEv);
 
       updateDraft(d => ({
         ...d,
         colorGradingLastUsed: {
           presetId: lutId,
-          useAutoExposure: useAutoExp,
+          useAutoExposure,
           meteringMode,
-          manualEv: ev,
+          manualEv,
         },
-        ...(syncToAuto === 'true' && d.autoColorGrading ? {
+        ...(syncToAuto && d.autoColorGrading ? {
           autoColorGrading: {
             ...d.autoColorGrading,
             presetId: lutId,
-            useAutoExposure: useAutoExp,
+            useAutoExposure,
             meteringMode,
-            manualEv: ev,
+            manualEv,
           },
         } : {}),
       }));
