@@ -76,6 +76,11 @@ const DEPENDENCIES: DependencyGroup[] = [
         url: 'https://docs.rs/unftp-sbe-fs/',
       },
       {
+        name: 'unftp-core',
+        description: 'libunftp 核心类型与接口',
+        url: 'https://docs.rs/unftp-core/',
+      },
+      {
         name: 'tokio',
         description: 'Rust 异步运行时',
         url: 'https://tokio.rs/',
@@ -92,7 +97,7 @@ const DEPENDENCIES: DependencyGroup[] = [
     deps: [
       {
         name: 'nom-exif',
-        description: 'EXIF 元数据解析库（支持 JPG/RAW/CR3/NEF 等）',
+        description: 'EXIF 元数据解析库',
         url: 'https://docs.rs/nom-exif/',
       },
       {
@@ -109,6 +114,21 @@ const DEPENDENCIES: DependencyGroup[] = [
         name: 'notify',
         description: '跨平台文件系统事件监听库',
         url: 'https://docs.rs/notify/',
+      },
+      {
+        name: 'zip',
+        description: 'ZIP 压缩/解压库',
+        url: 'https://docs.rs/zip/',
+      },
+      {
+        name: 'flate2',
+        description: 'DEFLATE 压缩/解压库',
+        url: 'https://docs.rs/flate2/',
+      },
+      {
+        name: 'memchr',
+        description: 'SIMD 加速的字节扫描库',
+        url: 'https://docs.rs/memchr/',
       },
     ],
   },
@@ -137,13 +157,18 @@ const DEPENDENCIES: DependencyGroup[] = [
     deps: [
       {
         name: 'Argon2',
-        description: '密码哈希算法实现',
+        description: 'Argon2id 密码哈希算法实现',
         url: 'https://docs.rs/argon2/',
       },
       {
         name: 'zeroize',
         description: '内存安全：敏感数据自动清零',
         url: 'https://docs.rs/zeroize/',
+      },
+      {
+        name: 'rand_core',
+        description: '随机数生成核心库',
+        url: 'https://docs.rs/rand_core/',
       },
       {
         name: 'base64',
@@ -154,6 +179,11 @@ const DEPENDENCIES: DependencyGroup[] = [
         name: 'chrono',
         description: '日期和时间处理库',
         url: 'https://docs.rs/chrono/',
+      },
+      {
+        name: 'libloading',
+        description: '动态库加载器',
+        url: 'https://docs.rs/libloading/',
       },
     ],
   },
@@ -189,6 +219,11 @@ const DEPENDENCIES: DependencyGroup[] = [
         name: 'futures',
         description: 'Rust 异步工具库',
         url: 'https://docs.rs/futures/',
+      },
+      {
+        name: 'ts-rs',
+        description: 'Rust 类型到 TypeScript 类型绑定生成',
+        url: 'https://docs.rs/ts-rs/',
       },
     ],
   },
