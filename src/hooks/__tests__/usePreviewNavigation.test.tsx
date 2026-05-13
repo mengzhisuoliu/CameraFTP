@@ -78,7 +78,7 @@ describe('usePreviewNavigation', () => {
     });
   });
 
-  it('loads initial file info and clamps index on file-index-changed', async () => {
+  it('loads initial file info and re-syncs index from backend on file-index-changed', async () => {
     await act(async () => {
       getRoot().render(<Harness />);
       await flush();
@@ -92,8 +92,9 @@ describe('usePreviewNavigation', () => {
       await flush();
     });
 
+    expect(invokeMock).toHaveBeenCalledWith('get_current_file_index');
     expect(getContainer().querySelector('[data-testid="total"]')?.textContent).toBe('1');
-    expect(getContainer().querySelector('[data-testid="index"]')?.textContent).toBe('0');
+    expect(getContainer().querySelector('[data-testid="index"]')?.textContent).toBe('2');
   });
 
   it('navigates to oldest file', async () => {
