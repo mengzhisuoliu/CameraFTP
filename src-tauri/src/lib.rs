@@ -404,6 +404,26 @@ fn percent_decode(input: &str) -> String {
     String::from_utf8_lossy(&result).into_owned()
 }
 
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn percent_decode_strips_null_bytes() {
+        assert_eq!(percent_decode("%00"), "");
+    }
+
+    #[test]
+    fn percent_decode_strips_embedded_null() {
+        assert_eq!(percent_decode("foo%00bar"), "foobar");
+    }
+
+    #[test]
+    fn percent_decode_preserves_normal_path() {
+        assert_eq!(percent_decode("/path/to/file.jpg"), "/path/to/file.jpg");
+    }
+}
+
 /// 启动后台任务（文件扫描、文件监听等）
 /// 先执行文件扫描，扫描完成后再启动文件监听，避免竞态条件
 fn spawn_background_tasks(app_handle: &tauri::AppHandle) {

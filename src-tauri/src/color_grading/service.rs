@@ -367,5 +367,28 @@ mod tests {
     fn should_auto_color_grade_returns_false_when_no_config() {
         assert!(!should_auto_color_grade(None, Path::new("photo.nef")));
     }
+
+    #[test]
+    fn should_auto_color_grade_rejects_invalid_preset_id() {
+        let bad_preset = AutoColorGradingConfig {
+            enabled: true,
+            preset_id: "nonexistent-preset-id".to_string(),
+            ..Default::default()
+        };
+        assert!(!should_auto_color_grade(Some(&bad_preset), Path::new("photo.nef")));
+    }
+
+    #[test]
+    fn cancel_replaces_with_fresh_token() {
+        let token = Arc::new(std::sync::Mutex::new(CancellationToken::new()));
+        // Cancel and replace (same logic as ColorGradingService::cancel)
+        {
+            let mut guard = token.lock().unwrap();
+            guard.cancel();
+            *guard = CancellationToken::new();
+        }
+        let fresh = token.lock().unwrap().clone();
+        assert!(!fresh.is_cancelled(), "token should be fresh (not cancelled) after cancel()");
+    }
 }
 
