@@ -52,6 +52,7 @@ use commands::{
     get_server_runtime_state,
     get_storage_info,
     hide_main_window,
+    is_color_grading_available,
     is_raw_file,
     load_config,
     navigate_to_file,
@@ -280,7 +281,9 @@ pub fn run() {
             get_metering_modes,
             enqueue_color_grading,
             cancel_color_grading,
-            is_raw_file,
+            is_color_grading_available,
+    is_color_grading_available,
+    is_raw_file,
         ]);
 
     #[cfg(target_os = "windows")]

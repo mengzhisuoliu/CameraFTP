@@ -401,8 +401,8 @@ clean_build_cache() {
 }
 
 # Run Rust and frontend tests. Fails the build if any test fails.
+# On failure, outputs the full test log for diagnosis.
 run_tests() {
-    set -o pipefail
     local cargo_cmd
     cargo_cmd=$(get_tool_cmd "cargo")
     if [ -z "$cargo_cmd" ]; then
@@ -410,25 +410,55 @@ run_tests() {
         return 1
     fi
 
+    local rust_log
+    rust_log="$(mktemp)"
+    local fe_log
+    fe_log="$(mktemp)"
+
     task "正在运行 Rust 测试..."
-    cd src-tauri
-    $cargo_cmd test --lib 2>&1 | tail -5
-    cd ..
-    success "Rust 测试通过"
+    if cd src-tauri && $cargo_cmd test --lib > "$rust_log" 2>&1; then
+        cd "$OLDPWD"
+        success "Rust 测试通过"
+    else
+        cd "$OLDPWD"
+        error "Rust 测试失败，完整日志："
+        cat "$rust_log"
+        rm -f "$rust_log" "$fe_log"
+        return 1
+    fi
 
     task "正在运行前端测试..."
-    npx vitest run 2>&1 | tail -5
-    success "前端测试通过"
+    if npx vitest run > "$fe_log" 2>&1; then
+        success "前端测试通过"
+    else
+        error "前端测试失败，完整日志："
+        cat "$fe_log"
+        rm -f "$rust_log" "$fe_log"
+        return 1
+    fi
+
+    rm -f "$rust_log" "$fe_log"
 }
 
 # Run Android (Kotlin/Robolectric) unit tests. Fails the build if any test fails.
+# On failure, outputs the full test log for diagnosis.
 run_android_tests() {
-    set -o pipefail
+    local android_log
+    android_log="$(mktemp)"
+
     task "正在运行 Android (Kotlin) 测试..."
-    cd src-tauri/gen/android
-    ./gradlew test 2>&1 | tail -10
-    cd ../../..
-    success "Android (Kotlin) 测试通过"
+    if cd src-tauri/gen/android && ./gradlew test > "$android_log" 2>&1; then
+        cd "$OLDPWD"
+        success "Android (Kotlin) 测试通过"
+    else
+        cd "$OLDPWD"
+        error "Android (Kotlin) 测试失败，完整日志："
+        cat "$android_log"
+        rm -f "$android_log"
+        return 1
+    fi
+
+    rm -f "$android_log"
 }
 
 show_build_help() {

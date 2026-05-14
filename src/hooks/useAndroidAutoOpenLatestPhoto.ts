@@ -43,7 +43,13 @@ export function useAndroidAutoOpenLatestPhoto({
 
       // Try incremental insertion into active viewer.
       // insertImage returns false when the viewer is not visible.
-      const newest = items[items.length - 1];
+      // Select the item with the most recent modification time; fall back to array-last position
+      // if no timestamps are available.
+      const newest = items.reduce((best, item) => {
+          const bestTime = best.dateModifiedMs ?? 0;
+          const itemTime = item.dateModifiedMs ?? 0;
+          return itemTime > bestTime ? item : best;
+      }, items[items.length - 1]);
       let viewerHandledInsertion = false;
 
       // Insert all new items at index 0 (newest first, matching MediaStore dateDesc order).

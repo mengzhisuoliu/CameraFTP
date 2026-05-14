@@ -155,7 +155,7 @@ class DeleteController(
             return
         }
 
-        activity.onDeleteSuccess(uris, newCurrentIndex)
+        activity.onDeleteSuccess(newCurrentIndex)
         Toast.makeText(activity, "图片已删除", Toast.LENGTH_SHORT).show()
     }
 

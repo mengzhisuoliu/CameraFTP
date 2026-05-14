@@ -14,6 +14,7 @@ crate-type = ["lib", "cdylib", "staticlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 flate2 = "1"
+sha2 = "0.10"
 zip = "2"
 
 [dependencies]
@@ -54,6 +55,8 @@ zip = "2"
 libloading = "0.8"
 # SIMD-accelerated byte scanning for embedded JPEG extraction
 memchr = "2"
+# Stable content hashing for DLL/DB version detection (sha2 is cross-version stable, unlike DefaultHasher)
+sha2 = "0.10"
 # EXIF 元数据读取 - 使用 nom-exif 支持全格式 (JPG/RAW/CR3/NEF等)
 nom-exif = "2.7"
 futures = "0.3"

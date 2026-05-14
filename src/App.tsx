@@ -87,6 +87,7 @@ function App() {
           useAutoExposure,
           meteringMode,
           manualEv,
+          syncToAuto,
         },
         ...(syncToAuto && d.autoColorGrading ? {
           autoColorGrading: {

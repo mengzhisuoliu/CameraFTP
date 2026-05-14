@@ -8,6 +8,7 @@ package com.gjk.cameraftpcompanion.controllers
 
 import android.content.Intent
 import android.net.Uri
+import android.text.TextUtils
 import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -91,16 +92,23 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
 
     private var colorGradingWebView: WebView? = null
     private var promptWebView: WebView? = null
-    private var savedOrientation: Int? = null
+    private var orientationLockCount = 0
+    private var originalOrientation: Int? = null
 
     private fun lockOrientation() {
-        savedOrientation = activity.requestedOrientation
+        if (orientationLockCount == 0) {
+            originalOrientation = activity.requestedOrientation
+        }
+        orientationLockCount++
         activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
     }
 
     private fun restoreOrientation() {
-        savedOrientation?.let { activity.requestedOrientation = it }
-        savedOrientation = null
+        orientationLockCount = maxOf(0, orientationLockCount - 1)
+        if (orientationLockCount == 0) {
+            originalOrientation?.let { activity.requestedOrientation = it }
+            originalOrientation = null
+        }
     }
 
     fun showColorGrading(
@@ -125,7 +133,9 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
             }
         val initialPresetLabel = presets.find { it.first == initialPresetId }?.second ?: presets.first().second
         val presetOptionsHtml = presets.joinToString("") { (value, label) ->
-            """<div class="dropdown-opt${if (value == initialPresetId) " selected" else ""}" data-value="$value">$label</div>"""
+            val safeLabel = TextUtils.htmlEncode(label)
+            val safeValue = TextUtils.htmlEncode(value)
+            """<div class="dropdown-opt${if (value == initialPresetId) " selected" else ""}" data-value="$safeValue">$safeLabel</div>"""
         }
 
         val autoExposureChecked = lastUsedAutoExposure ?: true
@@ -203,7 +213,9 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
             ?: modelOptions.first().first
         val modelOptionHtml = modelOptions.joinToString("") { (value, label) ->
             val sel = if (value == selectedModel) " selected" else ""
-            """<div class="dropdown-opt$sel" data-value="$value">$label</div>"""
+            val safeLabel = TextUtils.htmlEncode(label)
+            val safeValue = TextUtils.htmlEncode(value)
+            """<div class="dropdown-opt$sel" data-value="$safeValue">$safeLabel</div>"""
         }
         val selectedLabel = modelOptions.first { it.first == selectedModel }.second
 

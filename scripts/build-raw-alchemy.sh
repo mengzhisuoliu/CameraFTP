@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build RawAlchemyCpp dynamic library for the current platform
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/build-common.sh"
@@ -78,7 +78,7 @@ build_raw_alchemy_android() {
         -DBUILD_SHARED=ON \
         -DBUILD_CAPI=ON \
         -DBUILD_CLI=OFF \
-        -DENABLE_LENS_CORRECTION=ON \
+        -DENABLE_LENS_CORRECTION=ON
 
     cmake --build "build-android-arm64" -j"$(nproc 2>/dev/null || echo 4)"
     cd - > /dev/null

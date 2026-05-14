@@ -6,7 +6,7 @@
 
 // TODO: Extract Chinese UI strings for i18n when locale support is added
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Palette } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Select } from './ui/Select';
@@ -36,11 +36,14 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
   const [useAutoExposure, setUseAutoExposure] = useState(true);
   const [meteringMode, setMeteringMode] = useState('highlight-safe');
   const [manualEv, setManualEv] = useState(0.0);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
   const [syncToAuto, setSyncToAuto] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const lastUsed = draft?.colorGradingLastUsed;
+      const lastUsed = draftRef.current?.colorGradingLastUsed;
       const initialPreset = lastUsed?.presetId || colorGradingPresets[0]?.id || 'fujifilm-provia';
       setSelectedId(initialPreset);
       setUseAutoExposure(lastUsed?.useAutoExposure ?? true);
@@ -48,7 +51,6 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
       setManualEv(lastUsed?.manualEv ?? 0.0);
       setSyncToAuto(false);
     }
-  // draft intentionally excluded — effect should only run on mount/dialog open
   }, [isOpen, colorGradingPresets]);
 
   const handleConfirm = () => {
@@ -61,6 +63,7 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
         useAutoExposure,
         meteringMode,
         manualEv,
+        syncToAuto,
       },
       ...(syncToAuto && d.autoColorGrading ? {
         autoColorGrading: {

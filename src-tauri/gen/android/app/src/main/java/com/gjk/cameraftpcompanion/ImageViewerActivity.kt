@@ -327,46 +327,46 @@ class ImageViewerActivity : AppCompatActivity() {
         }
     }
 
-    fun insertImage(uri: String, insertIndex: Int) {
-        runOnUiThread {
-            if (isFinishing || isDestroyed) return@runOnUiThread
-            if (uris.contains(uri)) return@runOnUiThread
+    fun insertImage(uri: String, insertIndex: Int): Boolean {
+        // Must be called on UI thread. Callers (bridge) handle thread dispatch.
+        if (isFinishing || isDestroyed) return false
+        if (uris.contains(uri)) return false
 
-            val adapter = viewPager.adapter as? ImageViewerAdapter ?: return@runOnUiThread
-            val clampedIndex = insertIndex.coerceIn(0, uris.size)
+        val adapter = viewPager.adapter as? ImageViewerAdapter ?: return false
+        val clampedIndex = insertIndex.coerceIn(0, uris.size)
 
-            uris.add(clampedIndex, uri)
+        uris.add(clampedIndex, uri)
 
-            // Shift orientation cache entries for positions >= clampedIndex
-            val shiftedCache = java.util.concurrent.ConcurrentHashMap<Int, Int>()
-            for ((pos, degrees) in exifController.orientationCache) {
-                shiftedCache[if (pos >= clampedIndex) pos + 1 else pos] = degrees
-            }
-            exifController.orientationCache.clear()
-            exifController.orientationCache.putAll(shiftedCache)
-
-            if (!adapter.insertUri(clampedIndex, uri)) {
-                // Adapter rejected (duplicate or other issue) — revert
-                uris.removeAt(clampedIndex)
-                exifController.orientationCache.clear()
-                shiftedCache.let { old ->
-                    for ((pos, degrees) in old) {
-                        exifController.orientationCache[if (pos > clampedIndex) pos - 1 else pos] = degrees
-                    }
-                }
-                return@runOnUiThread
-            }
-
-            // Adjust currentIndex if insert is before or at current position
-            if (clampedIndex <= currentIndex) {
-                currentIndex += 1
-            }
-
-            // ViewPager2 stays at current position; update bottom bar info
-            viewPager.setCurrentItem(currentIndex, false)
-            updateUI()
-            exifController.prefetchOrientations(around = currentIndex)
+        // Shift orientation cache entries for positions >= clampedIndex
+        val shiftedCache = mutableMapOf<Int, Int>()
+        for ((pos, degrees) in exifController.orientationCache) {
+            shiftedCache[if (pos >= clampedIndex) pos + 1 else pos] = degrees
         }
+        exifController.orientationCache.clear()
+        exifController.orientationCache.putAll(shiftedCache)
+
+        if (!adapter.insertUri(clampedIndex, uri)) {
+            // Adapter rejected (duplicate or other issue) — revert
+            uris.removeAt(clampedIndex)
+            exifController.orientationCache.clear()
+            shiftedCache.let { old ->
+                for ((pos, degrees) in old) {
+                    exifController.orientationCache[if (pos > clampedIndex) pos - 1 else pos] = degrees
+                }
+            }
+            return false
+        }
+
+        // Adjust currentIndex if insert is before or at current position
+        if (clampedIndex <= currentIndex) {
+            currentIndex += 1
+        }
+
+        // ViewPager2 stays at current position; update bottom bar info
+        viewPager.setCurrentItem(currentIndex, false)
+        updateUI()
+        exifController.prefetchOrientations(around = currentIndex)
+        return true
     }
 
     fun navigateToExistingUri(uri: String) {
@@ -616,11 +616,8 @@ class ImageViewerActivity : AppCompatActivity() {
     internal fun requestExifPrefetch(jsonString: String) {
         val mainActivity = MainActivity.instance ?: return
         val webView = mainActivity.getWebView() ?: return
-        val escaped = jsonString
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\n", "\\n")
-        val js = "if(window.__requestExifForPositions)window.__requestExifForPositions('$escaped')"
+        val jsonArg = JSONArray().put(jsonString).toString()
+        val js = "if(window.__requestExifForPositions)window.__requestExifForPositions(JSON.parse($jsonArg)[0])"
         webView.post { webView.evaluateJavascript(js, null) }
     }
 
@@ -668,7 +665,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
     // --- Delete callback (called by DeleteController) ---
 
-    internal fun onDeleteSuccess(updatedUris: MutableList<String>, newIndex: Int) {
+    internal fun onDeleteSuccess(newIndex: Int) {
         currentIndex = newIndex
         exifController.orientationCache.clear()
         (viewPager.adapter as? ImageViewerAdapter)?.replaceUris(uris)
@@ -702,11 +699,7 @@ class ImageViewerActivity : AppCompatActivity() {
         resetCurrentImageScale()
 
         updateUI()
-        taskController.syncAiEditProgress()
-        taskController.syncColorGradingProgress()
-        if (taskController.isVisible) {
-            taskController.updatePosition(isBottomBarVisible, bottomBar)
-        }
+        syncTaskPanelState()
     }
 
     private fun resetCurrentImageScale() {
@@ -720,15 +713,19 @@ class ImageViewerActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        _instance = WeakReference(this)
-        isViewerVisible = true
+    private fun syncTaskPanelState() {
         taskController.syncAiEditProgress()
         taskController.syncColorGradingProgress()
         if (taskController.isVisible) {
             taskController.updatePosition(isBottomBarVisible, bottomBar)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        _instance = WeakReference(this)
+        isViewerVisible = true
+        syncTaskPanelState()
     }
 
     override fun onPause() {

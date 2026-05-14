@@ -10,7 +10,9 @@ use std::sync::{Arc, RwLock};
 
 use crate::image_utils::is_raw_file;
 
-const MAX_CACHE_ENTRIES: usize = 50;
+/// Maximum cached preview entries. Each RAW preview can be up to ~50 MB;
+/// capping at 8 entries keeps worst-case memory under 400 MB.
+const MAX_CACHE_ENTRIES: usize = 8;
 
 pub fn content_type_for(path: &Path) -> &'static str {
     let ext = path.extension()

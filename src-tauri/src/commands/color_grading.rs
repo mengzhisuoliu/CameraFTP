@@ -44,3 +44,8 @@ pub async fn cancel_color_grading(
 pub fn is_raw_file(file_path: String) -> bool {
     crate::image_utils::is_raw_file(&PathBuf::from(file_path))
 }
+
+#[command]
+pub fn is_color_grading_available() -> bool {
+    crate::color_grading::ffi::RawAlchemyLib::get().is_ok()
+}

@@ -70,6 +70,37 @@ fn read_raw_orientation(path: &Path) -> Option<u8> {
     crate::image_utils::parse_exif(path).ok()??.orientation
 }
 
+/// Validate that candidate data has a structurally valid JPEG segment layout.
+/// Checks that markers after SOI follow JPEG syntax rules.
+fn is_valid_jpeg(data: &[u8]) -> bool {
+    if data.len() < 6 {
+        return false;
+    }
+    let mut pos = 2; // Skip SOI (FF D8)
+    while pos < data.len() - 1 {
+        if data[pos] != 0xFF {
+            return false;
+        }
+        let marker = data[pos + 1];
+        if marker == 0xD9 {
+            return true; // EOI — valid termination
+        }
+        if marker == 0x00 || marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+            pos += 2;
+            continue;
+        }
+        if pos + 3 >= data.len() {
+            return false;
+        }
+        let seg_len = u16::from_be_bytes([data[pos + 2], data[pos + 3]]) as usize;
+        if seg_len < 2 || pos + 2 + seg_len > data.len() {
+            return false;
+        }
+        pos += 2 + seg_len;
+    }
+    false
+}
+
 /// Scan binary data for the largest complete JPEG segment.
 /// JPEG segments are delimited by SOI (0xFF 0xD8) and EOI (0xFF 0xD9) markers.
 /// Uses memchr for SIMD-accelerated 0xFF byte scanning.
@@ -117,7 +148,12 @@ fn find_largest_jpeg(data: &[u8]) -> Option<Vec<u8>> {
     }
 
     if best_size >= 8 {
-        Some(data[best_start..best_start + best_size].to_vec())
+        let candidate = &data[best_start..best_start + best_size];
+        if is_valid_jpeg(candidate) {
+            Some(candidate.to_vec())
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -187,11 +223,11 @@ mod tests {
 
     #[test]
     fn find_largest_jpeg_returns_largest() {
-        // Small JPEG: SOI + 2 payload bytes + EOI = 6 bytes
-        let small: Vec<u8> = vec![0xFF, 0xD8, 0xAA, 0xBB, 0xFF, 0xD9];
-        // Large JPEG: SOI + 10 payload bytes + EOI = 14 bytes
+        // Small JPEG: SOI + APP0(4 bytes) + EOI = 10 bytes
+        let small: Vec<u8> = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, 0xFF, 0xD9];
+        // Large JPEG: SOI + DQT(8 bytes) + EOI = 14 bytes
         let large: Vec<u8> = vec![
-            0xFF, 0xD8, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0xFF, 0xD9,
+            0xFF, 0xD8, 0xFF, 0xDB, 0x00, 0x06, 0x01, 0x02, 0x03, 0x04, 0xFF, 0xD9,
         ];
 
         // Place small JPEG first, then some filler, then large JPEG
@@ -201,7 +237,7 @@ mod tests {
         data.extend_from_slice(&large);
 
         let result = find_largest_jpeg(&data).expect("should find a JPEG");
-        assert_eq!(result.len(), 14);
+        assert_eq!(result.len(), 12);
         assert_eq!(result, large);
     }
 

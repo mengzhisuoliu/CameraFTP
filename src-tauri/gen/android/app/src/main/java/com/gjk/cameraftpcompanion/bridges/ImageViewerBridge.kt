@@ -131,7 +131,9 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
                 val fileUri = android.net.Uri.fromFile(file).toString()
                 // Mark as file-scheme so later content:// insertions from the WebView
                 // event handler can detect and skip the duplicate.
-                viewer.insertImage(fileUri, 0)
+                activity.runOnUiThread {
+                    viewer.insertImage(fileUri, 0)
+                }
             }
         }
 
@@ -162,17 +164,15 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         val viewer = ImageViewerActivity.instance ?: return false
         if (!ImageViewerActivity.isViewerVisible) return false
         if (viewer.isFinishing || viewer.isDestroyed) return false
-        // Check if a file:// URI for the same file already exists in the list
-        val parsed = android.net.Uri.parse(uri)
-        if (parsed.scheme == "content") {
-            val filePath = ImageViewerActivity.resolveUriToFilePath(activity, uri)
-            if (filePath != null) {
-                val existingFileUri = android.net.Uri.fromFile(java.io.File(filePath)).toString()
-                if (viewer.uris.contains(existingFileUri)) return false
-            }
+        val result = arrayOf(false)
+        val latch = java.util.concurrent.CountDownLatch(1)
+        activity.runOnUiThread {
+            result[0] = viewer.insertImage(uri, insertIndex)
+            latch.countDown()
         }
-        viewer.insertImage(uri, insertIndex)
-        return true
+        // Block briefly (max 500ms) to get the actual insertion result from the UI thread
+        latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+        return result[0]
     }
 
     /**

@@ -23,12 +23,12 @@ pub mod embedded_dll {
     /// Extract the embedded gzip-compressed DLL to a temp directory.
     /// Uses a content hash in the filename so new versions replace old ones automatically.
     pub fn extract_to_temp() -> Result<std::path::PathBuf, AppError> {
-        use std::hash::{Hash, Hasher};
+        use sha2::{Sha256, Digest};
         use std::io::Read;
 
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        RAW_ALCHEMY_DLL_GZ.hash(&mut hasher);
-        let content_hash = format!("{:016x}", hasher.finish());
+        let mut hasher = Sha256::new();
+        hasher.update(RAW_ALCHEMY_DLL_GZ);
+        let content_hash = format!("{:x}", hasher.finalize());
 
         let temp_dir = std::env::temp_dir().join("CameraFTP");
         std::fs::create_dir_all(&temp_dir).map_err(|e| {

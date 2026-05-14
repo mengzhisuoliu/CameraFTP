@@ -173,6 +173,9 @@ pub struct ColorGradingLastUsed {
     pub metering_mode: String,
     /// 手动曝光补偿值（EV）
     pub manual_ev: f32,
+    /// 是否将参数同步到自动调色配置
+    #[serde(default)]
+    pub sync_to_auto: bool,
 }
 
 impl Default for ColorGradingLastUsed {
@@ -182,6 +185,7 @@ impl Default for ColorGradingLastUsed {
             use_auto_exposure: true,
             metering_mode: "highlight-safe".to_string(),
             manual_ev: 0.0,
+            sync_to_auto: false,
         }
     }
 }
@@ -370,6 +374,12 @@ impl AppConfig {
                     cg.metering_mode
                 );
             }
+            if !cg.preset_id.is_empty() && crate::color_grading::presets::find_preset(&cg.preset_id).is_none() {
+                tracing::warn!(
+                    "Invalid auto_color_grading preset_id '{}', no matching preset found",
+                    cg.preset_id
+                );
+            }
         }
 
         if let Some(ref lu) = self.color_grading_last_used {
@@ -379,6 +389,12 @@ impl AppConfig {
                 tracing::warn!(
                     "Invalid last-used metering_mode '{}', ignoring (will use FFI default)",
                     lu.metering_mode
+                );
+            }
+            if !lu.preset_id.is_empty() && crate::color_grading::presets::find_preset(&lu.preset_id).is_none() {
+                tracing::warn!(
+                    "Invalid last-used preset_id '{}', no matching preset found",
+                    lu.preset_id
                 );
             }
         }

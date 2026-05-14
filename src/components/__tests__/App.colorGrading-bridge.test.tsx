@@ -163,14 +163,14 @@ describe('Color grading bridge functions', () => {
       setPartialDraft({
         colorGradingLastUsed: {
           presetId: 'fujifilm-velvia', useAutoExposure: false,
-          meteringMode: 'matrix', manualEv: 1.5,
+          meteringMode: 'matrix', manualEv: 1.5, syncToAuto: false,
         },
       });
 
       const result = (w.__tauriGetColorGradingLastUsed as () => string)();
       expect(JSON.parse(result)).toEqual({
         presetId: 'fujifilm-velvia', useAutoExposure: false,
-        meteringMode: 'matrix', manualEv: 1.5,
+        meteringMode: 'matrix', manualEv: 1.5, syncToAuto: false,
       });
     });
   });
@@ -208,6 +208,7 @@ describe('Color grading bridge functions', () => {
         useAutoExposure: true,
         meteringMode: 'highlight-safe',
         manualEv: 0,
+        syncToAuto: false,
       });
     });
 

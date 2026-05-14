@@ -102,6 +102,7 @@ export function createTaskProgressHook<TEvent extends { type: string }>(
           isActive: false,
           isDone: true,
           current: mapped.total,
+          total: mapped.total,
           failedCount: mapped.failedCount,
           failedFiles: mapped.failedFiles,
         });

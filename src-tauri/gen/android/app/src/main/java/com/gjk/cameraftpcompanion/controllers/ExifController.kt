@@ -6,7 +6,6 @@
 
 package com.gjk.cameraftpcompanion.controllers
 
-import android.content.res.Configuration
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.net.Uri
@@ -24,7 +23,6 @@ import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
@@ -36,7 +34,7 @@ class ExifController(activity: ImageViewerActivity) {
 
     private val activityRef: WeakReference<ImageViewerActivity> = WeakReference(activity)
 
-    val orientationCache = ConcurrentHashMap<Int, Int>()
+    val orientationCache = mutableMapOf<Int, Int>()
     private val exifExecutor = Executors.newFixedThreadPool(2)
 
     fun attachAdapter(adapter: ImageViewerAdapter) {

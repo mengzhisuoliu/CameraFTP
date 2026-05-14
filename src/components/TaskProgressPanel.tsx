@@ -20,6 +20,43 @@ interface TaskProgressPanelProps {
 
 const AUTO_DISMISS_DELAY_MS = 3000;
 
+function TaskRow({
+  label,
+  labelColor,
+  state,
+  onCancel,
+  ariaLabel,
+}: {
+  label: string;
+  labelColor: string;
+  state: { isDone: boolean; total: number; current: number; failedCount: number };
+  onCancel: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="flex items-center px-3 py-1.5 gap-1">
+      <span className={`${labelColor} text-xs shrink-0`}>{label}：</span>
+      <span className="text-white/70 text-xs tabular-nums">
+        {state.isDone ? state.total : state.current} / {state.total}
+      </span>
+      {state.failedCount > 0 && (
+        <span className="text-red-400 text-xs tabular-nums">
+          (失败 {state.failedCount})
+        </span>
+      )}
+      {!state.isDone && (
+        <button
+          onClick={onCancel}
+          className="ml-auto text-white/40 hover:text-white text-xs p-0.5 shrink-0"
+          aria-label={ariaLabel}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
   const aiEdit = useAiEditProgress();
   const colorGrading = useColorGradingProgress();
@@ -41,8 +78,8 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
 
     if (allDone) {
       dismissTimerRef.current = setTimeout(() => {
-        dismissAiEditDone();
-        dismissColorGradingDone();
+        if (aiEditVisible && aiEdit.isDone) dismissAiEditDone();
+        if (cgVisible && colorGrading.isDone) dismissColorGradingDone();
       }, AUTO_DISMISS_DELAY_MS);
     }
 
@@ -61,11 +98,11 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
     ? { left: '12px', bottom: '5rem' }
     : { left: '12px', bottom: '76px' };
 
-  const handleCancelAiEdit = () => { void cancelAiEdit(); };
-  const handleCancelColorGrading = () => { void cancelColorGrading(); };
+  const handleCancelAiEdit = () => { cancelAiEdit().catch(() => {}); };
+  const handleCancelColorGrading = () => { cancelColorGrading().catch(() => {}); };
   const handleCancelAll = () => {
-    if (aiEditVisible && !aiEdit.isDone) void cancelAiEdit();
-    if (cgVisible && !colorGrading.isDone) void cancelColorGrading();
+    if (aiEditVisible && !aiEdit.isDone) cancelAiEdit().catch(() => {});
+    if (cgVisible && !colorGrading.isDone) cancelColorGrading().catch(() => {});
   };
 
   return (
@@ -78,50 +115,24 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
 
         {/* AI Edit row */}
         {aiEditVisible && (
-          <div className="flex items-center px-3 py-1.5 gap-1">
-            <span className="text-blue-400 text-xs shrink-0">AI修图：</span>
-            <span className="text-white/70 text-xs tabular-nums">
-              {aiEdit.isDone ? aiEdit.total : aiEdit.current} / {aiEdit.total}
-            </span>
-            {aiEdit.failedCount > 0 && (
-              <span className="text-red-400 text-xs tabular-nums">
-                (失败 {aiEdit.failedCount})
-              </span>
-            )}
-            {!aiEdit.isDone && (
-              <button
-                onClick={handleCancelAiEdit}
-                className="ml-auto text-white/40 hover:text-white text-xs p-0.5 shrink-0"
-                aria-label="取消AI修图"
-              >
-                ×
-              </button>
-            )}
-          </div>
+          <TaskRow
+            label="AI修图"
+            labelColor="text-blue-400"
+            state={aiEdit}
+            onCancel={handleCancelAiEdit}
+            ariaLabel="取消AI修图"
+          />
         )}
 
         {/* Color Grading row */}
         {cgVisible && (
-          <div className="flex items-center px-3 py-1.5 gap-1">
-            <span className="text-violet-400 text-xs shrink-0">调色：</span>
-            <span className="text-white/70 text-xs tabular-nums">
-              {colorGrading.isDone ? colorGrading.total : colorGrading.current} / {colorGrading.total}
-            </span>
-            {colorGrading.failedCount > 0 && (
-              <span className="text-red-400 text-xs tabular-nums">
-                (失败 {colorGrading.failedCount})
-              </span>
-            )}
-            {!colorGrading.isDone && (
-              <button
-                onClick={handleCancelColorGrading}
-                className="ml-auto text-white/40 hover:text-white text-xs p-0.5 shrink-0"
-                aria-label="取消调色"
-              >
-                ×
-              </button>
-            )}
-          </div>
+          <TaskRow
+            label="调色"
+            labelColor="text-violet-400"
+            state={colorGrading}
+            onCancel={handleCancelColorGrading}
+            ariaLabel="取消调色"
+          />
         )}
 
         {/* Footer */}

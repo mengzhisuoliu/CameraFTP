@@ -267,13 +267,12 @@ async fn process_single_file(task: &ColorGradingTask) -> Result<String, AppError
     let stem = task.input_path.file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "output".into());
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
     let output_dir = parent.join("ColorGrading");
     tokio::fs::create_dir_all(&output_dir).await
         .map_err(|e| AppError::ColorGradingError(format!("Failed to create output dir: {}", e)))?;
     let output_name = format!("{}_{}_{}.jpg", stem, preset.id, timestamp);
-    let output_path = output_dir.join(output_name);
-    let result_path = output_path.to_string_lossy().into_owned();
+    let output_path = output_dir.join(&output_name);
 
     let lut_data = super::lut_data::get_lut_data(&preset.id)?;
     let lib = super::ffi::RawAlchemyLib::get()?;
@@ -287,18 +286,35 @@ async fn process_single_file(task: &ColorGradingTask) -> Result<String, AppError
     let metering_mode = task.metering_mode.clone();
     let use_auto_exposure = task.use_auto_exposure;
     let manual_ev = task.manual_ev;
+    let stem_clone = stem.clone();
+    let preset_id = preset.id.clone();
 
-    tokio::task::spawn_blocking(move || {
+    let result_path = tokio::task::spawn_blocking(move || -> Result<String, AppError> {
+        // Resolve collision inside blocking context — avoids blocking async thread
+        let mut final_output_path = output_path;
+        if final_output_path.exists() {
+            for seq in 1..100u32 {
+                let candidate = output_dir.join(format!("{}_{}_{}_{}.jpg", stem_clone, preset_id, timestamp, seq));
+                if !candidate.exists() {
+                    final_output_path = candidate;
+                    break;
+                }
+            }
+        }
+        let result = final_output_path.to_string_lossy().into_owned();
+
         lib.process_file_with_lut(
             &input_path,
-            &output_path,
+            &final_output_path,
             Some(&log_space),
             &lut_data,
             lensfun_path.as_deref(),
             use_auto_exposure,
             &metering_mode,
             manual_ev,
-        )
+        )?;
+
+        Ok(result)
     }).await.map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;
 
     Ok(result_path)

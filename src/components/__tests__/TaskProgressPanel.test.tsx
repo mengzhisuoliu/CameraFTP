@@ -206,6 +206,7 @@ describe('TaskProgressPanel', () => {
   it('auto-dismisses after 3 seconds when all done', () => {
     vi.useFakeTimers();
     Object.assign(mockAiEditState, { isDone: true, total: 2, current: 2 });
+    Object.assign(mockCgState, { isDone: true, total: 1, current: 1 });
 
     act(() => {
       getRoot().render(<TaskProgressPanel position="absolute" />);

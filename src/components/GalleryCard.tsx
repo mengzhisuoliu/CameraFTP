@@ -152,13 +152,16 @@ export const GalleryCard = memo(function GalleryCard() {
 
   const handleColorGradingConfirm = useCallback(async (lutId: string, useAutoExposure: boolean, meteringMode: string, manualEv: number) => {
     setShowColorGradingDialog(false);
-    const filePaths = Array.from(selectedIds)
+    const resolved = Array.from(selectedIds)
       .map(id => pager.items.find(item => item.mediaId === id))
       .filter((item): item is NonNullable<typeof item> => item != null)
-      .map(item => window.ImageViewerAndroid?.resolveFilePath?.(item.uri) ?? item.uri);
-    if (filePaths.length > 0) {
-      await enqueueColorGrading(filePaths, lutId, useAutoExposure, meteringMode, manualEv);
+      .map(item => window.ImageViewerAndroid?.resolveFilePath?.(item.uri) ?? null);
+    const filePaths = resolved.filter((path): path is string => path !== null);
+    if (filePaths.length === 0) {
+      setShowColorGradingDialog(false);
+      return;
     }
+    await enqueueColorGrading(filePaths, lutId, useAutoExposure, meteringMode, manualEv);
   }, [selectedIds, pager.items]);
 
   const hasRawSelected = Array.from(selectedIds).some(id => {

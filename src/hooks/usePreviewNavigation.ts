@@ -31,7 +31,7 @@ interface UsePreviewNavigationResult {
   goToPrevious: () => void;
   goToNext: () => void;
   goToOldest: () => void;
-  goToLatest: () => Promise<void>;
+  goToLatest: () => void;
 }
 
 export function usePreviewNavigation({
@@ -144,9 +144,9 @@ export function usePreviewNavigation({
     void navigateTo(totalFiles - 1);
   }, [totalFiles, navigateTo]);
 
-  const goToLatest = useCallback(async () => {
+  const goToLatest = useCallback(() => {
     if (totalFiles === 0) return;
-    await navigateTo(0);
+    void navigateTo(0);
   }, [navigateTo, totalFiles]);
 
   return {

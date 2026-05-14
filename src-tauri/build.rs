@@ -90,9 +90,8 @@ fn add_manifest_for_all_artifacts() {
 fn compress_lensfun_db() {
     use flate2::write::GzEncoder;
     use flate2::Compression;
-    use std::collections::hash_map::DefaultHasher;
+    use sha2::{Sha256, Digest};
     use std::fs;
-    use std::hash::{Hash, Hasher};
     use std::io::{Read, Write};
 
     let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR env var not set — this should be provided by Cargo; are you running outside of 'cargo build'?"));
@@ -120,7 +119,7 @@ fn compress_lensfun_db() {
         return;
     }
 
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = Sha256::new();
     let mut manifest_lines: Vec<String> = Vec::new();
 
     for entry in &entries {
@@ -133,8 +132,8 @@ fn compress_lensfun_db() {
         input.read_to_end(&mut data).expect("Failed to read Lensfun DB XML file — file may be corrupted or unreadable");
 
         // Hash filename + content for change detection
-        file_name.hash(&mut hasher);
-        data.hash(&mut hasher);
+        hasher.update(file_name.as_bytes());
+        hasher.update(&data);
 
         // Gzip-compress
         let gz_name = format!("{}.gz", file_name);
@@ -151,7 +150,7 @@ fn compress_lensfun_db() {
         ));
     }
 
-    let hash = format!("{:016x}", hasher.finish());
+    let hash = format!("{:x}", hasher.finalize());
 
     // Generate manifest Rust file
     let manifest_content = format!(
