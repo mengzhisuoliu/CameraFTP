@@ -282,8 +282,7 @@ pub fn run() {
             enqueue_color_grading,
             cancel_color_grading,
             is_color_grading_available,
-    is_color_grading_available,
-    is_raw_file,
+            is_raw_file,
         ]);
 
     #[cfg(target_os = "windows")]

@@ -337,20 +337,22 @@ class ImageViewerActivity : AppCompatActivity() {
 
         uris.add(clampedIndex, uri)
 
-        // Shift orientation cache entries for positions >= clampedIndex
+        // Atomically shift orientation cache entries for positions >= clampedIndex
         val shiftedCache = mutableMapOf<Int, Int>()
-        for ((pos, degrees) in exifController.orientationCache) {
-            shiftedCache[if (pos >= clampedIndex) pos + 1 else pos] = degrees
+        synchronized(exifController.orientationCache) {
+            for ((pos, degrees) in exifController.orientationCache) {
+                shiftedCache[if (pos >= clampedIndex) pos + 1 else pos] = degrees
+            }
+            exifController.orientationCache.clear()
+            exifController.orientationCache.putAll(shiftedCache)
         }
-        exifController.orientationCache.clear()
-        exifController.orientationCache.putAll(shiftedCache)
 
         if (!adapter.insertUri(clampedIndex, uri)) {
             // Adapter rejected (duplicate or other issue) — revert
             uris.removeAt(clampedIndex)
-            exifController.orientationCache.clear()
-            shiftedCache.let { old ->
-                for ((pos, degrees) in old) {
+            synchronized(exifController.orientationCache) {
+                exifController.orientationCache.clear()
+                for ((pos, degrees) in shiftedCache) {
                     exifController.orientationCache[if (pos > clampedIndex) pos - 1 else pos] = degrees
                 }
             }

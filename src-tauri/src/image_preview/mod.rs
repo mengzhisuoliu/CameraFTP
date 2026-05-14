@@ -23,6 +23,7 @@ pub fn content_type_for(path: &Path) -> &'static str {
     match ext.as_str() {
         "jpg" | "jpeg" => "image/jpeg",
         "heif" | "hif" | "heic" => "image/heic",
+        _ if is_raw_file(path) => "image/jpeg",
         _ => "application/octet-stream",
     }
 }
@@ -46,7 +47,10 @@ impl ImagePreviewCache {
         }
     }
 
-    pub fn get_or_load(&self, path: &Path) -> Result<Arc<Vec<u8>>, String> {
+    /// Loads image data for the given path, performing synchronous I/O.
+    /// Extracts embedded JPEG previews from RAW files; reads other files directly.
+    /// Called from `std::thread::spawn` in the URI scheme handler — do not call from async context.
+    pub(crate) fn get_or_load(&self, path: &Path) -> Result<Arc<Vec<u8>>, String> {
         let key = path.to_string_lossy().to_string();
 
         {
@@ -111,10 +115,16 @@ mod tests {
 
     #[test]
     fn content_type_for_unknown_defaults_to_octet_stream() {
-        assert_eq!(content_type_for(Path::new("photo.nef")), "application/octet-stream");
-        assert_eq!(content_type_for(Path::new("photo.cr2")), "application/octet-stream");
         assert_eq!(content_type_for(Path::new("photo.png")), "application/octet-stream");
         assert_eq!(content_type_for(Path::new("photo")), "application/octet-stream");
+    }
+
+    #[test]
+    fn content_type_for_raw_returns_jpeg() {
+        assert_eq!(content_type_for(Path::new("photo.nef")), "image/jpeg");
+        assert_eq!(content_type_for(Path::new("photo.cr2")), "image/jpeg");
+        assert_eq!(content_type_for(Path::new("photo.arw")), "image/jpeg");
+        assert_eq!(content_type_for(Path::new("photo.NEF")), "image/jpeg");
     }
 
     #[test]

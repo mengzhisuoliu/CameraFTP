@@ -33,6 +33,9 @@ class DeleteController(
 
     fun deleteCurrentImage(uriString: String, uris: MutableList<String>, currentIndex: Int) {
         val activity = activityRef.get() ?: return
+        check(android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            "deleteCurrentImage must be called on the UI thread"
+        }
         if (uris.isEmpty() || currentIndex < 0 || currentIndex >= uris.size) return
 
         val uri = Uri.parse(uriString)

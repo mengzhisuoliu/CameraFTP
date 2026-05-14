@@ -49,6 +49,8 @@ class TaskProgressController(activity: android.app.Activity) {
         val cancelJs: String,
     )
 
+    private fun isBound(): Boolean = ::panel.isInitialized
+
     fun bindViews(root: View) {
         panel = root.findViewById(com.gjk.cameraftpcompanion.R.id.task_progress_panel)
         aiEditRow = root.findViewById(com.gjk.cameraftpcompanion.R.id.task_row_ai_edit)
@@ -66,28 +68,33 @@ class TaskProgressController(activity: android.app.Activity) {
     fun cgRefs() = TaskRowRefs(cgRow, cgCount, cgFailed, cgCancel, "__tauriCancelColorGrading")
 
     fun updateAiEditProgress(current: Int, total: Int, failedCount: Int) {
+        if (!isBound()) return
         isAiEditing = true
         updateTaskRowProgress(aiEditRefs(), current, total, failedCount)
     }
 
     fun updateColorGradingProgress(current: Int, total: Int, failedCount: Int) {
+        if (!isBound()) return
         isColorGrading = true
         updateTaskRowProgress(cgRefs(), current, total, failedCount)
     }
 
     fun onAiEditComplete(cancelled: Boolean) {
+        if (!isBound()) return
         isAiEditing = false
         val state = ImageViewerBridge.aiEditState
         onTaskRowComplete(aiEditRefs(), state, cancelled)
     }
 
     fun onColorGradingComplete(cancelled: Boolean) {
+        if (!isBound()) return
         isColorGrading = false
         val state = ImageViewerBridge.colorGradingState
         onTaskRowComplete(cgRefs(), state, cancelled)
     }
 
     fun syncAiEditProgress() {
+        if (!isBound()) return
         syncTaskRowFromWebView(
             ImageViewerBridge.aiEditState,
             aiEditRefs(),
@@ -97,6 +104,7 @@ class TaskProgressController(activity: android.app.Activity) {
     }
 
     fun syncColorGradingProgress() {
+        if (!isBound()) return
         syncTaskRowFromWebView(
             ImageViewerBridge.colorGradingState,
             cgRefs(),
@@ -111,6 +119,7 @@ class TaskProgressController(activity: android.app.Activity) {
     }
 
     fun updatePosition(isBottomBarVisible: Boolean, bottomBar: View) {
+        if (!isBound()) return
         val lp = panel.layoutParams as? FrameLayout.LayoutParams ?: return
         lp.gravity = Gravity.BOTTOM or Gravity.START
         lp.marginStart = 12.dpToPx(panel.context)
@@ -132,6 +141,7 @@ class TaskProgressController(activity: android.app.Activity) {
     val isVisible: Boolean get() = panel.visibility == View.VISIBLE
 
     fun dismissAll() {
+        if (!isBound()) return
         aiEditRow.visibility = View.GONE
         cgRow.visibility = View.GONE
         panel.visibility = View.GONE

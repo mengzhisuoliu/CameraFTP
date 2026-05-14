@@ -99,7 +99,7 @@ impl ColorGradingService {
             return;
         }
 
-        let cg = auto_cg.unwrap();
+        let Some(cg) = auto_cg else { return };
         if let Err(e) = self.enqueue(
             vec![file_path.clone()],
             cg.preset_id.clone(),
@@ -293,12 +293,19 @@ async fn process_single_file(task: &ColorGradingTask) -> Result<String, AppError
         // Resolve collision inside blocking context — avoids blocking async thread
         let mut final_output_path = output_path;
         if final_output_path.exists() {
+            let mut found = false;
             for seq in 1..100u32 {
                 let candidate = output_dir.join(format!("{}_{}_{}_{}.jpg", stem_clone, preset_id, timestamp, seq));
                 if !candidate.exists() {
                     final_output_path = candidate;
+                    found = true;
                     break;
                 }
+            }
+            if !found {
+                return Err(AppError::ColorGradingError(
+                    "Output path collision: could not find unique filename after 100 attempts".into(),
+                ));
             }
         }
         let result = final_output_path.to_string_lossy().into_owned();

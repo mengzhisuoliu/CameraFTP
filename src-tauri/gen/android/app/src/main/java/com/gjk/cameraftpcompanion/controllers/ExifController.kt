@@ -34,7 +34,7 @@ class ExifController(activity: ImageViewerActivity) {
 
     private val activityRef: WeakReference<ImageViewerActivity> = WeakReference(activity)
 
-    val orientationCache = mutableMapOf<Int, Int>()
+    val orientationCache = java.util.concurrent.ConcurrentHashMap<Int, Int>()
     private val exifExecutor = Executors.newFixedThreadPool(2)
 
     fun attachAdapter(adapter: ImageViewerAdapter) {

@@ -95,6 +95,9 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
     private var orientationLockCount = 0
     private var originalOrientation: Int? = null
 
+    private fun jsEscape(s: String): String =
+        s.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+
     private fun lockOrientation() {
         if (orientationLockCount == 0) {
             originalOrientation = activity.requestedOrientation
@@ -151,8 +154,8 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
         } else ""
 
         val html = activity.assets.open("color_grading_dialog.html").bufferedReader().use { it.readText() }
-            .replace("{{FIRST_ID}}", initialPresetId)
-            .replace("{{FIRST_LABEL}}", initialPresetLabel)
+            .replace("{{FIRST_ID}}", jsEscape(initialPresetId))
+            .replace("{{FIRST_LABEL}}", jsEscape(initialPresetLabel))
             .replace("{{PRESET_OPTIONS}}", presetOptionsHtml)
             .replace("{{SAVE_TOGGLE}}", saveToggleHtml)
             .replace("{{AUTO_EXPOSURE_CHECKED}}", if (autoExposureChecked) "checked" else "")
@@ -243,8 +246,8 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
 
         val html = activity.assets.open("ai_edit_dialog.html").bufferedReader().use { it.readText() }
             .replace("{{ESCAPED_PROMPT}}", escapedPrompt)
-            .replace("{{SELECTED_MODEL}}", selectedModel)
-            .replace("{{SELECTED_LABEL}}", selectedLabel)
+            .replace("{{SELECTED_MODEL}}", jsEscape(selectedModel))
+            .replace("{{SELECTED_LABEL}}", jsEscape(selectedLabel))
             .replace("{{MODEL_OPTIONS}}", modelOptionHtml)
             .replace("{{SAVE_TOGGLE}}", saveToggleHtml)
             .replace("{{API_KEY_HTML}}", apiKeyHtml)
@@ -277,7 +280,18 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
     }
 
     fun dismissAll() {
-        dismissColorGrading()
-        dismissAiEditPrompt()
+        colorGradingWebView?.let {
+            (it.parent as? FrameLayout)?.removeView(it)
+            it.destroy()
+        }
+        colorGradingWebView = null
+        promptWebView?.let {
+            (it.parent as? FrameLayout)?.removeView(it)
+            it.destroy()
+        }
+        promptWebView = null
+        orientationLockCount = 0
+        originalOrientation?.let { activity.requestedOrientation = it }
+        originalOrientation = null
     }
 }

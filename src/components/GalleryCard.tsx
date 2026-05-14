@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ImageOff, X, Trash2, Share2, Sparkles, MoreVertical, Palette } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 import { usePermissionStore } from '../stores/permissionStore';
@@ -164,10 +164,10 @@ export const GalleryCard = memo(function GalleryCard() {
     await enqueueColorGrading(filePaths, lutId, useAutoExposure, meteringMode, manualEv);
   }, [selectedIds, pager.items]);
 
-  const hasRawSelected = Array.from(selectedIds).some(id => {
+  const hasRawSelected = useMemo(() => Array.from(selectedIds).some(id => {
     const item = pager.items.find(i => i.mediaId === id);
     return item?.filePath ? isRawFile(item.filePath) : false;
-  });
+  }), [selectedIds, pager.items]);
 
   // Full refresh on permission granted (necessary because gallery was empty before)
   useEffect(() => {

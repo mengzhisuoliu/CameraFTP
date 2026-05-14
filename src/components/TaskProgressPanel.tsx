@@ -61,9 +61,12 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
   const aiEdit = useAiEditProgress();
   const colorGrading = useColorGradingProgress();
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const aiEditVisible = aiEdit.isEditing || aiEdit.isDone;
   const cgVisible = colorGrading.isProcessing || colorGrading.isDone;
+  const aiEditVisibleRef = useRef(aiEditVisible);
+  const cgVisibleRef = useRef(cgVisible);
+  aiEditVisibleRef.current = aiEditVisible;
+  cgVisibleRef.current = cgVisible;
   const hasAnyTask = aiEditVisible || cgVisible;
 
   const allDone = (aiEditVisible ? aiEdit.isDone : true)
@@ -78,8 +81,8 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
 
     if (allDone) {
       dismissTimerRef.current = setTimeout(() => {
-        if (aiEditVisible && aiEdit.isDone) dismissAiEditDone();
-        if (cgVisible && colorGrading.isDone) dismissColorGradingDone();
+        if (aiEditVisibleRef.current && aiEdit.isDone) dismissAiEditDone();
+        if (cgVisibleRef.current && colorGrading.isDone) dismissColorGradingDone();
       }, AUTO_DISMISS_DELAY_MS);
     }
 
@@ -89,7 +92,7 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
         dismissTimerRef.current = null;
       }
     };
-  }, [allDone]);
+  }, [allDone, aiEdit.isDone, colorGrading.isDone]);
 
   if (!hasAnyTask) return null;
 

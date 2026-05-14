@@ -29,12 +29,13 @@ export function useAndroidAutoOpenLatestPhoto({
   autoOpenWhenVisibleRef.current = autoOpenLatestWhenVisible;
 
   useEffect(() => {
-    const handleItemsAdded = (event: GalleryItemsAddedEvent) => {
+    const handleItemsAdded = (event: Event) => {
+      const detail = (event as CustomEvent<GalleryItemsAddedEvent['detail']>).detail;
       if (openMethodRef.current !== 'built-in-viewer') {
         return;
       }
 
-      const { items } = event.detail;
+      const { items } = detail;
       if (!items || items.length === 0) {
         return;
       }
@@ -106,9 +107,9 @@ export function useAndroidAutoOpenLatestPhoto({
       });
     };
 
-    window.addEventListener('gallery-items-added', handleItemsAdded as EventListener);
+    window.addEventListener('gallery-items-added', handleItemsAdded);
     return () => {
-      window.removeEventListener('gallery-items-added', handleItemsAdded as EventListener);
+      window.removeEventListener('gallery-items-added', handleItemsAdded);
     };
   }, []);
 }

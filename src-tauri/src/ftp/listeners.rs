@@ -51,7 +51,7 @@ impl DataListener for FtpDataListener {
 
                     let file_path = std::path::Path::new(&path);
                     let is_raw = crate::image_utils::is_raw_file(file_path);
-                    let is_image = is_raw || crate::image_utils::is_supported_image(file_path);
+                    let is_image = crate::image_utils::is_supported_image(file_path);
 
                     if is_image {
                         if let Some(handle) = app_handle.as_ref() {

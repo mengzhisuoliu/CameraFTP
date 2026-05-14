@@ -19,8 +19,8 @@ import { PermissionDialog } from './components/PermissionDialog';
 import { PreviewWindow } from './components/PreviewWindow';
 import { useAppBootstrap } from './bootstrap/useAppBootstrap';
 import { useQuitFlow } from './hooks/useQuitFlow';
-import { applyAndEnqueueAiEdit, getCurrentAiEditProgress } from './hooks/useAiEditProgress';
-import { getCurrentColorGradingProgress } from './hooks/useColorGradingProgress';
+import { applyAndEnqueueAiEdit, cancelAiEdit, getCurrentAiEditProgress } from './hooks/useAiEditProgress';
+import { enqueueColorGrading, cancelColorGrading, getCurrentColorGradingProgress } from './hooks/useColorGradingProgress';
 import { getCachedColorGradingPresets } from './hooks/useColorGradingPresets';
 import { useServerStore } from './stores/serverStore';
 import { useConfigStore } from './stores/configStore';
@@ -58,7 +58,6 @@ function App() {
     };
 
     w.__tauriCancelAiEdit = async () => {
-      const { cancelAiEdit } = await import('./hooks/useAiEditProgress');
       await cancelAiEdit();
     };
 
@@ -77,7 +76,6 @@ function App() {
     };
 
     w.__tauriTriggerColorGrading = async (filePath: string, lutId: string, useAutoExposure: boolean, meteringMode: string, manualEv: number, syncToAuto: boolean) => {
-      const { enqueueColorGrading } = await import('./hooks/useColorGradingProgress');
       await enqueueColorGrading([filePath], lutId, useAutoExposure, meteringMode, manualEv);
 
       updateDraft(d => ({
@@ -106,7 +104,6 @@ function App() {
     };
 
     w.__tauriCancelColorGrading = async () => {
-      const { cancelColorGrading } = await import('./hooks/useColorGradingProgress');
       await cancelColorGrading();
     };
 

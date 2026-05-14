@@ -164,15 +164,10 @@ class ImageViewerBridge(activity: android.app.Activity) : BaseJsBridge(activity)
         val viewer = ImageViewerActivity.instance ?: return false
         if (!ImageViewerActivity.isViewerVisible) return false
         if (viewer.isFinishing || viewer.isDestroyed) return false
-        val result = arrayOf(false)
-        val latch = java.util.concurrent.CountDownLatch(1)
         activity.runOnUiThread {
-            result[0] = viewer.insertImage(uri, insertIndex)
-            latch.countDown()
+            viewer.insertImage(uri, insertIndex)
         }
-        // Block briefly (max 500ms) to get the actual insertion result from the UI thread
-        latch.await(500, java.util.concurrent.TimeUnit.MILLISECONDS)
-        return result[0]
+        return true
     }
 
     /**

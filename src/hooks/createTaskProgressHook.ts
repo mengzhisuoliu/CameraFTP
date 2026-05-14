@@ -159,5 +159,13 @@ export function createTaskProgressHook<TEvent extends { type: string }>(
     return store.getState();
   }
 
-  return { useProgress, dismissDone, getProgressState };
+  function cleanup() {
+    if (storedUnlisten) {
+      storedUnlisten();
+      storedUnlisten = null;
+    }
+    listenerRegistered = false;
+  }
+
+  return { useProgress, dismissDone, getProgressState, cleanup };
 }

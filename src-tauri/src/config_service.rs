@@ -49,7 +49,7 @@ impl ConfigService {
     }
 
     pub fn update(&self, new_config: AppConfig) -> Result<(), AppError> {
-        let new_config = new_config.normalized_for_current_platform();
+        let mut new_config = new_config.normalized_for_current_platform();
         new_config.validate().map_err(|e| AppError::Other(format!("Invalid configuration: {}", e)))?;
         let mut guard = lock_result(self.config.write())?;
         *guard = new_config;

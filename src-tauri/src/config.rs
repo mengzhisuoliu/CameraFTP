@@ -356,7 +356,7 @@ impl AppConfig {
         }
     }
 
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&mut self) -> Result<(), String> {
         if self.port == 0 {
             return Err("Port cannot be 0".to_string());
         }
@@ -365,37 +365,41 @@ impl AppConfig {
             return Err("Save path cannot be empty".to_string());
         }
 
-        if let Some(ref cg) = self.auto_color_grading {
-            let valid = crate::color_grading::presets::METERING_MODES
+        if let Some(ref mut cg) = self.auto_color_grading {
+            let valid_metering = crate::color_grading::presets::METERING_MODES
                 .iter().any(|(k, _)| k == &cg.metering_mode);
-            if !valid {
+            if !valid_metering {
                 tracing::warn!(
-                    "Invalid metering_mode '{}', ignoring (will use FFI default)",
+                    "Invalid metering_mode '{}', resetting to 'highlight-safe'",
                     cg.metering_mode
                 );
+                cg.metering_mode = "highlight-safe".to_string();
             }
             if !cg.preset_id.is_empty() && crate::color_grading::presets::find_preset(&cg.preset_id).is_none() {
                 tracing::warn!(
-                    "Invalid auto_color_grading preset_id '{}', no matching preset found",
+                    "Invalid auto_color_grading preset_id '{}', resetting to default",
                     cg.preset_id
                 );
+                cg.preset_id = crate::color_grading::presets::DEFAULT_PRESET_ID.to_string();
             }
         }
 
-        if let Some(ref lu) = self.color_grading_last_used {
-            let valid = crate::color_grading::presets::METERING_MODES
+        if let Some(ref mut lu) = self.color_grading_last_used {
+            let valid_metering = crate::color_grading::presets::METERING_MODES
                 .iter().any(|(k, _)| k == &lu.metering_mode);
-            if !valid {
+            if !valid_metering {
                 tracing::warn!(
-                    "Invalid last-used metering_mode '{}', ignoring (will use FFI default)",
+                    "Invalid last-used metering_mode '{}', resetting to 'highlight-safe'",
                     lu.metering_mode
                 );
+                lu.metering_mode = "highlight-safe".to_string();
             }
             if !lu.preset_id.is_empty() && crate::color_grading::presets::find_preset(&lu.preset_id).is_none() {
                 tracing::warn!(
-                    "Invalid last-used preset_id '{}', no matching preset found",
+                    "Invalid last-used preset_id '{}', resetting to default",
                     lu.preset_id
                 );
+                lu.preset_id = crate::color_grading::presets::DEFAULT_PRESET_ID.to_string();
             }
         }
 
@@ -468,7 +472,7 @@ mod tests {
 
     #[test]
     fn valid_default_config_passes_validation() {
-        let config = AppConfig::default();
+        let mut config = AppConfig::default();
         assert!(config.validate().is_ok());
     }
 
