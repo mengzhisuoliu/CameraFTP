@@ -32,12 +32,23 @@ export function Select({ value, options, onChange, disabled, className = '' }: S
   const updatePosition = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - 4;
+    const spaceAbove = rect.top - 4;
+    const estimatedHeight = 200;
+    const openBelow = spaceBelow >= estimatedHeight || spaceBelow >= spaceAbove;
+    const top = openBelow
+      ? rect.bottom + 4
+      : Math.max(4, rect.top - estimatedHeight - 4);
+    const maxHeight = openBelow
+      ? Math.min(240, spaceBelow)
+      : Math.min(240, spaceAbove);
     setDropdownStyle({
       position: 'fixed',
-      top: rect.bottom + 4,
+      top,
       left: rect.left,
       width: rect.width,
       zIndex: 9999,
+      maxHeight,
     });
   }, []);
 

@@ -15,6 +15,7 @@ import type { SelectOption } from './ui/Select';
 import type { ColorGradingPreset } from '../types';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';
 import { ExposureConfigSection } from './ExposureConfigSection';
+import { saveColorGradingConfig } from '../utils/color-grading';
 
 interface ColorGradingDialogProps {
   isOpen: boolean;
@@ -56,25 +57,13 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
   const handleConfirm = () => {
     if (!selectedId) return;
 
-    updateDraft(d => ({
-      ...d,
-      colorGradingLastUsed: {
-        presetId: selectedId,
-        useAutoExposure,
-        meteringMode,
-        manualEv,
-        syncToAuto,
-      },
-      ...(syncToAuto && d.autoColorGrading ? {
-        autoColorGrading: {
-          ...d.autoColorGrading,
-          presetId: selectedId,
-          useAutoExposure,
-          meteringMode,
-          manualEv,
-        },
-      } : {}),
-    }));
+    saveColorGradingConfig(updateDraft, {
+      presetId: selectedId,
+      useAutoExposure,
+      meteringMode,
+      manualEv,
+      syncToAuto,
+    });
 
     onConfirm(selectedId, useAutoExposure, meteringMode, manualEv);
   };

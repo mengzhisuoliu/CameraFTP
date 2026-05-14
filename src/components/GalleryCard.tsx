@@ -158,7 +158,6 @@ export const GalleryCard = memo(function GalleryCard() {
       .map(item => window.ImageViewerAndroid?.resolveFilePath?.(item.uri) ?? null);
     const filePaths = resolved.filter((path): path is string => path !== null);
     if (filePaths.length === 0) {
-      setShowColorGradingDialog(false);
       return;
     }
     await enqueueColorGrading(filePaths, lutId, useAutoExposure, meteringMode, manualEv);

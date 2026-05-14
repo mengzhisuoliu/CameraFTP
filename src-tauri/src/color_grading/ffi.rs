@@ -218,14 +218,23 @@ impl RawAlchemyLib {
     }
 
     pub fn load_global(path: &Path) -> Result<&'static Arc<RawAlchemyLib>, AppError> {
+        // Fast path: already loaded
         if let Some(lib) = GLOBAL_LIB.get() {
             return Ok(lib);
         }
-        let lib = Self::load(path)?;
-        let version = lib.version();
-        tracing::info!("RawAlchemyCpp loaded, version: {}", version);
-        let _ = GLOBAL_LIB.set(Arc::new(lib));
-        Ok(GLOBAL_LIB.get().unwrap())
+        // Load the library; if another thread won the CAS race, use theirs instead
+        let lib = Arc::new(Self::load(path)?);
+        match GLOBAL_LIB.set(lib) {
+            Ok(()) => {
+                let lib = GLOBAL_LIB.get().unwrap();
+                tracing::info!("RawAlchemyCpp loaded, version: {}", lib.version());
+                Ok(lib)
+            }
+            Err(_) => {
+                // Another thread set it first — discard our copy and use theirs
+                Ok(GLOBAL_LIB.get().unwrap())
+            }
+        }
     }
 
     pub fn version(&self) -> String {

@@ -24,6 +24,7 @@ import { enqueueColorGrading, cancelColorGrading, getCurrentColorGradingProgress
 import { getCachedColorGradingPresets } from './hooks/useColorGradingPresets';
 import { useServerStore } from './stores/serverStore';
 import { useConfigStore } from './stores/configStore';
+import { saveColorGradingConfig } from './utils/color-grading';
 
 function App() {
   const { showPermissionDialog, closePermissionDialog, continueAfterPermissionsGranted } = useServerStore();
@@ -78,25 +79,13 @@ function App() {
     w.__tauriTriggerColorGrading = async (filePath: string, lutId: string, useAutoExposure: boolean, meteringMode: string, manualEv: number, syncToAuto: boolean) => {
       await enqueueColorGrading([filePath], lutId, useAutoExposure, meteringMode, manualEv);
 
-      updateDraft(d => ({
-        ...d,
-        colorGradingLastUsed: {
-          presetId: lutId,
-          useAutoExposure,
-          meteringMode,
-          manualEv,
-          syncToAuto,
-        },
-        ...(syncToAuto && d.autoColorGrading ? {
-          autoColorGrading: {
-            ...d.autoColorGrading,
-            presetId: lutId,
-            useAutoExposure,
-            meteringMode,
-            manualEv,
-          },
-        } : {}),
-      }));
+      saveColorGradingConfig(updateDraft, {
+        presetId: lutId,
+        useAutoExposure,
+        meteringMode,
+        manualEv,
+        syncToAuto,
+      });
     };
 
     w.__tauriGetColorGradingProgress = () => {

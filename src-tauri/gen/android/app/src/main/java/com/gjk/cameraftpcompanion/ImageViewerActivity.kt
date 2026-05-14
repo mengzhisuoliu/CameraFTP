@@ -332,29 +332,35 @@ class ImageViewerActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return false
         if (uris.contains(uri)) return false
 
+        // Path-based dedup: a file:// URI from scanNewFile and a content:// URI
+        // from MediaStore scan may refer to the same photo. Compare canonical paths.
+        val incomingPath = resolveUriToFilePath(this, uri)
+        if (incomingPath != null) {
+            for (existing in uris) {
+                val existingPath = resolveUriToFilePath(this, existing)
+                if (incomingPath == existingPath) return false
+            }
+        }
+
         val adapter = viewPager.adapter as? ImageViewerAdapter ?: return false
         val clampedIndex = insertIndex.coerceIn(0, uris.size)
 
         uris.add(clampedIndex, uri)
 
-        // Atomically shift orientation cache entries for positions >= clampedIndex
+        // Shift orientation cache entries for positions >= clampedIndex
         val shiftedCache = mutableMapOf<Int, Int>()
-        synchronized(exifController.orientationCache) {
-            for ((pos, degrees) in exifController.orientationCache) {
-                shiftedCache[if (pos >= clampedIndex) pos + 1 else pos] = degrees
-            }
-            exifController.orientationCache.clear()
-            exifController.orientationCache.putAll(shiftedCache)
+        for ((pos, degrees) in exifController.orientationCache) {
+            shiftedCache[if (pos >= clampedIndex) pos + 1 else pos] = degrees
         }
+        exifController.orientationCache.clear()
+        exifController.orientationCache.putAll(shiftedCache)
 
         if (!adapter.insertUri(clampedIndex, uri)) {
             // Adapter rejected (duplicate or other issue) — revert
             uris.removeAt(clampedIndex)
-            synchronized(exifController.orientationCache) {
-                exifController.orientationCache.clear()
-                for ((pos, degrees) in shiftedCache) {
-                    exifController.orientationCache[if (pos > clampedIndex) pos - 1 else pos] = degrees
-                }
+            exifController.orientationCache.clear()
+            for ((pos, degrees) in shiftedCache) {
+                exifController.orientationCache[if (pos > clampedIndex) pos - 1 else pos] = degrees
             }
             return false
         }
@@ -365,7 +371,9 @@ class ImageViewerActivity : AppCompatActivity() {
         }
 
         // ViewPager2 stays at current position; update bottom bar info
-        viewPager.setCurrentItem(currentIndex, false)
+        viewPager.post {
+            viewPager.setCurrentItem(currentIndex, false)
+        }
         updateUI()
         exifController.prefetchOrientations(around = currentIndex)
         return true

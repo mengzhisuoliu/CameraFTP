@@ -65,8 +65,12 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
   const cgVisible = colorGrading.isProcessing || colorGrading.isDone;
   const aiEditVisibleRef = useRef(aiEditVisible);
   const cgVisibleRef = useRef(cgVisible);
+  const aiEditDoneRef = useRef(aiEdit.isDone);
+  const colorGradingDoneRef = useRef(colorGrading.isDone);
   aiEditVisibleRef.current = aiEditVisible;
   cgVisibleRef.current = cgVisible;
+  aiEditDoneRef.current = aiEdit.isDone;
+  colorGradingDoneRef.current = colorGrading.isDone;
   const hasAnyTask = aiEditVisible || cgVisible;
 
   const allDone = (aiEditVisible ? aiEdit.isDone : true)
@@ -81,8 +85,8 @@ export function TaskProgressPanel({ position }: TaskProgressPanelProps) {
 
     if (allDone) {
       dismissTimerRef.current = setTimeout(() => {
-        if (aiEditVisibleRef.current && aiEdit.isDone) dismissAiEditDone();
-        if (cgVisibleRef.current && colorGrading.isDone) dismissColorGradingDone();
+        if (aiEditVisibleRef.current && aiEditDoneRef.current) dismissAiEditDone();
+        if (cgVisibleRef.current && colorGradingDoneRef.current) dismissColorGradingDone();
       }, AUTO_DISMISS_DELAY_MS);
     }
 

@@ -398,6 +398,9 @@ fn percent_decode(input: &str) -> String {
         result.push(bytes[i]);
         i += 1;
     }
+    // Filter out null bytes — they are invalid in file paths and can cause
+    // issues on Windows (silently truncates paths at the first null).
+    result.retain(|&b| b != 0);
     String::from_utf8_lossy(&result).into_owned()
 }
 

@@ -31,12 +31,12 @@ class DeleteController(
     private val activityRef: WeakReference<ImageViewerActivity> = WeakReference(activity)
     private var pendingDeleteUri: String? = null
 
+    private var isDeleting = false
+
     fun deleteCurrentImage(uriString: String, uris: MutableList<String>, currentIndex: Int) {
         val activity = activityRef.get() ?: return
-        check(android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            "deleteCurrentImage must be called on the UI thread"
-        }
         if (uris.isEmpty() || currentIndex < 0 || currentIndex >= uris.size) return
+        if (isDeleting) return
 
         val uri = Uri.parse(uriString)
 
@@ -44,61 +44,92 @@ class DeleteController(
         if (uri.scheme == "file") {
             val path = uri.path
             if (path != null) {
-                val file = java.io.File(path)
-                val deleted = file.delete()
-                if (deleted || !file.exists()) {
-                    applyDeleteSuccess(activity, uriString, uris, currentIndex)
-                } else {
-                    Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
-                }
+                isDeleting = true
+                Thread {
+                    val file = java.io.File(path)
+                    val deleted = file.delete()
+                    val gone = deleted || !file.exists()
+                    activity.runOnUiThread {
+                        isDeleting = false
+                        if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                        if (gone) {
+                            applyDeleteSuccess(activity, uriString, uris, currentIndex)
+                        } else {
+                            Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }.start()
             }
             return
         }
 
-        try {
-            val rowsDeleted = activity.contentResolver.delete(uri, null, null)
-            val stillExists = uriStillExists(activity, uri)
-            if (rowsDeleted > 0 || !stillExists) {
-                applyDeleteSuccess(activity, uriString, uris, currentIndex)
-            } else {
-                Toast.makeText(activity, "删除失败：文件不存在", Toast.LENGTH_SHORT).show()
+        isDeleting = true
+        Thread {
+            try {
+                val rowsDeleted = activity.contentResolver.delete(uri, null, null)
+                val stillExists = uriStillExists(activity, uri)
+                activity.runOnUiThread {
+                    isDeleting = false
+                    if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                    if (rowsDeleted > 0 || !stillExists) {
+                        applyDeleteSuccess(activity, uriString, uris, currentIndex)
+                    } else {
+                        Toast.makeText(activity, "删除失败：文件不存在", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                activity.runOnUiThread {
+                    isDeleting = false
+                    if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                    if (e is SecurityException) {
+                        tryDeleteWithConfirmation(activity, uriString, uri, uris, currentIndex)
+                        return@runOnUiThread
+                    }
+                    Log.e(TAG, "Failed to delete image", e)
+                    Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
+                }
             }
-        } catch (e: Exception) {
-            if (e is SecurityException) {
-                tryDeleteWithConfirmation(activity, uriString, uri, uris, currentIndex)
-                return
-            }
-            Log.e(TAG, "Failed to delete image", e)
-            Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
-        }
+        }.start()
     }
 
     fun finalizeDeleteAfterConfirmation(uriString: String, uris: MutableList<String>, currentIndex: Int) {
         val activity = activityRef.get() ?: return
         val uri = Uri.parse(uriString)
 
-        try {
-            val rowsDeleted = activity.contentResolver.delete(uri, null, null)
-            val stillExists = uriStillExists(activity, uri)
-            if (rowsDeleted > 0 || !stillExists) {
-                applyDeleteSuccess(activity, uriString, uris, currentIndex)
-                return
+        isDeleting = true
+        Thread {
+            try {
+                val rowsDeleted = activity.contentResolver.delete(uri, null, null)
+                val stillExists = uriStillExists(activity, uri)
+                activity.runOnUiThread {
+                    isDeleting = false
+                    if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                    if (rowsDeleted > 0 || !stillExists) {
+                        applyDeleteSuccess(activity, uriString, uris, currentIndex)
+                    } else {
+                        Toast.makeText(activity, "删除失败：文件不存在", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: SecurityException) {
+                activity.runOnUiThread {
+                    isDeleting = false
+                    if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                    if (!uriStillExists(activity, uri)) {
+                        applyDeleteSuccess(activity, uriString, uris, currentIndex)
+                        return@runOnUiThread
+                    }
+                    Log.e(TAG, "Delete still blocked after confirmation", e)
+                    Toast.makeText(activity, "删除失败：无权限", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                activity.runOnUiThread {
+                    isDeleting = false
+                    if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                    Log.e(TAG, "Failed to finalize delete after confirmation", e)
+                    Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
+                }
             }
-        } catch (e: SecurityException) {
-            if (!uriStillExists(activity, uri)) {
-                applyDeleteSuccess(activity, uriString, uris, currentIndex)
-                return
-            }
-            Log.e(TAG, "Delete still blocked after confirmation", e)
-            Toast.makeText(activity, "删除失败：无权限", Toast.LENGTH_SHORT).show()
-            return
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to finalize delete after confirmation", e)
-            Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        Toast.makeText(activity, "删除失败", Toast.LENGTH_SHORT).show()
+        }.start()
     }
 
     fun getPendingDeleteUri(): String? = pendingDeleteUri

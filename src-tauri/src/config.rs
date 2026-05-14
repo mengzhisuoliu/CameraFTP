@@ -356,6 +356,11 @@ impl AppConfig {
         }
     }
 
+    /// Validate configuration, auto-correcting invalid values in-place.
+    ///
+    /// This method mutates `self` to fix invalid settings (e.g., resetting
+    /// unknown preset IDs to the default). Callers should re-persist the
+    /// config if validation succeeds.
     pub fn validate(&mut self) -> Result<(), String> {
         if self.port == 0 {
             return Err("Port cannot be 0".to_string());

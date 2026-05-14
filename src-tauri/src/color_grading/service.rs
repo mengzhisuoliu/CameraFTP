@@ -117,10 +117,13 @@ pub(crate) fn should_auto_color_grade(
     config: Option<&AutoColorGradingConfig>,
     file_path: &std::path::Path,
 ) -> bool {
-    let _cg = match config {
+    let cg = match config {
         Some(cg) if cg.enabled && !cg.preset_id.is_empty() => cg,
         _ => return false,
     };
+    if find_preset(&cg.preset_id).is_none() {
+        return false;
+    }
     image_utils::is_raw_file(file_path)
 }
 
@@ -277,9 +280,9 @@ async fn process_single_file(task: &ColorGradingTask) -> Result<String, AppError
     let lut_data = super::lut_data::get_lut_data(&preset.id)?;
     let lib = super::ffi::RawAlchemyLib::get()?;
 
-    let lensfun_path = super::resources::get_resources()
+    let lensfun_path = super::resources::get_lensfun_db_dir()
         .ok()
-        .map(|r| r.lensfun_db_dir.to_string_lossy().into_owned());
+        .map(|dir| dir.to_string_lossy().into_owned());
 
     let input_path = task.input_path.clone();
     let log_space = preset.log_space.clone();

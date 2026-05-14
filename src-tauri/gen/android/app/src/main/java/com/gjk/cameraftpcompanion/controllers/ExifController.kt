@@ -94,6 +94,8 @@ class ExifController(activity: ImageViewerActivity) {
 
     private fun readExifParams(activity: ImageViewerActivity, uri: Uri) {
         exifExecutor.execute {
+            val activity = activityRef.get() ?: return@execute
+            if (activity.isFinishing || activity.isDestroyed) return@execute
             try {
                 val parts = mutableListOf<String>()
                 activity.contentResolver.openInputStream(uri)?.use { stream ->

@@ -141,6 +141,11 @@ pub async fn inject_exif_orientation(
     .await
     .map_err(|e| AppError::Io(format!("Task join error: {}", e)))??;
 
+    if crate::image_utils::has_exif_app1(&jpeg) {
+        tracing::debug!("JPEG already has EXIF APP1 segment, skipping orientation injection");
+        return Ok(false);
+    }
+
     let fixed = crate::image_utils::inject_orientation_exif(jpeg, orientation);
     let path = thumbnail_path.clone();
     tokio::task::spawn_blocking(move || {
