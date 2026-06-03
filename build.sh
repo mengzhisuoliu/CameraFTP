@@ -115,7 +115,7 @@ check_common_tools() {
     fi
     local failed=false
     
-    if ! check_bun; then
+    if ! check_npm; then
         failed=true
     fi
     

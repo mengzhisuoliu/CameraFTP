@@ -4,7 +4,7 @@
   "productName": "图传伴侣",
   "version": "1.7.0",
   "build": {
-    "beforeDevCommand": "bun dev",
+    "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "./scripts/build-frontend.sh",
     "frontendDist": "../dist",
     "devUrl": null

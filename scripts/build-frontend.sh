@@ -12,5 +12,5 @@ fi
 
 task "构建前端..."
 
-bun install
-bun run build
+npm install
+npm run build

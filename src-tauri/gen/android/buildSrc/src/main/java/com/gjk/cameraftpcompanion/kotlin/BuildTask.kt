@@ -33,27 +33,19 @@ abstract class BuildTask : DefaultTask() {
 
     @TaskAction
     fun assemble() {
-        val executable = "bun"
+        val executable = "npx"
         try {
             runTauriCli(executable)
         } catch (e: Exception) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                val fallbacks = listOf(
-                    "$executable.exe",
-                    "$executable.cmd",
-                    "$executable.bat",
-                )
+                val fallback = "$executable.cmd"
 
-                var lastException: Exception = e
-                for (fallback in fallbacks) {
-                    try {
-                        runTauriCli(fallback)
-                        return
-                    } catch (fallbackException: Exception) {
-                        lastException = fallbackException
-                    }
+                try {
+                    runTauriCli(fallback)
+                    return
+                } catch (fallbackException: Exception) {
+                    throw fallbackException
                 }
-                throw lastException
             } else {
                 throw e
             }

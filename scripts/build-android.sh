@@ -348,7 +348,7 @@ build_android() {
 
     case $BUILD_TYPE in
         "debug")
-            bun run tauri android build --debug --apk --target aarch64 || {
+            npx tauri android build --debug --apk --target aarch64 || {
                 error "Android debug 构建失败"
                 exit 1
             }
@@ -359,7 +359,7 @@ build_android() {
                 "${DEPLOY_PATH:+$DEPLOY_PATH/CameraFTP_v${VERSION}-debug.apk}"
             ;;
         "release")
-            bun run tauri android build --apk --target aarch64 || {
+            npx tauri android build --apk --target aarch64 || {
                 error "Android release 构建失败"
                 exit 1
             }

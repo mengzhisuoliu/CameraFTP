@@ -318,19 +318,19 @@ move_to_out() {
     fi
 }
 
-check_bun() {
-    local bun_cmd
+check_npm() {
+    local npm_cmd
     
-    if ! bun_cmd=$(get_tool_cmd "bun"); then
-        error "Bun 未安装"
-        echo "提示：请访问 https://bun.sh 安装 Bun 运行时"
+    if ! npm_cmd=$(get_tool_cmd "npm"); then
+        error "npm 未安装"
+        echo "提示：请安装 Node.js，访问 https://nodejs.org"
         return 1
     fi
     
     if [ "${CHECK_ONLY:-false}" = true ]; then
         local platform
-        platform=$(get_tool_platform "bun")
-        info "Bun [$platform]: $($bun_cmd --version)"
+        platform=$(get_tool_platform "npm")
+        info "npm [$platform]: $($npm_cmd --version)"
     fi
     
     return 0
