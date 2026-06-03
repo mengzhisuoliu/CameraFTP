@@ -78,24 +78,12 @@ describe('ColorGradingDialog', () => {
     expect(getContainer().textContent).toContain('调色');
   });
 
-  it('toggles auto/manual exposure', async () => {
+  it('always shows metering mode and EV offset slider', async () => {
     renderDialog(true);
     await act(async () => { await flush(); });
 
-    expect(getContainer().textContent).toContain('自动曝光');
     expect(getContainer().textContent).toContain('测光模式');
-
-    const toggles = getContainer().querySelectorAll('button[aria-pressed]');
-    const autoExposureToggle = Array.from(toggles).find(b => b.getAttribute('aria-label') === '自动曝光');
-    expect(autoExposureToggle).toBeTruthy();
-
-    await act(async () => {
-      (autoExposureToggle as HTMLElement)!.click();
-      await flush();
-    });
-
-    expect(getContainer().textContent).toContain('曝光补偿');
-    expect(getContainer().textContent).not.toContain('测光模式');
+    expect(getContainer().textContent).toContain('曝光偏移');
   });
 
   it('calls onConfirm with default params when apply is clicked', async () => {
@@ -112,7 +100,7 @@ describe('ColorGradingDialog', () => {
       await flush();
     });
 
-    expect(onConfirm).toHaveBeenCalledWith('fujifilm-provia', true, 'highlight-safe', 0);
+    expect(onConfirm).toHaveBeenCalledWith('fujifilm-provia', 'highlight-safe', 0);
     expect(updateDraftMock).toHaveBeenCalled();
   });
 
