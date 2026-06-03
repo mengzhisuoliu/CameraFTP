@@ -120,12 +120,12 @@ class ImageViewerActivity : AppCompatActivity() {
 
         @JvmStatic
         fun buildColorGradingArgsJson(
-            filePath: String, lutId: String, useAutoExposure: Boolean,
-            meteringMode: String, manualEv: Float, syncToAuto: Boolean,
+            filePath: String, lutId: String,
+            meteringMode: String, evOffset: Float, syncToAuto: Boolean,
         ): String {
             return JSONArray().apply {
-                put(filePath); put(lutId); put(useAutoExposure)
-                put(meteringMode); put(manualEv); put(syncToAuto)
+                put(filePath); put(lutId)
+                put(meteringMode); put(evOffset); put(syncToAuto)
             }.toString()
         }
 
@@ -514,22 +514,21 @@ class ImageViewerActivity : AppCompatActivity() {
                 overlayController.showColorGrading(
                     filePath, enabled, presets,
                     lastUsed?.optString("presetId"),
-                    lastUsed?.optBoolean("useAutoExposure", true),
                     lastUsed?.optString("meteringMode"),
-                    lastUsed?.optDouble("manualEv", 0.0)?.toFloat(),
+                    lastUsed?.optDouble("evOffset", 0.0)?.toFloat(),
                 )
             }
         }
     }
 
     internal fun dispatchColorGrading(
-        filePath: String, lutId: String, useAutoExposure: Boolean,
-        meteringMode: String, manualEv: Float, syncToAuto: Boolean,
+        filePath: String, lutId: String,
+        meteringMode: String, evOffset: Float, syncToAuto: Boolean,
     ) {
         val mainActivity = MainActivity.instance ?: run {
             Log.w(TAG, "MainActivity not available for color grading"); return
         }
-        val args = buildColorGradingArgsJson(filePath, lutId, useAutoExposure, meteringMode, manualEv, syncToAuto)
+        val args = buildColorGradingArgsJson(filePath, lutId, meteringMode, evOffset, syncToAuto)
         val js = """
             (function(){
                 if(window.__tauriTriggerColorGrading){

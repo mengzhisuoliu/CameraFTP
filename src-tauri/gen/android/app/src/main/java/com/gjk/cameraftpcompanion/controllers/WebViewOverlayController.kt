@@ -27,12 +27,12 @@ private class NativeColorGradingBridge(
     private val activityRef: WeakReference<ImageViewerActivity> = WeakReference(activity)
 
     @JavascriptInterface
-    fun onConfirm(lutId: String, useAutoExposure: Boolean, meteringMode: String, manualEv: Float, syncToAuto: Boolean) {
+    fun onConfirm(lutId: String, meteringMode: String, evOffset: Float, syncToAuto: Boolean) {
         val activity = activityRef.get() ?: return
         activity.runOnUiThread {
             activity.overlayController.dismissColorGrading()
             activity.dispatchColorGrading(
-                filePath, lutId, useAutoExposure, meteringMode, manualEv, syncToAuto,
+                filePath, lutId, meteringMode, evOffset, syncToAuto,
             )
         }
     }
@@ -108,9 +108,8 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
         autoColorGradingEnabled: Boolean,
         presets: List<Pair<String, String>>,
         lastUsedPresetId: String? = null,
-        lastUsedAutoExposure: Boolean? = null,
         lastUsedMeteringMode: String? = null,
-        lastUsedManualEv: Float? = null,
+        lastUsedEvOffset: Float? = null,
     ) {
         lockOrientation()
         val rootView = activity.findViewById<FrameLayout>(android.R.id.content)
@@ -128,8 +127,7 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
             """<div class="dropdown-opt${if (value == initialPresetId) " selected" else ""}" data-value="$value">$label</div>"""
         }
 
-        val autoExposureChecked = lastUsedAutoExposure ?: true
-        val evValue = lastUsedManualEv ?: 0.0f
+        val evValue = lastUsedEvOffset ?: 0.0f
         val evDisplay = if (evValue > 0) "+${"%.1f".format(evValue)} EV" else "${"%.1f".format(evValue)} EV"
         val initialMetering = lastUsedMeteringMode ?: "highlight-safe"
 
@@ -145,7 +143,6 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
             .replace("{{FIRST_LABEL}}", initialPresetLabel)
             .replace("{{PRESET_OPTIONS}}", presetOptionsHtml)
             .replace("{{SAVE_TOGGLE}}", saveToggleHtml)
-            .replace("{{AUTO_EXPOSURE_CHECKED}}", if (autoExposureChecked) "checked" else "")
             .replace("{{EV_VALUE}}", evValue.toString())
             .replace("{{EV_DISPLAY}}", evDisplay)
             .replace("{{SELECTED_METERING}}", initialMetering)

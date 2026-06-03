@@ -70,29 +70,6 @@
   .dropdown-opt:hover { background: #f9fafb; }
   .dropdown-opt.selected { background: #eff6ff; color: #1d4ed8; font-weight: 500; }
   .divider { border-top: 1px solid #f3f4f6; margin: 12px 0; }
-  .toggle-row {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 4px 0;
-  }
-  .toggle-label-group { flex: 1; }
-  .toggle-label { font-size: 14px; font-weight: 500; color: #374151; }
-  .toggle-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
-  .toggle-switch {
-    position: relative; width: 44px; height: 24px; flex-shrink: 0; margin-left: 12px;
-  }
-  .toggle-switch input { opacity: 0; width: 0; height: 0; }
-  .toggle-slider {
-    position: absolute; inset: 0; background: #d1d5db; border-radius: 12px;
-    transition: background 0.2s; cursor: pointer;
-  }
-  .toggle-slider:before {
-    content: ''; position: absolute; width: 20px; height: 20px;
-    left: 2px; bottom: 2px; background: #fff; border-radius: 50%;
-    transition: transform 0.2s;
-  }
-  .toggle-switch input:checked + .toggle-slider { background: #2563eb; }
-  .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
-  .slider-group { margin-top: 12px; }
   .slider-header {
     display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
   }
@@ -167,41 +144,29 @@
         </div>
       </div>
       <div class="divider"></div>
-      <div class="toggle-row">
-        <div class="toggle-label-group">
-          <div class="toggle-label">自动曝光</div>
-          <div class="toggle-desc" id="exposureDesc">自动检测并调整曝光</div>
+      <div class="field-group">
+        <div class="field-label">测光模式</div>
+        <div class="dropdown" id="meteringDropdown">
+          <button class="dropdown-btn" type="button" onclick="toggleMeteringDropdown()">
+            <span id="meteringLabel">高光保护</span>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="dropdown-panel" id="meteringPanel">
+            <div class="dropdown-opt selected" data-value="highlight-safe" onclick="selectMetering(this)">高光保护</div>
+            <div class="dropdown-opt" data-value="matrix" onclick="selectMetering(this)">矩阵测光</div>
+            <div class="dropdown-opt" data-value="center-weighted" onclick="selectMetering(this)">中央重点测光</div>
+            <div class="dropdown-opt" data-value="average" onclick="selectMetering(this)">平均测光</div>
+            <div class="dropdown-opt" data-value="hybrid" onclick="selectMetering(this)">混合测光</div>
+          </div>
         </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="autoExposureToggle" {{AUTO_EXPOSURE_CHECKED}} onchange="onExposureToggle()">
-          <span class="toggle-slider"></span>
-        </label>
       </div>
-      <div class="slider-group" id="evSliderGroup" style="display:none">
+      <div class="field-group" style="margin-top:12px">
         <div class="slider-header">
-          <span class="field-label" style="margin-bottom:0">曝光补偿</span>
+          <span class="field-label" style="margin-bottom:0">曝光偏移</span>
           <span class="slider-value" id="evValue">{{EV_DISPLAY}}</span>
         </div>
         <input type="range" id="evSlider" min="-5.0" max="5.0" step="0.1" value="{{EV_VALUE}}" oninput="onEvChange()">
         <div class="slider-labels"><span>-5.0</span><span>0</span><span>+5.0</span></div>
-      </div>
-      <div id="meteringGroup" style="margin-top:12px">
-        <div class="field-group" style="margin-bottom:0">
-          <div class="field-label">测光模式</div>
-          <div class="dropdown" id="meteringDropdown">
-            <button class="dropdown-btn" type="button" onclick="toggleMeteringDropdown()">
-              <span id="meteringLabel">高光保护</span>
-              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="dropdown-panel" id="meteringPanel">
-              <div class="dropdown-opt selected" data-value="highlight-safe" onclick="selectMetering(this)">高光保护</div>
-              <div class="dropdown-opt" data-value="matrix" onclick="selectMetering(this)">矩阵测光</div>
-              <div class="dropdown-opt" data-value="center-weighted" onclick="selectMetering(this)">中央重点测光</div>
-              <div class="dropdown-opt" data-value="average" onclick="selectMetering(this)">平均测光</div>
-              <div class="dropdown-opt" data-value="hybrid" onclick="selectMetering(this)">混合测光</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
     <div class="footer">
@@ -219,19 +184,13 @@
     var panel = document.getElementById('presetPanel');
     var btn = panel.previousElementSibling;
     var isOpen = panel.classList.contains('open');
-    if (isOpen) {
-      panel.classList.remove('open');
-      btn.classList.remove('open');
-    } else {
-      panel.classList.add('open');
-      btn.classList.add('open');
-    }
+    if (isOpen) { panel.classList.remove('open'); btn.classList.remove('open'); }
+    else { panel.classList.add('open'); btn.classList.add('open'); }
   }
   function closeDropdown() {
     var panel = document.getElementById('presetPanel');
     var btn = panel.previousElementSibling;
-    panel.classList.remove('open');
-    btn.classList.remove('open');
+    panel.classList.remove('open'); btn.classList.remove('open');
   }
   document.getElementById('presetPanel').addEventListener('click', function(e) {
     var opt = e.target.closest('.dropdown-opt');
@@ -244,16 +203,8 @@
     closeDropdown();
   });
   document.addEventListener('click', function(e) {
-    if (!document.getElementById('presetDropdown').contains(e.target)) {
-      closeDropdown();
-    }
+    if (!document.getElementById('presetDropdown').contains(e.target)) closeDropdown();
   });
-  function onExposureToggle() {
-    var checked = document.getElementById('autoExposureToggle').checked;
-    document.getElementById('evSliderGroup').style.display = checked ? 'none' : 'block';
-    document.getElementById('meteringGroup').style.display = checked ? 'block' : 'none';
-    document.getElementById('exposureDesc').textContent = checked ? '自动检测并调整曝光' : '手动设置曝光补偿值';
-  }
   function onEvChange() {
     var val = parseFloat(document.getElementById('evSlider').value);
     document.getElementById('evValue').textContent = (val > 0 ? '+' : '') + val.toFixed(1) + ' EV';
@@ -263,19 +214,13 @@
     var panel = document.getElementById('meteringPanel');
     var btn = panel.previousElementSibling;
     var isOpen = panel.classList.contains('open');
-    if (isOpen) {
-      panel.classList.remove('open');
-      btn.classList.remove('open');
-    } else {
-      panel.classList.add('open');
-      btn.classList.add('open');
-    }
+    if (isOpen) { panel.classList.remove('open'); btn.classList.remove('open'); }
+    else { panel.classList.add('open'); btn.classList.add('open'); }
   }
   function closeMeteringDropdown() {
     var panel = document.getElementById('meteringPanel');
     var btn = panel.previousElementSibling;
-    panel.classList.remove('open');
-    btn.classList.remove('open');
+    panel.classList.remove('open'); btn.classList.remove('open');
   }
   function selectMetering(opt) {
     selectedMetering = opt.getAttribute('data-value');
@@ -286,9 +231,7 @@
     closeMeteringDropdown();
   }
   document.addEventListener('click', function(e) {
-    if (!document.getElementById('meteringDropdown').contains(e.target)) {
-      closeMeteringDropdown();
-    }
+    if (!document.getElementById('meteringDropdown').contains(e.target)) closeMeteringDropdown();
   });
   var syncToAuto = false;
   function toggleSync() {
@@ -296,18 +239,10 @@
     document.getElementById('syncToggle').className = 'toggle' + (syncToAuto ? ' on' : '');
   }
   function onConfirm() {
-    var autoExp = document.getElementById('autoExposureToggle').checked;
     var ev = parseFloat(document.getElementById('evSlider').value);
-    NativeBridge.onConfirm(selectedPreset, autoExp, selectedMetering, ev, syncToAuto);
+    NativeBridge.onConfirm(selectedPreset, selectedMetering, ev, syncToAuto);
   }
-
-  // Initialize visibility and metering selection from last-used values
   (function() {
-    var autoExp = document.getElementById('autoExposureToggle').checked;
-    document.getElementById('evSliderGroup').style.display = autoExp ? 'none' : 'block';
-    document.getElementById('meteringGroup').style.display = autoExp ? 'block' : 'none';
-    document.getElementById('exposureDesc').textContent = autoExp ? '自动检测并调整曝光' : '手动设置曝光补偿值';
-
     var meteringOpts = document.getElementById('meteringPanel').querySelectorAll('.dropdown-opt');
     for (var i = 0; i < meteringOpts.length; i++) {
       if (meteringOpts[i].getAttribute('data-value') === selectedMetering) {
