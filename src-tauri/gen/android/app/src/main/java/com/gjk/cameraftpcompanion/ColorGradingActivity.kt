@@ -28,9 +28,9 @@ class ColorGradingActivity : AppCompatActivity() {
         private const val TAG = "ColorGradingActivity"
     }
 
-    private var webView: WebView? = null
+    internal var webView: WebView? = null
     internal var previewFilePath: String? = null
-    private var isSessionActive = false
+    internal var isSessionActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,7 +102,7 @@ class ColorGradingActivity : AppCompatActivity() {
         super.onBackPressed()
     }
 
-    private fun callMainWebView(js: String, callback: ((String?) -> Unit)? = null) {
+    internal fun callMainWebView(js: String, callback: ((String?) -> Unit)? = null) {
         val mainActivity = MainActivity.instance
         if (mainActivity == null) {
             Log.w(TAG, "MainActivity not available")
