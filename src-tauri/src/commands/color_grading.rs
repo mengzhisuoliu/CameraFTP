@@ -73,15 +73,13 @@ pub async fn commit_color_grading_preview(
     enable_lens_correction: bool,
     metering_mode: String,
     ev_offset: f32,
-    output_path: String,
-) -> Result<(), AppError> {
+) -> Result<String, AppError> {
     ColorGradingPreviewState::get_global()
         .commit_and_end(
             &lut_id,
             enable_lens_correction,
             &metering_mode,
             ev_offset,
-            std::path::Path::new(&output_path),
         )
         .await
 }

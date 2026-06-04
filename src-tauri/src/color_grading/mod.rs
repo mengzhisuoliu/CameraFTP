@@ -6,6 +6,7 @@ pub mod ffi;
 pub mod jni_bridge;
 pub mod lensfun_db;
 pub mod lut_data;
+pub mod output;
 pub mod presets;
 pub mod preview;
 pub mod progress;

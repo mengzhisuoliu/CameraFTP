@@ -195,6 +195,19 @@ type RaFreePreviewBufferFn = unsafe extern "C" fn(
     *mut u8, // buffer
 );
 
+type RaCommitPreviewFn = unsafe extern "C" fn(
+    *mut std::ffi::c_void, // session
+    *const c_char,         // logSpace
+    *const c_float,        // lutTable
+    c_int,                 // lutSize
+    *const c_float,        // lutDomainMin
+    *const c_float,        // lutDomainMax
+    *const c_char,         // metering
+    c_float,               // evOffset
+    c_int,                 // jpegQuality
+    *const c_char,         // outputPath
+) -> c_int;
+
 pub struct RawAlchemyLib {
     _lib: Library,
     process_file_with_lut: RaProcessFileWithLUTFn,
@@ -205,6 +218,7 @@ pub struct RawAlchemyLib {
     end_preview_session: RaEndPreviewSessionFn,
     toggle_lens_correction: RaToggleLensCorrectionFn,
     free_preview_buffer: RaFreePreviewBufferFn,
+    commit_preview: RaCommitPreviewFn,
 }
 
 fn ra_result_from_code(code: c_int) -> RaResult {
@@ -314,6 +328,13 @@ impl RawAlchemyLib {
                 })?
         };
 
+        let commit_preview = unsafe {
+            *lib.get::<RaCommitPreviewFn>(b"raCommitPreview\0")
+                .map_err(|e| {
+                    AppError::ColorGradingError(format!("Symbol raCommitPreview not found: {}", e))
+                })?
+        };
+
         Ok(Self {
             _lib: lib,
             process_file_with_lut,
@@ -324,6 +345,7 @@ impl RawAlchemyLib {
             end_preview_session,
             toggle_lens_correction,
             free_preview_buffer,
+            commit_preview,
         })
     }
 
@@ -540,6 +562,48 @@ impl RawAlchemyLib {
                     .as_ref()
                     .map(|c| c.as_ptr())
                     .unwrap_or(std::ptr::null()),
+            )
+        };
+
+        let ra_result = ra_result_from_code(result);
+        if ra_result.is_ok() {
+            Ok(())
+        } else {
+            Err(self.format_last_error(ra_result, result))
+        }
+    }
+
+    pub(crate) fn commit_preview(
+        &self,
+        session: &RaPreviewSession,
+        log_space: Option<&str>,
+        lut_data: &Arc<super::lut_data::LutData>,
+        ev_offset: f32,
+        metering_mode: &str,
+        jpeg_quality: i32,
+        output_path: &Path,
+    ) -> Result<(), AppError> {
+        let log_c = log_space
+            .map(|s| std::ffi::CString::new(s).map_err(|e| AppError::ColorGradingError(format!("Invalid log space: {}", e))))
+            .transpose()?
+            .unwrap_or_else(|| std::ffi::CString::new("").expect("empty string is valid CString"));
+        let metering_c = std::ffi::CString::new(metering_mode)
+            .map_err(|e| AppError::ColorGradingError(format!("Invalid metering mode: {}", e)))?;
+        let output_c = std::ffi::CString::new(output_path.to_string_lossy().into_owned())
+            .map_err(|e| AppError::ColorGradingError(format!("Invalid output path: {}", e)))?;
+
+        let result = unsafe {
+            (self.commit_preview)(
+                session.ptr,
+                if log_space.is_some() { log_c.as_ptr() } else { std::ptr::null() },
+                lut_data.table.as_ptr(),
+                lut_data.size as c_int,
+                lut_data.domain_min.as_ptr(),
+                lut_data.domain_max.as_ptr(),
+                metering_c.as_ptr(),
+                ev_offset,
+                jpeg_quality as c_int,
+                output_c.as_ptr(),
             )
         };
 

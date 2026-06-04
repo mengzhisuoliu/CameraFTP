@@ -271,17 +271,7 @@ async fn process_single_file(task: &ColorGradingTask) -> Result<String, AppError
     let preset = find_preset(&task.lut_id)
         .ok_or_else(|| AppError::ColorGradingError(format!("Unknown LUT: {}", task.lut_id)))?;
 
-    let parent = task.input_path.parent()
-        .ok_or_else(|| AppError::ColorGradingError("No parent directory".into()))?;
-    let stem = task.input_path.file_stem()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| "output".into());
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let output_dir = parent.join("ColorGrading");
-    tokio::fs::create_dir_all(&output_dir).await
-        .map_err(|e| AppError::ColorGradingError(format!("Failed to create output dir: {}", e)))?;
-    let output_name = format!("{}_{}_{}.jpg", stem, preset.id, timestamp);
-    let output_path = output_dir.join(output_name);
+    let output_path = super::output::color_grading_output_path(&task.input_path, &preset.id)?;
     let result_path = output_path.to_string_lossy().into_owned();
 
     let lut_data = super::lut_data::get_lut_data(&preset.id)?;

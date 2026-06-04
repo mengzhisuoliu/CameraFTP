@@ -172,6 +172,44 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     new_json_string(&mut env, &json)
 }
 
+/// JNI: Commit full-resolution JPEG from cached RAW and end the session.
+/// Returns JSON: `{"ok":true,"outputPath":"..."}` or `{"ok":false,"error":"message"}`
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJniBridge_nativeCommitPreview(
+    mut env: JNIEnv,
+    _class: JClass,
+    lut_id: JString,
+    enable_lens_correction: jboolean,
+    metering_mode: JString,
+    ev_offset: jfloat,
+) -> jstring {
+    let lut_id_str = match env.get_string(&lut_id) {
+        Ok(s) => s.to_string_lossy().into_owned(),
+        Err(_) => return json_error(&mut env, "Invalid lutId"),
+    };
+    let metering_str = match env.get_string(&metering_mode) {
+        Ok(s) => s.to_string_lossy().into_owned(),
+        Err(_) => return json_error(&mut env, "Invalid meteringMode"),
+    };
+
+    let state = crate::color_grading::preview::ColorGradingPreviewState::get_global();
+    let result = run_blocking(state.commit_and_end(
+        &lut_id_str,
+        enable_lens_correction != 0,
+        &metering_str,
+        ev_offset,
+    ));
+
+    match result {
+        Ok(output_path) => {
+            let json = serde_json::json!({"ok": true, "outputPath": output_path}).to_string();
+            new_json_string(&mut env, &json)
+        }
+        Err(e) => json_error(&mut env, &e.to_string()),
+    }
+}
+
 /// JNI: Get color grading last-used config as JSON.
 /// Returns JSON: `{"presetId":"...","evOffset":0.0,"meteringMode":"..."}` or `null`.
 #[cfg(target_os = "android")]

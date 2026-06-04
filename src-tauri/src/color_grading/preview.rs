@@ -139,6 +139,64 @@ impl ColorGradingPreviewState {
         .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))?
     }
 
+    /// Generate final full-resolution JPEG from cached RAW data and end the session.
+    /// Uses raCommitPreview — no RAW re-decode needed.
+    /// Returns the output path of the generated JPEG.
+    pub async fn commit_and_end(
+        &self,
+        lut_id: &str,
+        enable_lens_correction: bool,
+        metering_mode: &str,
+        ev_offset: f32,
+    ) -> Result<String, AppError> {
+        let lib = RawAlchemyLib::get()?;
+        let preset = find_preset(lut_id)
+            .ok_or_else(|| AppError::ColorGradingError(format!("Unknown LUT preset: {}", lut_id)))?;
+        let lut_data = lut_data::get_lut_data(&preset.id)?;
+
+        let lensfun_db_path = super::resources::get_resources()
+            .ok()
+            .map(|r| r.lensfun_db_dir.to_string_lossy().into_owned());
+
+        let mut guard = self.inner.lock().await;
+        let active = guard.take()
+            .ok_or_else(|| AppError::ColorGradingError("No active preview session".into()))?;
+
+        let input_path = Path::new(&active.image_path);
+        let output_path = super::output::color_grading_output_path(input_path, &preset.id)?;
+
+        const SAVE_JPEG_QUALITY: i32 = 95;
+
+        if enable_lens_correction != active.enable_lens_correction {
+            let session = RaPreviewSession { ptr: active.session.ptr };
+            lib.toggle_lens_correction(&session, enable_lens_correction, lensfun_db_path.as_deref())?;
+        }
+
+        let session_addr = active.session.ptr as usize;
+        let log_space = preset.log_space.clone();
+        let metering = metering_mode.to_string();
+        let output = output_path.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let session = RaPreviewSession { ptr: session_addr as *mut std::ffi::c_void };
+            lib.commit_preview(
+                &session,
+                Some(log_space.as_str()),
+                &lut_data,
+                ev_offset,
+                &metering,
+                SAVE_JPEG_QUALITY,
+                &output,
+            )
+        })
+        .await
+        .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;
+
+        end_session_internal(&lib, active);
+
+        Ok(output_path.to_string_lossy().into_owned())
+    }
+
     pub async fn end(&self) -> Result<(), AppError> {
         let lib = RawAlchemyLib::get()?;
         let mut guard = self.inner.lock().await;
