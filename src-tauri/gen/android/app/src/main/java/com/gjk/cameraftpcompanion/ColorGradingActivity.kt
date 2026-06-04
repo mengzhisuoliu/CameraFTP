@@ -192,12 +192,25 @@ internal class NativeColorGradingPreviewBridge(
                     Log.d(TAG, "save: committed successfully to $outputPath")
                     val mainActivity = MainActivity.instance
                     if (mainActivity != null) {
+                        // Notify Tauri backend (emits color-grading-progress Done event)
                         mainActivity.getWebView()?.evaluateJavascript(
                             "(async function(){ try { await window.__TAURI__.invoke('notify_color_grading_done',{outputPaths:[${JSONObject.quote(outputPath)}]}); } catch(e) { console.warn('notify_color_grading_done error:',e); } })();",
                             null
                         )
                         mainActivity.getWebView()?.evaluateJavascript(
                             "try { window.__tauriSaveColorGradingLastUsed?.(${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},${evOffset}); } catch(e) {}",
+                            null
+                        )
+                        // Direct gallery refresh — mirrors createTaskProgressHook chain
+                        // so refresh works even if Tauri event delivery is delayed
+                        mainActivity.getWebView()?.evaluateJavascript(
+                            """(function(){
+                                window.ImageViewerAndroid?.scanNewFile?.(${JSONObject.quote(outputPath)});
+                                setTimeout(function(){
+                                    window.dispatchEvent(new CustomEvent('gallery-refresh-requested',{detail:{reason:'color-grading'}}));
+                                    window.dispatchEvent(new CustomEvent('latest-photo-refresh-requested',{detail:{reason:'color-grading'}}));
+                                },500);
+                            })();""",
                             null
                         )
                     } else {
@@ -216,7 +229,7 @@ internal class NativeColorGradingPreviewBridge(
         activity.runOnUiThread {
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 activity.finish()
-            }, 200)
+            }, 1000)
         }
     }
 
