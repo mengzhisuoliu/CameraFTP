@@ -288,6 +288,22 @@ pub async fn open_folder_select_file(file_path: String) -> Result<(), AppError> 
     }
 }
 
+/// 打开存储目录（Windows 资源管理器）
+#[command]
+pub fn open_save_directory(config_service: State<'_, Arc<ConfigService>>) -> Result<(), AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        let config = load_config_from_service_or_default(config_service.inner().as_ref());
+        crate::auto_open::windows::open_directory(&config.save_path)
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        let _ = config_service;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::config::{ImageOpenMethod, PreviewWindowConfig};

@@ -27,6 +27,7 @@ pub use config::{
     open_external_link,
     open_folder_select_file,
     open_preview_window,
+    open_save_directory,
     save_auth_config,
     save_config,
     select_executable_file,

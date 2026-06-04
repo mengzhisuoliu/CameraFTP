@@ -63,6 +63,7 @@ use commands::{
     open_external_link,
     open_folder_select_file,
     open_preview_window,
+    open_save_directory,
     quit_application,
     request_all_files_permission,
     save_auth_config,
@@ -264,6 +265,7 @@ pub fn run() {
             open_preview_window,
             select_executable_file,
             open_folder_select_file,
+            open_save_directory,
             open_external_link,
 
             // 文件索引
