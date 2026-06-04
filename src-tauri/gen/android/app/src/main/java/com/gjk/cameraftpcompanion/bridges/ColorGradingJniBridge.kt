@@ -54,6 +54,22 @@ class ColorGradingJniBridge {
             }
         }
 
+        fun commitPreview(
+            lutId: String,
+            enableLensCorrection: Boolean,
+            meteringMode: String,
+            evOffset: Float,
+            outputPath: String
+        ): Result<Unit> {
+            return try {
+                val json = nativeCommitPreview(lutId, enableLensCorrection, meteringMode, evOffset, outputPath)
+                parseResult(json)
+            } catch (e: Exception) {
+                Log.e(TAG, "commitPreview failed", e)
+                Result.failure(e)
+            }
+        }
+
         fun getPresets(): String {
             return try {
                 nativeGetPresets()
@@ -101,6 +117,8 @@ class ColorGradingJniBridge {
         private external fun nativeApplyPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float, maxWidth: Int, maxHeight: Int): String
         @JvmStatic
         private external fun nativeEndPreview(): String
+        @JvmStatic
+        private external fun nativeCommitPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float, outputPath: String): String
         @JvmStatic
         private external fun nativeGetPresets(): String
         @JvmStatic

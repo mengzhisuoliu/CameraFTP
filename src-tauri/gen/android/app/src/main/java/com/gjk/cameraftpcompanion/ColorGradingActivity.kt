@@ -183,26 +183,47 @@ internal class NativeColorGradingPreviewBridge(
         activity.previewJpegBytes = null
 
         Thread {
-            ColorGradingJniBridge.endPreview()
-            val mainActivity = MainActivity.instance
-            if (mainActivity != null) {
-                val args = buildColorGradingArgsJson(filePath, lutId, meteringMode, evOffset, false)
-                mainActivity.runOnUiThread {
-                    mainActivity.getWebView()?.evaluateJavascript(
-                        "(async function(){ try { await window.__tauriTriggerColorGrading?.(...${args}); } catch(e) {} " +
-                        "try { window.__tauriSaveColorGradingLastUsed?.(${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},${evOffset}); } catch(e) {} })();",
-                        null
+            // Generate output filename
+            val outputPath = generateSavePath()
+            if (outputPath == null) {
+                Log.e(TAG, "save: failed to generate save path")
+                activity.runOnUiThread {
+                    activity.webView?.evaluateJavascript(
+                        "window.notifyPreviewError?.(${JSONObject.quote("保存路径生成失败")});", null
                     )
                 }
-            } else {
-                Log.w(TAG, "save: MainActivity not available — color grading will not be applied")
+                return@Thread
+            }
+
+            Log.d(TAG, "save: outputPath=$outputPath")
+            val result = ColorGradingJniBridge.commitPreview(lutId, true, meteringMode, evOffset, outputPath)
+
+            activity.runOnUiThread {
+                if (result.isSuccess) {
+                    Log.d(TAG, "save: committed successfully to $outputPath")
+                    // Save last-used settings through MainActivity's WebView bridge
+                    val mainActivity = MainActivity.instance
+                    if (mainActivity != null) {
+                        mainActivity.getWebView()?.evaluateJavascript(
+                            "try { window.__tauriSaveColorGradingLastUsed?.(${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},${evOffset}); } catch(e) {}",
+                            null
+                        )
+                    }
+                } else {
+                    val msg = result.exceptionOrNull()?.message ?: "保存失败"
+                    Log.e(TAG, "save: failed - $msg")
+                    activity.webView?.evaluateJavascript(
+                        "window.notifyPreviewError?.(${JSONObject.quote(msg)});", null
+                    )
+                }
             }
         }.start()
 
+        // Delay finish to let the save thread start
         activity.runOnUiThread {
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 activity.finish()
-            }, 100)
+            }, 200)
         }
     }
 
@@ -229,6 +250,23 @@ internal class NativeColorGradingPreviewBridge(
             put("lastUsed", lastUsed ?: JSONObject.NULL)
             put("presets", JSONArray(presetsJson))
         }.toString()
+    }
+
+    /**
+     * Generate a save path based on the original file path.
+     * Creates a "<original_name>_graded.jpg" in the same directory.
+     */
+    private fun generateSavePath(): String? {
+        val activity = activityRef.get() ?: return null
+        val original = java.io.File(filePath)
+        if (!original.exists()) {
+            Log.e(TAG, "generateSavePath: original file not found: $filePath")
+            return null
+        }
+        val parent = original.parentFile ?: return null
+        val baseName = original.nameWithoutExtension
+        val output = java.io.File(parent, "${baseName}_graded.jpg")
+        return output.absolutePath
     }
 
     companion object {
