@@ -2,7 +2,7 @@
 // Copyright (C) 2026 GoldJohnKing <GoldJohnKing@Live.cn>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
@@ -11,14 +11,13 @@ use super::ffi::{RaPreviewSession, RawAlchemyLib};
 use super::lut_data;
 use super::presets::find_preset;
 
-const PREVIEW_JPEG_QUALITY: i32 = 80;
+const PREVIEW_JPEG_QUALITY: i32 = 50;
 
 static GLOBAL_PREVIEW_STATE: OnceLock<ColorGradingPreviewState> = OnceLock::new();
 
 struct ActiveSession {
     session: RaPreviewSession,
     image_path: String,
-    preview_output_path: PathBuf,
     enable_lens_correction: bool,
 }
 
@@ -72,18 +71,11 @@ impl ColorGradingPreviewState {
         .await
         .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;
 
-        let preview_dir = std::env::temp_dir().join("CameraFTP").join("preview");
-        tokio::fs::create_dir_all(&preview_dir).await
-            .map_err(|e| AppError::ColorGradingError(format!("Failed to create preview dir: {}", e)))?;
-
-        let preview_output_path = preview_dir.join(format!("preview_{}.jpg", session.ptr as usize));
-
         tracing::info!(image = image_path, "Preview session ready");
 
         *guard = Some(ActiveSession {
             session,
             image_path: image_path.to_string(),
-            preview_output_path,
             enable_lens_correction: true,
         });
 
@@ -96,7 +88,9 @@ impl ColorGradingPreviewState {
         enable_lens_correction: bool,
         metering_mode: &str,
         ev_offset: f32,
-    ) -> Result<String, AppError> {
+        max_width: u32,
+        max_height: u32,
+    ) -> Result<Vec<u8>, AppError> {
         let lib = RawAlchemyLib::get()?;
         let preset = find_preset(lut_id)
             .ok_or_else(|| AppError::ColorGradingError(format!("Unknown LUT preset: {}", lut_id)))?;
@@ -122,14 +116,12 @@ impl ColorGradingPreviewState {
         }
 
         let session_addr = active.session.ptr as usize;
-        let output_path = active.preview_output_path.clone();
-        let output_path_for_url = output_path.clone();
         let log_space = preset.log_space.clone();
         let metering = metering_mode.to_string();
 
-        tracing::debug!(lut = lut_id, ev = ev_offset, lens = enable_lens_correction, "Applying preview grading");
+        tracing::debug!(lut = lut_id, ev = ev_offset, lens = enable_lens_correction,
+                        max_w = max_width, max_h = max_height, "Applying preview grading");
 
-        // Hold guard across spawn_blocking to prevent concurrent begin/end from freeing the session
         tokio::task::spawn_blocking(move || {
             let session = RaPreviewSession { ptr: session_addr as *mut std::ffi::c_void };
             lib.apply_preview_grading(
@@ -139,17 +131,12 @@ impl ColorGradingPreviewState {
                 ev_offset,
                 &metering,
                 PREVIEW_JPEG_QUALITY,
-                Path::new(&output_path),
+                max_width,
+                max_height,
             )
         })
         .await
-        .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;
-
-        let url = format!(
-            "http://image-preview.localhost/{}",
-            percent_encode(&output_path_for_url.to_string_lossy())
-        );
-        Ok(url)
+        .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))?
     }
 
     pub async fn end(&self) -> Result<(), AppError> {
@@ -167,55 +154,4 @@ impl ColorGradingPreviewState {
 
 fn end_session_internal(lib: &Arc<RawAlchemyLib>, active: ActiveSession) {
     lib.end_preview_session(active.session);
-    let _ = std::fs::remove_file(&active.preview_output_path);
-}
-
-fn percent_encode(input: &str) -> String {
-    let mut result = Vec::with_capacity(input.len());
-    for &byte in input.as_bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' | b':' | b'\\' => {
-                result.push(byte);
-            }
-            _ => {
-                result.extend_from_slice(format!("%{:02X}", byte).as_bytes());
-            }
-        }
-    }
-    String::from_utf8(result).unwrap_or_default()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn percent_encode_passes_through_safe_chars() {
-        let input = "hello-world_test.txt";
-        assert_eq!(percent_encode(input), input);
-    }
-
-    #[test]
-    fn percent_encode_handles_path_separators() {
-        let input = "/tmp/CameraFTP/preview/image.jpg";
-        assert_eq!(percent_encode(input), input);
-    }
-
-    #[test]
-    fn percent_encode_handles_windows_path() {
-        let input = r"D:\Photos\test image.jpg";
-        assert_eq!(percent_encode(input), r"D:\Photos\test%20image.jpg");
-    }
-
-    #[test]
-    fn percent_encode_encodes_special_chars() {
-        assert_eq!(percent_encode("hello world"), "hello%20world");
-        assert_eq!(percent_encode("a+b=c"), "a%2Bb%3Dc");
-        assert_eq!(percent_encode("中文"), "%E4%B8%AD%E6%96%87");
-    }
-
-    #[test]
-    fn percent_encode_handles_empty_string() {
-        assert_eq!(percent_encode(""), "");
-    }
 }
