@@ -41,7 +41,7 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
   useEffect(() => {
     if (isOpen) {
       const lastUsed = draft?.colorGradingLastUsed;
-      const initialPreset = lastUsed?.presetId || colorGradingPresets[0]?.id || DEFAULT_PRESET_ID;
+      const initialPreset = lastUsed?.presetId || DEFAULT_PRESET_ID || colorGradingPresets[0]?.id;
       setSelectedId(initialPreset);
       setMeteringMode(lastUsed?.meteringMode ?? DEFAULT_METERING_MODE);
       setEvOffset(lastUsed?.evOffset ?? DEFAULT_EV_OFFSET);

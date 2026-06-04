@@ -113,6 +113,7 @@
   .btn-save { background: #3b82f6; color: #fff; }
   .btn-save:active { background: #2563eb; }
   .btn-save.saving { background: #555; pointer-events: none; }
+  .actions.disabled { opacity: 0.3; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -171,7 +172,7 @@
   </div>
 </div>
 
-<div class="actions">
+<div class="actions disabled" id="actions">
   <button class="btn-action btn-reset" id="resetBtn" onclick="onReset()">重置</button>
   <button class="btn-action btn-save" id="saveBtn" onclick="onSave()">保存</button>
 </div>
@@ -180,11 +181,14 @@
   var state = 'LOADING';
   var filePath = '';
   var presets = [];
-  var selectedLut = 'provia';
+  var selectedLut = 'fujifilm-provia';
   var selectedMetering = 'matrix';
   var currentEv = 0.0;
   var applyPending = false;
   var hasPendingApply = false;
+
+  var DEFAULT_LUT_ID = 'fujifilm-provia';
+  var DEFAULT_METERING_ID = 'matrix';
 
   var METERING_NAMES = {
     'highlight-safe': '高光保护', 'matrix': '矩阵测光',
@@ -198,12 +202,12 @@
 
     if (presets.length > 0) {
       var lastUsed = config.lastUsed || {};
-      var defaultLut = lastUsed.presetId || presets[0][0];
-      var defaultMetering = lastUsed.meteringMode || 'matrix';
+      var defaultLut = lastUsed.presetId || DEFAULT_LUT_ID;
+      var defaultMetering = lastUsed.meteringMode || DEFAULT_METERING_ID;
       var defaultEv = lastUsed.evOffset || 0;
 
-      selectedLut = presets.some(function(p) { return p[0] === defaultLut; }) ? defaultLut : presets[0][0];
-      selectedMetering = METERING_NAMES[defaultMetering] ? defaultMetering : 'matrix';
+      selectedLut = presets.some(function(p) { return p[0] === defaultLut; }) ? defaultLut : DEFAULT_LUT_ID;
+      selectedMetering = METERING_NAMES[defaultMetering] ? defaultMetering : DEFAULT_METERING_ID;
       currentEv = typeof defaultEv === 'number' ? defaultEv : 0;
 
       var html = '';
@@ -213,7 +217,8 @@
       }
       document.getElementById('lutPanel').innerHTML = html;
       var found = presets.find(function(p) { return p[0] === selectedLut; });
-      document.getElementById('lutLabel').textContent = found ? found[1] : presets[0][1];
+      var defaultPreset = presets.find(function(p) { return p[0] === DEFAULT_LUT_ID; });
+      document.getElementById('lutLabel').textContent = found ? found[1] : (defaultPreset ? defaultPreset[1] : presets[0][1]);
 
       document.getElementById('meteringLabel').textContent = METERING_NAMES[selectedMetering];
       var meteringOpts = document.getElementById('meteringPanel').querySelectorAll('.dropdown-opt');
@@ -286,11 +291,19 @@
     }
   }
 
+  function setDisabled(disabled) {
+    var method = disabled ? 'add' : 'remove';
+    document.getElementById('controls').classList[method]('disabled');
+    document.getElementById('actions').classList[method]('disabled');
+    if (disabled) document.getElementById('saveBtn').classList.add('saving');
+    else document.getElementById('saveBtn').classList.remove('saving');
+  }
+
   window.onPreviewReady = function() {
     state = 'READY';
     document.getElementById('loadingOverlay').classList.add('hidden');
     document.getElementById('errorOverlay').classList.add('hidden');
-    document.getElementById('controls').classList.remove('disabled');
+    setDisabled(false);
     applyPending = true;
     NativeBridge.applyPreview(selectedLut, selectedMetering, currentEv);
   };
@@ -326,10 +339,11 @@
   };
 
   function onReset() {
-    var defaultLut = presets.length > 0 ? presets[0][0] : '';
-    var defaultLutName = presets.length > 0 ? presets[0][1] : '';
+    var defaultPreset = presets.find(function(p) { return p[0] === DEFAULT_LUT_ID; });
+    var defaultLut = defaultPreset ? defaultPreset[0] : (presets.length > 0 ? presets[0][0] : '');
+    var defaultLutName = defaultPreset ? defaultPreset[1] : (presets.length > 0 ? presets[0][1] : '');
     selectedLut = defaultLut;
-    selectedMetering = 'matrix';
+    selectedMetering = DEFAULT_METERING_ID;
     currentEv = 0;
     document.getElementById('evSlider').value = 0;
     updateEvDisplay();
@@ -348,9 +362,7 @@
   function onSave() {
     if (state === 'SAVING') return;
     state = 'SAVING';
-    document.getElementById('saveBtn').classList.add('saving');
-    document.getElementById('resetBtn').style.pointerEvents = 'none';
-    document.getElementById('controls').classList.add('disabled');
+    setDisabled(true);
     NativeBridge.save(selectedLut, selectedMetering, currentEv);
   }
   function retryBegin() {
