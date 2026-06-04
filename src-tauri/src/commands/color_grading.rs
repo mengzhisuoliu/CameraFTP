@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 use tauri::{command, State};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 
 use crate::error::AppError;
 use crate::color_grading::presets::{ColorGradingPreset, all_presets, METERING_MODES};
@@ -63,9 +64,15 @@ pub async fn apply_color_grading_preview(
     enable_lens_correction: bool,
     metering_mode: String,
     ev_offset: f32,
+    max_width: Option<u32>,
+    max_height: Option<u32>,
 ) -> Result<String, AppError> {
-    ColorGradingPreviewState::get_global()
-        .apply(&lut_id, enable_lens_correction, &metering_mode, ev_offset).await
+    let mw = max_width.unwrap_or(0);
+    let mh = max_height.unwrap_or(0);
+    let jpeg_bytes = ColorGradingPreviewState::get_global()
+        .apply(&lut_id, enable_lens_correction, &metering_mode, ev_offset, mw, mh).await?;
+    let b64 = BASE64.encode(&jpeg_bytes);
+    Ok(format!("data:image/jpeg;base64,{}", b64))
 }
 
 #[command]
