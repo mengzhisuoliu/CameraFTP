@@ -8,7 +8,7 @@
 #[cfg(target_os = "android")]
 use jni::objects::{JClass, JString};
 #[cfg(target_os = "android")]
-use jni::sys::{jboolean, jfloat, jstring};
+use jni::sys::{jboolean, jfloat, jint, jstring};
 #[cfg(target_os = "android")]
 use jni::JNIEnv;
 
@@ -89,7 +89,7 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
 }
 
 /// JNI: Apply grading to current preview session.
-/// Returns JSON: `{"ok":true,"url":"..."}` or `{"ok":false,"error":"message"}`
+/// Returns JSON: `{"ok":true,"buffer":"<base64>"}` or `{"ok":false,"error":"message"}`
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJniBridge_nativeApplyPreview(
@@ -99,6 +99,8 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     enable_lens_correction: jboolean,
     metering_mode: JString,
     ev_offset: jfloat,
+    max_width: jint,
+    max_height: jint,
 ) -> jstring {
     let lut_id_str = match env.get_string(&lut_id) {
         Ok(s) => s.to_string_lossy().into_owned(),
@@ -110,13 +112,22 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     };
 
     let state = crate::color_grading::preview::ColorGradingPreviewState::get_global();
-    let result = run_blocking(state.apply(&lut_id_str, enable_lens_correction != 0, &metering_str, ev_offset));
+    let result = run_blocking(state.apply(
+        &lut_id_str,
+        enable_lens_correction != 0,
+        &metering_str,
+        ev_offset,
+        max_width as u32,
+        max_height as u32,
+    ));
 
     match result {
-        Ok(url) => {
+        Ok(jpeg_bytes) => {
+            use base64::Engine;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg_bytes);
             let json = serde_json::json!({
                 "ok": true,
-                "url": url,
+                "buffer": b64,
             })
             .to_string();
             new_json_string(&mut env, &json)
