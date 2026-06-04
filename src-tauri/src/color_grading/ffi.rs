@@ -225,6 +225,21 @@ fn ra_result_from_code(code: c_int) -> RaResult {
 
 static GLOBAL_LIB: OnceLock<Arc<RawAlchemyLib>> = OnceLock::new();
 
+/// RAII guard that ensures the C++ preview buffer is freed on drop,
+/// even during a panic unwind (e.g. OOM in to_vec()).
+struct CppBufferGuard<'a> {
+    buf: *mut u8,
+    lib: &'a RawAlchemyLib,
+}
+
+impl<'a> Drop for CppBufferGuard<'a> {
+    fn drop(&mut self) {
+        if !self.buf.is_null() {
+            unsafe { (self.lib.free_preview_buffer)(self.buf); }
+        }
+    }
+}
+
 impl RawAlchemyLib {
     pub fn load(path: &Path) -> Result<Self, AppError> {
         let lib = unsafe {
@@ -498,11 +513,11 @@ impl RawAlchemyLib {
             return Err(AppError::ColorGradingError("Buffer is empty".into()));
         }
 
+        let _guard = CppBufferGuard { buf: out_buf, lib: self };
         let jpeg_bytes = unsafe {
             std::slice::from_raw_parts(out_buf, out_len as usize).to_vec()
         };
-
-        unsafe { (self.free_preview_buffer)(out_buf); }
+        // Guard drops here, freeing the C++ buffer even if to_vec() panics
 
         Ok(jpeg_bytes)
     }
