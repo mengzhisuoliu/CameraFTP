@@ -19,10 +19,7 @@ import androidx.core.view.WindowCompat
 import com.gjk.cameraftpcompanion.bridges.ColorGradingJniBridge
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
-import java.io.FileInputStream
 import java.lang.ref.WeakReference
-import java.net.URLDecoder
 
 class ColorGradingActivity : AppCompatActivity() {
 
@@ -33,7 +30,7 @@ class ColorGradingActivity : AppCompatActivity() {
     internal var webView: WebView? = null
 
     @Volatile
-    internal var previewFilePath: String? = null
+    internal var previewJpegBytes: ByteArray? = null
 
     @Volatile
     internal var isSessionActive = false
@@ -69,16 +66,13 @@ class ColorGradingActivity : AppCompatActivity() {
                     view: WebView, request: WebResourceRequest
                 ): WebResourceResponse? {
                     if (request.url.scheme == "preview" && request.url.host == "latest") {
-                        val path = previewFilePath
-                        if (path != null) {
-                            val file = File(path)
-                            if (file.exists()) {
-                                return WebResourceResponse(
-                                    "image/jpeg", null, 200, "OK",
-                                    mapOf("Content-Length" to file.length().toString()),
-                                    FileInputStream(file)
-                                )
-                            }
+                        val bytes = previewJpegBytes
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            return WebResourceResponse(
+                                "image/jpeg", null, 200, "OK",
+                                mapOf("Content-Length" to bytes.size.toString()),
+                                java.io.ByteArrayInputStream(bytes)
+                            )
                         }
                         return WebResourceResponse(
                             "image/jpeg", null, 404, "Not Found",
@@ -127,24 +121,10 @@ class ColorGradingActivity : AppCompatActivity() {
 
     internal fun endPreviewSession() {
         isSessionActive = false
-        previewFilePath = null
+        previewJpegBytes = null
         Thread { ColorGradingJniBridge.endPreview() }.start()
     }
 
-    internal fun extractFilePathFromUrl(url: String): String? {
-        val prefix = "http://image-preview.localhost/"
-        if (!url.startsWith(prefix)) {
-            if (File(url).exists()) return url
-            return null
-        }
-        val encoded = url.substring(prefix.length)
-        return try {
-            URLDecoder.decode(encoded, "UTF-8")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to decode preview URL: $url", e)
-            null
-        }
-    }
 }
 
 internal class NativeColorGradingPreviewBridge(
@@ -176,21 +156,15 @@ internal class NativeColorGradingPreviewBridge(
     @JavascriptInterface
     fun applyPreview(lutId: String, meteringMode: String, evOffset: Float) {
         val activity = activityRef.get() ?: return
-        Log.d(TAG, "applyPreview: lut=$lutId metering=$meteringMode ev=$evOffset (JNI)")
+        val maxWidth = activity.resources.displayMetrics.widthPixels
+        val maxHeight = activity.resources.displayMetrics.heightPixels
+        Log.d(TAG, "applyPreview: lut=$lutId metering=$meteringMode ev=$evOffset size=${maxWidth}x${maxHeight} (JNI)")
         Thread {
-            val result = ColorGradingJniBridge.applyPreview(lutId, true, meteringMode, evOffset)
+            val result = ColorGradingJniBridge.applyPreview(lutId, true, meteringMode, evOffset, maxWidth, maxHeight)
             activity.runOnUiThread {
                 if (result.isSuccess) {
-                    val url = result.getOrDefault("")
-                    val extractedPath = activity.extractFilePathFromUrl(url)
-                    if (extractedPath != null) {
-                        activity.previewFilePath = extractedPath
-                        activity.webView?.evaluateJavascript("window.refreshPreview?.();", null)
-                    } else {
-                        activity.webView?.evaluateJavascript(
-                            "window.notifyPreviewError?.(${JSONObject.quote("Invalid preview URL: $url")});", null
-                        )
-                    }
+                    activity.previewJpegBytes = result.getOrDefault(ByteArray(0))
+                    activity.webView?.evaluateJavascript("window.refreshPreview?.();", null)
                 } else {
                     val msg = result.exceptionOrNull()?.message ?: "应用失败"
                     activity.webView?.evaluateJavascript(
@@ -206,7 +180,7 @@ internal class NativeColorGradingPreviewBridge(
         val activity = activityRef.get() ?: return
         Log.d(TAG, "save: lut=$lutId metering=$meteringMode ev=$evOffset")
 
-        activity.previewFilePath = null
+        activity.previewJpegBytes = null
 
         Thread {
             ColorGradingJniBridge.endPreview()

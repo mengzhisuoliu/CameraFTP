@@ -27,10 +27,17 @@ class ColorGradingJniBridge {
             }
         }
 
-        fun applyPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float): Result<String> {
+        fun applyPreview(
+            lutId: String,
+            enableLensCorrection: Boolean,
+            meteringMode: String,
+            evOffset: Float,
+            maxWidth: Int,
+            maxHeight: Int
+        ): Result<ByteArray> {
             return try {
-                val json = nativeApplyPreview(lutId, enableLensCorrection, meteringMode, evOffset)
-                parseResultWithUrl(json)
+                val json = nativeApplyPreview(lutId, enableLensCorrection, meteringMode, evOffset, maxWidth, maxHeight)
+                parseResultWithBuffer(json)
             } catch (e: Exception) {
                 Log.e(TAG, "applyPreview failed", e)
                 Result.failure(e)
@@ -74,10 +81,16 @@ class ColorGradingJniBridge {
             return Result.failure(Exception(obj.optString("error", "Unknown error")))
         }
 
-        private fun parseResultWithUrl(json: String): Result<String> {
+        private fun parseResultWithBuffer(json: String): Result<ByteArray> {
             val obj = JSONObject(json)
             if (obj.optBoolean("ok", false)) {
-                return Result.success(obj.optString("url", ""))
+                val b64 = obj.optString("buffer", "")
+                if (b64.isEmpty()) return Result.failure(Exception("Empty buffer"))
+                return try {
+                    Result.success(android.util.Base64.decode(b64, android.util.Base64.DEFAULT))
+                } catch (e: Exception) {
+                    Result.failure(Exception("Base64 decode failed: ${e.message}"))
+                }
             }
             return Result.failure(Exception(obj.optString("error", "Unknown error")))
         }
@@ -85,7 +98,7 @@ class ColorGradingJniBridge {
         @JvmStatic
         private external fun nativeBeginPreview(filePath: String): String
         @JvmStatic
-        private external fun nativeApplyPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float): String
+        private external fun nativeApplyPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float, maxWidth: Int, maxHeight: Int): String
         @JvmStatic
         private external fun nativeEndPreview(): String
         @JvmStatic
