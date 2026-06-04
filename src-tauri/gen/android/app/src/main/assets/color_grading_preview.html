@@ -384,6 +384,13 @@
     if (!applyPending) {
       applyPending = true;
       NativeBridge.applyPreview(selectedLut, selectedMetering, currentEv);
+    } else {
+      // Busy — schedule a retry shortly after current apply finishes
+      applyTimer = setTimeout(function() {
+        applyTimer = null;
+        applyPending = true;
+        NativeBridge.applyPreview(selectedLut, selectedMetering, currentEv);
+      }, 50);
     }
   });
 </script>
