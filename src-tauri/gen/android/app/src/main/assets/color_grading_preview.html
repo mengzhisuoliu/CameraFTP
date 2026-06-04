@@ -295,8 +295,6 @@
     var method = disabled ? 'add' : 'remove';
     document.getElementById('controls').classList[method]('disabled');
     document.getElementById('actions').classList[method]('disabled');
-    if (disabled) document.getElementById('saveBtn').classList.add('saving');
-    else document.getElementById('saveBtn').classList.remove('saving');
   }
 
   window.onPreviewReady = function() {
@@ -333,6 +331,7 @@
 
     if (state === 'SAVING') {
       state = 'READY';
+      document.getElementById('saveBtn').classList.remove('saving');
       setDisabled(false);
     }
 
@@ -367,6 +366,7 @@
   function onSave() {
     if (state === 'SAVING') return;
     state = 'SAVING';
+    document.getElementById('saveBtn').classList.add('saving');
     setDisabled(true);
     NativeBridge.save(selectedLut, selectedMetering, currentEv);
   }

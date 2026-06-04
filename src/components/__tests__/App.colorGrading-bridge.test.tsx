@@ -243,7 +243,7 @@ describe('Color grading bridge functions', () => {
       setPartialDraft({
         autoColorGrading: {
           enabled: false, presetId: 'old',
-          meteringMode: 'spot', evOffset: -1.0,
+          meteringMode: 'center-weighted', evOffset: -1.0,
         },
       });
 
