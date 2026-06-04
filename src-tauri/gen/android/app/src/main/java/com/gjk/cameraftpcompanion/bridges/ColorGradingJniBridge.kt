@@ -56,6 +56,16 @@ class ColorGradingJniBridge {
             }
         }
 
+        fun getLastUsed(): String? {
+            return try {
+                val json = nativeGetLastUsed()
+                if (json == "null") null else json
+            } catch (e: Exception) {
+                Log.e(TAG, "getLastUsed failed", e)
+                null
+            }
+        }
+
         private fun parseResult(json: String): Result<Unit> {
             val obj = JSONObject(json)
             if (obj.optBoolean("ok", false)) {
@@ -80,5 +90,7 @@ class ColorGradingJniBridge {
         private external fun nativeEndPreview(): String
         @JvmStatic
         private external fun nativeGetPresets(): String
+        @JvmStatic
+        private external fun nativeGetLastUsed(): String
     }
 }

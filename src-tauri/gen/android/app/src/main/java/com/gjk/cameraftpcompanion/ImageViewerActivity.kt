@@ -178,6 +178,14 @@ class ImageViewerActivity : AppCompatActivity() {
                 null
             }
         }
+
+        internal fun escapeForJsString(input: String): String {
+            return input
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+        }
     }
 
     // Stable views (survive config changes)
@@ -541,11 +549,7 @@ class ImageViewerActivity : AppCompatActivity() {
     internal fun requestExifPrefetch(jsonString: String) {
         val mainActivity = MainActivity.instance ?: return
         val webView = mainActivity.getWebView() ?: return
-        val escaped = jsonString
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\n", "\\n")
-        val js = "if(window.__requestExifForPositions)window.__requestExifForPositions('$escaped')"
+        val js = "if(window.__requestExifForPositions)window.__requestExifForPositions('${escapeForJsString(jsonString)}')"
         webView.post { webView.evaluateJavascript(js, null) }
     }
 

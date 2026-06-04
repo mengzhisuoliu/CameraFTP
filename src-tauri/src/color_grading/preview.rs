@@ -145,8 +145,6 @@ impl ColorGradingPreviewState {
         .await
         .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;
 
-        drop(guard);
-
         let url = format!(
             "http://image-preview.localhost/{}",
             percent_encode(&output_path_for_url.to_string_lossy())

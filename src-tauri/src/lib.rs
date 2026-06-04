@@ -170,6 +170,7 @@ pub fn run() {
             setup_logging();
 
             let config_service = Arc::new(ConfigService::new()?);
+            config_service.set_global();
             app.manage(Arc::clone(&config_service));
             let file_index = Arc::new(FileIndexService::new(Arc::clone(&config_service)));
             tauri::async_runtime::block_on(file_index.set_app_handle(app.handle().clone()));

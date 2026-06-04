@@ -14,7 +14,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import com.gjk.cameraftpcompanion.bridges.ColorGradingJniBridge
@@ -32,11 +31,24 @@ class ColorGradingActivity : AppCompatActivity() {
     }
 
     internal var webView: WebView? = null
+
+    @Volatile
     internal var previewFilePath: String? = null
+
+    @Volatile
     internal var isSessionActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (isSessionActive) {
+                    endPreviewSession()
+                }
+                finish()
+            }
+        })
 
         val filePath = intent.getStringExtra("filePath")
         if (filePath == null) {
@@ -95,8 +107,15 @@ class ColorGradingActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // Unconditionally end the preview session — covers both the case where
+        // a session is active AND the case where beginPreview is still decoding
+        // (isSessionActive is set to true only after successful decode).
         if (isSessionActive) {
             endPreviewSession()
+        } else {
+            // No active session yet, but a beginPreview thread might be running.
+            // end() is a no-op when there's no session, so this is safe.
+            Thread { ColorGradingJniBridge.endPreview() }.start()
         }
         webView?.let {
             (it.parent as? android.view.ViewGroup)?.removeView(it)
@@ -104,14 +123,6 @@ class ColorGradingActivity : AppCompatActivity() {
         }
         webView = null
         super.onDestroy()
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        if (isSessionActive) {
-            endPreviewSession()
-        }
-        super.onBackPressed()
     }
 
     internal fun endPreviewSession() {
@@ -136,7 +147,7 @@ class ColorGradingActivity : AppCompatActivity() {
     }
 }
 
-private class NativeColorGradingPreviewBridge(
+internal class NativeColorGradingPreviewBridge(
     activity: ColorGradingActivity,
     private val filePath: String,
 ) {
@@ -205,10 +216,12 @@ private class NativeColorGradingPreviewBridge(
                 mainActivity.runOnUiThread {
                     mainActivity.getWebView()?.evaluateJavascript(
                         "(async function(){ try { await window.__tauriTriggerColorGrading?.(...${args}); } catch(e) {} " +
-                        "try { window.__tauriSaveColorGradingLastUsed?.('${lutId.replace("'", "\\'")}','${meteringMode.replace("'", "\\'")}',${evOffset}); } catch(e) {} })();",
+                        "try { window.__tauriSaveColorGradingLastUsed?.(${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},${evOffset}); } catch(e) {} })();",
                         null
                     )
                 }
+            } else {
+                Log.w(TAG, "save: MainActivity not available — color grading will not be applied")
             }
         }.start()
 
@@ -229,53 +242,12 @@ private class NativeColorGradingPreviewBridge(
 
     @JavascriptInterface
     fun getConfig(): String {
-        // Get presets directly from JNI (no WebView dependency)
         val presetsJson = ColorGradingJniBridge.getPresets()
 
-        val mainActivity = MainActivity.instance
-        if (mainActivity == null) {
-            return JSONObject().apply {
-                put("filePath", filePath)
-                put("presets", JSONArray(presetsJson))
-            }.toString()
-        }
-
-        val resultFuture = java.util.concurrent.CompletableFuture<String>()
-        mainActivity.runOnUiThread {
-            mainActivity.getWebView()?.evaluateJavascript(
-                "(function(){try{var l=window.__tauriGetColorGradingLastUsed?.()??'null';return JSON.stringify({lastUsed:l})}catch(e){return JSON.stringify({lastUsed:'null'})}})();"
-            ) { result ->
-                resultFuture.complete(result ?: "{}")
-            }
-        }
-
-        val raw = try {
-            resultFuture.get(5, java.util.concurrent.TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            Log.w(TAG, "getConfig timed out or failed", e)
-            return JSONObject().apply {
-                put("filePath", filePath)
-                put("presets", JSONArray(presetsJson))
-            }.toString()
-        }
-
-        val trimmed = raw.trim()
-        val outerStr = if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
-            try { JSONArray("[$trimmed]").getString(0) } catch (_: Exception) { trimmed.removeSurrounding("\"") }
-        } else {
-            trimmed
-        }
-
-        val json = try { JSONObject(outerStr) } catch (e: Exception) { JSONObject() }
-
-        val lastUsedStr = json.optString("lastUsed", "null")
-        val lastUsedDecoded = if (lastUsedStr.startsWith("\"")) {
-            try { lastUsedStr.removeSurrounding("\"").replace("\\\"", "\"") } catch (_: Exception) { lastUsedStr }
-        } else {
-            lastUsedStr
-        }
-        val lastUsed = if (lastUsedDecoded != "null" && lastUsedDecoded.isNotEmpty()) {
-            try { JSONObject(lastUsedDecoded) } catch (e: Exception) { null }
+        // Read lastUsed directly from Rust config — no WebView IPC needed
+        val lastUsedJson = ColorGradingJniBridge.getLastUsed()
+        val lastUsed = if (lastUsedJson != null) {
+            try { JSONObject(lastUsedJson) } catch (_: Exception) { null }
         } else null
 
         return JSONObject().apply {
@@ -285,13 +257,13 @@ private class NativeColorGradingPreviewBridge(
         }.toString()
     }
 
-    private fun buildColorGradingArgsJson(
-        filePath: String, lutId: String, meteringMode: String, evOffset: Float, syncToAuto: Boolean
-    ): String {
-        return "[${JSONObject.quote(filePath)},${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},$evOffset,$syncToAuto]"
-    }
-
     companion object {
         private const val TAG = "NativeColorGradingPreviewBridge"
+
+        internal fun buildColorGradingArgsJson(
+            filePath: String, lutId: String, meteringMode: String, evOffset: Float, syncToAuto: Boolean
+        ): String {
+            return "[${JSONObject.quote(filePath)},${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},$evOffset,$syncToAuto]"
+        }
     }
 }

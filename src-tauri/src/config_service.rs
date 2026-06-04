@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 use tracing::{error, info};
 
@@ -15,6 +15,8 @@ fn lock_result<T>(result: std::sync::LockResult<T>) -> Result<T, AppError> {
     result.map_err(|e| AppError::Other(format!("Config lock poisoned: {}", e)))
 }
 
+static GLOBAL_CONFIG_SERVICE: OnceLock<Arc<ConfigService>> = OnceLock::new();
+
 #[derive(Clone)]
 pub struct ConfigService {
     config: Arc<RwLock<AppConfig>>,
@@ -22,6 +24,17 @@ pub struct ConfigService {
 }
 
 impl ConfigService {
+    /// Store this instance as the global singleton for JNI/bridge access.
+    pub fn set_global(self: &Arc<Self>) {
+        let _ = GLOBAL_CONFIG_SERVICE.set(Arc::clone(self));
+    }
+
+    /// Get the global ConfigService instance (set during app setup).
+    /// Panics if called before `set_global()`.
+    pub fn get_global() -> &'static Arc<Self> {
+        GLOBAL_CONFIG_SERVICE.get().expect("ConfigService global not initialized")
+    }
+
     pub fn new() -> Result<Self, AppError> {
         let service = Self::new_with_path(AppConfig::config_path());
         service.load()?;

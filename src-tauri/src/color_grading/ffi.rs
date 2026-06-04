@@ -151,8 +151,11 @@ pub(crate) struct RaPreviewSession {
     pub(crate) ptr: *mut std::ffi::c_void,
 }
 
-// SAFETY: The C++ session is accessed from Rust only via spawn_blocking,
-// so only one thread uses a session at a time.
+// SAFETY: RaPreviewSession is Send because all access to `ptr` is serialized by
+// the async Mutex in ColorGradingPreviewState. The mutex guard is held across
+// spawn_blocking in apply(), preventing concurrent begin/end from freeing the
+// session while grading is in progress. JNI threads calling end() go through
+// state.end() which also acquires the same mutex.
 unsafe impl Send for RaPreviewSession {}
 
 type RaBeginPreviewSessionFn = unsafe extern "C" fn(

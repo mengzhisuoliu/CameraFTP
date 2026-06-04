@@ -50,13 +50,12 @@ fn new_json_string(env: &mut JNIEnv, json: &str) -> jstring {
 
 #[cfg(target_os = "android")]
 fn json_error(env: &mut JNIEnv, msg: &str) -> jstring {
-    new_json_string(
-        env,
-        &format!(
-            r#"{{"ok":false,"error":"{}"}}"#,
-            msg.replace('\\', "\\\\").replace('"', "\\\"")
-        ),
-    )
+    let json = serde_json::json!({
+        "ok": false,
+        "error": msg,
+    })
+    .to_string();
+    new_json_string(env, &json)
 }
 
 /// JNI: Begin preview session (decode RAW + lens correction).
@@ -114,13 +113,14 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     let result = run_blocking(state.apply(&lut_id_str, enable_lens_correction != 0, &metering_str, ev_offset));
 
     match result {
-        Ok(url) => new_json_string(
-            &mut env,
-            &format!(
-                r#"{{"ok":true,"url":"{}"}}"#,
-                url.replace('\\', "\\\\").replace('"', "\\\"")
-            ),
-        ),
+        Ok(url) => {
+            let json = serde_json::json!({
+                "ok": true,
+                "url": url,
+            })
+            .to_string();
+            new_json_string(&mut env, &json)
+        }
         Err(e) => json_error(&mut env, &e.to_string()),
     }
 }
@@ -159,4 +159,26 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     )
     .unwrap_or_else(|_| "[]".to_string());
     new_json_string(&mut env, &json)
+}
+
+/// JNI: Get color grading last-used config as JSON.
+/// Returns JSON: `{"presetId":"...","evOffset":0.0,"meteringMode":"..."}` or `null`.
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJniBridge_nativeGetLastUsed(
+    mut env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    let config_service = crate::config_service::ConfigService::get_global();
+    match config_service.get() {
+        Ok(config) => {
+            let json = match &config.color_grading_last_used {
+                Some(lu) => serde_json::to_string(lu)
+                    .unwrap_or_else(|_| "null".to_string()),
+                None => "null".to_string(),
+            };
+            new_json_string(&mut env, &json)
+        }
+        Err(_) => new_json_string(&mut env, "null"),
+    }
 }
