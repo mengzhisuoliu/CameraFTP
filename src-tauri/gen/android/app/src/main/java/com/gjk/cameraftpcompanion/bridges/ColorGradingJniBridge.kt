@@ -27,9 +27,9 @@ class ColorGradingJniBridge {
             }
         }
 
-        fun applyPreview(lutId: String, meteringMode: String, evOffset: Float): Result<String> {
+        fun applyPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float): Result<String> {
             return try {
-                val json = nativeApplyPreview(lutId, meteringMode, evOffset)
+                val json = nativeApplyPreview(lutId, enableLensCorrection, meteringMode, evOffset)
                 parseResultWithUrl(json)
             } catch (e: Exception) {
                 Log.e(TAG, "applyPreview failed", e)
@@ -75,7 +75,7 @@ class ColorGradingJniBridge {
         @JvmStatic
         private external fun nativeBeginPreview(filePath: String): String
         @JvmStatic
-        private external fun nativeApplyPreview(lutId: String, meteringMode: String, evOffset: Float): String
+        private external fun nativeApplyPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float): String
         @JvmStatic
         private external fun nativeEndPreview(): String
         @JvmStatic

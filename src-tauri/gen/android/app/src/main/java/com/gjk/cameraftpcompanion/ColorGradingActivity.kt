@@ -167,7 +167,7 @@ private class NativeColorGradingPreviewBridge(
         val activity = activityRef.get() ?: return
         Log.d(TAG, "applyPreview: lut=$lutId metering=$meteringMode ev=$evOffset (JNI)")
         Thread {
-            val result = ColorGradingJniBridge.applyPreview(lutId, meteringMode, evOffset)
+            val result = ColorGradingJniBridge.applyPreview(lutId, true, meteringMode, evOffset)
             activity.runOnUiThread {
                 if (result.isSuccess) {
                     val url = result.getOrDefault("")
@@ -195,7 +195,6 @@ private class NativeColorGradingPreviewBridge(
         val activity = activityRef.get() ?: return
         Log.d(TAG, "save: lut=$lutId metering=$meteringMode ev=$evOffset")
 
-        activity.isSessionActive = false
         activity.previewFilePath = null
 
         Thread {

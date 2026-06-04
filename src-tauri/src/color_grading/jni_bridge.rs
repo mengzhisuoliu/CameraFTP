@@ -8,13 +8,19 @@
 #[cfg(target_os = "android")]
 use jni::objects::{JClass, JString};
 #[cfg(target_os = "android")]
-use jni::sys::{jfloat, jstring};
+use jni::sys::{jboolean, jfloat, jstring};
 #[cfg(target_os = "android")]
 use jni::JNIEnv;
 
-/// Run an async future on a JNI thread by creating a temporary single-threaded
-/// Tokio runtime. This is needed because JNI threads are not part of the main
-/// Tokio runtime, so `Handle::current()` would panic.
+#[cfg(target_os = "android")]
+use std::sync::OnceLock;
+
+#[cfg(target_os = "android")]
+static JNI_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+/// Run an async future on a JNI thread using a cached single-threaded Tokio runtime.
+/// This is needed because JNI threads are not part of the main Tokio runtime,
+/// so `Handle::current()` would panic.
 ///
 /// `tokio::sync::Mutex` works correctly across runtimes: the lock acquisition
 /// uses atomic operations and the waker from whichever runtime polls the future.
@@ -23,10 +29,13 @@ fn run_blocking<F, T>(fut: F) -> T
 where
     F: std::future::Future<Output = T>,
 {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("Failed to create JNI tokio runtime")
+    JNI_RUNTIME
+        .get_or_init(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create JNI tokio runtime")
+        })
         .block_on(fut)
 }
 
@@ -86,6 +95,7 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     mut env: JNIEnv,
     _class: JClass,
     lut_id: JString,
+    enable_lens_correction: jboolean,
     metering_mode: JString,
     ev_offset: jfloat,
 ) -> jstring {
@@ -99,7 +109,7 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     };
 
     let state = crate::color_grading::preview::ColorGradingPreviewState::get_global();
-    let result = run_blocking(state.apply(&lut_id_str, true, &metering_str, ev_offset));
+    let result = run_blocking(state.apply(&lut_id_str, enable_lens_correction != 0, &metering_str, ev_offset));
 
     match result {
         Ok(url) => new_json_string(

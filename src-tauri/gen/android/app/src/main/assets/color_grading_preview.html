@@ -322,16 +322,17 @@
     NativeBridge.cancelPreview();
   }
   function onReset() {
-    selectedLut = 'provia';
+    var defaultLut = presets.length > 0 ? presets[0][0] : '';
+    var defaultLutName = presets.length > 0 ? presets[0][1] : '';
+    selectedLut = defaultLut;
     selectedMetering = 'highlight-safe';
     currentEv = 0;
     document.getElementById('evSlider').value = 0;
     updateEvDisplay();
-    var found = presets.find(function(p) { return p[0] === 'provia'; });
-    document.getElementById('lutLabel').textContent = found ? found[1] : 'Provia';
+    document.getElementById('lutLabel').textContent = defaultLutName;
     var lutOpts = document.getElementById('lutPanel').querySelectorAll('.dropdown-opt');
     for (var i = 0; i < lutOpts.length; i++) {
-      lutOpts[i].classList.toggle('selected', lutOpts[i].getAttribute('data-value') === 'provia');
+      lutOpts[i].classList.toggle('selected', lutOpts[i].getAttribute('data-value') === defaultLut);
     }
     document.getElementById('meteringLabel').textContent = '高光保护';
     var meteringOpts = document.getElementById('meteringPanel').querySelectorAll('.dropdown-opt');

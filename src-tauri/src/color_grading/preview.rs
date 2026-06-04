@@ -106,31 +106,30 @@ impl ColorGradingPreviewState {
             .ok()
             .map(|r| r.lensfun_db_dir.to_string_lossy().into_owned());
 
-        let (session_addr, output_path) = {
-            let mut guard = self.inner.lock().await;
-            let active = guard.as_mut()
-                .ok_or_else(|| AppError::ColorGradingError("No active preview session".into()))?;
+        let mut guard = self.inner.lock().await;
+        let active = guard.as_mut()
+            .ok_or_else(|| AppError::ColorGradingError("No active preview session".into()))?;
 
-            if enable_lens_correction != active.enable_lens_correction {
-                tracing::info!(
-                    from = active.enable_lens_correction,
-                    to = enable_lens_correction,
-                    "Toggling lens correction"
-                );
-                let session = RaPreviewSession { ptr: active.session.ptr };
-                lib.toggle_lens_correction(&session, enable_lens_correction, lensfun_db_path.as_deref())?;
-                active.enable_lens_correction = enable_lens_correction;
-            }
+        if enable_lens_correction != active.enable_lens_correction {
+            tracing::info!(
+                from = active.enable_lens_correction,
+                to = enable_lens_correction,
+                "Toggling lens correction"
+            );
+            let session = RaPreviewSession { ptr: active.session.ptr };
+            lib.toggle_lens_correction(&session, enable_lens_correction, lensfun_db_path.as_deref())?;
+            active.enable_lens_correction = enable_lens_correction;
+        }
 
-            (active.session.ptr as usize, active.preview_output_path.clone())
-        };
+        let session_addr = active.session.ptr as usize;
+        let output_path = active.preview_output_path.clone();
         let output_path_for_url = output_path.clone();
-
         let log_space = preset.log_space.clone();
         let metering = metering_mode.to_string();
 
         tracing::debug!(lut = lut_id, ev = ev_offset, lens = enable_lens_correction, "Applying preview grading");
 
+        // Hold guard across spawn_blocking to prevent concurrent begin/end from freeing the session
         tokio::task::spawn_blocking(move || {
             let session = RaPreviewSession { ptr: session_addr as *mut std::ffi::c_void };
             lib.apply_preview_grading(
@@ -145,6 +144,8 @@ impl ColorGradingPreviewState {
         })
         .await
         .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;
+
+        drop(guard);
 
         let url = format!(
             "http://image-preview.localhost/{}",
@@ -186,13 +187,37 @@ fn percent_encode(input: &str) -> String {
     String::from_utf8(result).unwrap_or_default()
 }
 
-impl Drop for ColorGradingPreviewState {
-    fn drop(&mut self) {
-        if let Some(active) = self.inner.try_lock().ok().and_then(|mut g| g.take()) {
-            if let Ok(lib) = RawAlchemyLib::get() {
-                lib.end_preview_session(active.session);
-                let _ = std::fs::remove_file(&active.preview_output_path);
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn percent_encode_passes_through_safe_chars() {
+        let input = "hello-world_test.txt";
+        assert_eq!(percent_encode(input), input);
+    }
+
+    #[test]
+    fn percent_encode_handles_path_separators() {
+        let input = "/tmp/CameraFTP/preview/image.jpg";
+        assert_eq!(percent_encode(input), input);
+    }
+
+    #[test]
+    fn percent_encode_handles_windows_path() {
+        let input = r"D:\Photos\test image.jpg";
+        assert_eq!(percent_encode(input), r"D:\Photos\test%20image.jpg");
+    }
+
+    #[test]
+    fn percent_encode_encodes_special_chars() {
+        assert_eq!(percent_encode("hello world"), "hello%20world");
+        assert_eq!(percent_encode("a+b=c"), "a%2Bb%3Dc");
+        assert_eq!(percent_encode("中文"), "%E4%B8%AD%E6%96%87");
+    }
+
+    #[test]
+    fn percent_encode_handles_empty_string() {
+        assert_eq!(percent_encode(""), "");
     }
 }

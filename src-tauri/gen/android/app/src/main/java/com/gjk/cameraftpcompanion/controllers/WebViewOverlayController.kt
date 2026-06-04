@@ -12,37 +12,10 @@ import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
 import com.gjk.cameraftpcompanion.ImageViewerActivity
 import com.gjk.cameraftpcompanion.MainActivity
 import com.gjk.cameraftpcompanion.R
-import org.json.JSONArray
 import java.lang.ref.WeakReference
-
-private class NativeColorGradingBridge(
-    activity: ImageViewerActivity,
-    private val filePath: String,
-) {
-    private val activityRef: WeakReference<ImageViewerActivity> = WeakReference(activity)
-
-    @JavascriptInterface
-    fun onConfirm(lutId: String, meteringMode: String, evOffset: Float, syncToAuto: Boolean) {
-        val activity = activityRef.get() ?: return
-        activity.runOnUiThread {
-            activity.overlayController.dismissColorGrading()
-            activity.dispatchColorGrading(
-                filePath, lutId, meteringMode, evOffset, syncToAuto,
-            )
-        }
-    }
-
-    @JavascriptInterface
-    fun onCancel() {
-        val activity = activityRef.get() ?: return
-        activity.runOnUiThread { activity.overlayController.dismissColorGrading() }
-    }
-}
 
 private class NativeAiEditBridge(
     activity: ImageViewerActivity,
@@ -101,68 +74,6 @@ class WebViewOverlayController(private val activity: ImageViewerActivity) {
     private fun restoreOrientation() {
         savedOrientation?.let { activity.requestedOrientation = it }
         savedOrientation = null
-    }
-
-    fun showColorGrading(
-        filePath: String,
-        autoColorGradingEnabled: Boolean,
-        presets: List<Pair<String, String>>,
-        lastUsedPresetId: String? = null,
-        lastUsedMeteringMode: String? = null,
-        lastUsedEvOffset: Float? = null,
-    ) {
-        lockOrientation()
-        val rootView = activity.findViewById<FrameLayout>(android.R.id.content)
-
-        dismissColorGrading()
-
-        val initialPresetId = lastUsedPresetId?.takeIf { id -> presets.any { it.first == id } } ?: presets.firstOrNull()?.first
-            ?: run {
-                Log.w(TAG, "No color grading presets available")
-                android.widget.Toast.makeText(activity, "调色预设尚未加载", android.widget.Toast.LENGTH_SHORT).show()
-                return
-            }
-        val initialPresetLabel = presets.find { it.first == initialPresetId }?.second ?: presets.first().second
-        val presetOptionsHtml = presets.joinToString("") { (value, label) ->
-            """<div class="dropdown-opt${if (value == initialPresetId) " selected" else ""}" data-value="$value">$label</div>"""
-        }
-
-        val evValue = lastUsedEvOffset ?: 0.0f
-        val evDisplay = if (evValue > 0) "+${"%.1f".format(evValue)} EV" else "${"%.1f".format(evValue)} EV"
-        val initialMetering = lastUsedMeteringMode ?: "highlight-safe"
-
-        val saveToggleHtml = if (autoColorGradingEnabled) {
-            """<div class="save-toggle" onclick="toggleSync()">
-                    <div class="toggle" id="syncToggle"></div>
-                    <span>同步到自动调色</span>
-                  </div>"""
-        } else ""
-
-        val html = activity.assets.open("color_grading_dialog.html").bufferedReader().use { it.readText() }
-            .replace("{{FIRST_ID}}", initialPresetId)
-            .replace("{{FIRST_LABEL}}", initialPresetLabel)
-            .replace("{{PRESET_OPTIONS}}", presetOptionsHtml)
-            .replace("{{SAVE_TOGGLE}}", saveToggleHtml)
-            .replace("{{EV_VALUE}}", evValue.toString())
-            .replace("{{EV_DISPLAY}}", evDisplay)
-            .replace("{{SELECTED_METERING}}", initialMetering)
-
-        val webView = WebView(activity).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = false
-            setBackgroundColor(0)
-            isVerticalScrollBarEnabled = false
-            isHorizontalScrollBarEnabled = false
-            addJavascriptInterface(NativeColorGradingBridge(activity, filePath), "NativeBridge")
-            loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
-        }
-
-        val overlayParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        rootView.addView(webView, overlayParams)
-        colorGradingWebView = webView
     }
 
     fun dismissColorGrading() {

@@ -118,17 +118,6 @@ class ImageViewerActivity : AppCompatActivity() {
             }
         }
 
-        @JvmStatic
-        fun buildColorGradingArgsJson(
-            filePath: String, lutId: String,
-            meteringMode: String, evOffset: Float, syncToAuto: Boolean,
-        ): String {
-            return JSONArray().apply {
-                put(filePath); put(lutId)
-                put(meteringMode); put(evOffset); put(syncToAuto)
-            }.toString()
-        }
-
         data class InsertResult(
             val uris: List<String>,
             val currentIndex: Int,
@@ -482,32 +471,6 @@ class ImageViewerActivity : AppCompatActivity() {
         intent.putExtra("filePath", filePath)
         intent.putExtra("displayName", currentDisplayName)
         startActivity(intent)
-    }
-
-    internal fun dispatchColorGrading(
-        filePath: String, lutId: String,
-        meteringMode: String, evOffset: Float, syncToAuto: Boolean,
-    ) {
-        val mainActivity = MainActivity.instance ?: run {
-            Log.w(TAG, "MainActivity not available for color grading"); return
-        }
-        val args = buildColorGradingArgsJson(filePath, lutId, meteringMode, evOffset, syncToAuto)
-        val js = """
-            (function(){
-                if(window.__tauriTriggerColorGrading){
-                    window.__tauriTriggerColorGrading(...${args});
-                    return 'ok';
-                }
-                return 'no_handler';
-            })();
-        """.trimIndent()
-        mainActivity.runOnUiThread {
-            mainActivity.getWebView()?.evaluateJavascript(js) { result ->
-                if (result?.trim()?.removeSurrounding("\"") == "no_handler") {
-                    runOnUiThread { Log.w(TAG, "Color grading failed: frontend handler not available") }
-                }
-            }
-        }
     }
 
     // --- AI edit trigger ---
