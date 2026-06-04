@@ -58,12 +58,11 @@ class ColorGradingJniBridge {
             lutId: String,
             enableLensCorrection: Boolean,
             meteringMode: String,
-            evOffset: Float,
-            outputPath: String
-        ): Result<Unit> {
+            evOffset: Float
+        ): Result<String> {
             return try {
-                val json = nativeCommitPreview(lutId, enableLensCorrection, meteringMode, evOffset, outputPath)
-                parseResult(json)
+                val json = nativeCommitPreview(lutId, enableLensCorrection, meteringMode, evOffset)
+                parseResultWithOutputPath(json)
             } catch (e: Exception) {
                 Log.e(TAG, "commitPreview failed", e)
                 Result.failure(e)
@@ -97,6 +96,16 @@ class ColorGradingJniBridge {
             return Result.failure(Exception(obj.optString("error", "Unknown error")))
         }
 
+        private fun parseResultWithOutputPath(json: String): Result<String> {
+            val obj = JSONObject(json)
+            if (obj.optBoolean("ok", false)) {
+                val path = obj.optString("outputPath", "")
+                if (path.isEmpty()) return Result.failure(Exception("Empty outputPath"))
+                return Result.success(path)
+            }
+            return Result.failure(Exception(obj.optString("error", "Unknown error")))
+        }
+
         private fun parseResultWithBuffer(json: String): Result<ByteArray> {
             val obj = JSONObject(json)
             if (obj.optBoolean("ok", false)) {
@@ -118,7 +127,7 @@ class ColorGradingJniBridge {
         @JvmStatic
         private external fun nativeEndPreview(): String
         @JvmStatic
-        private external fun nativeCommitPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float, outputPath: String): String
+        private external fun nativeCommitPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float): String
         @JvmStatic
         private external fun nativeGetPresets(): String
         @JvmStatic

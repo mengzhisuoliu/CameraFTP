@@ -183,32 +183,19 @@ internal class NativeColorGradingPreviewBridge(
         activity.previewJpegBytes = null
 
         Thread {
-            // Generate output filename matching batch processing path convention
-            val outputPath = generateSavePath(lutId)
-            if (outputPath == null) {
-                Log.e(TAG, "save: failed to generate save path")
-                activity.runOnUiThread {
-                    activity.webView?.evaluateJavascript(
-                        "window.notifyPreviewError?.(${JSONObject.quote("保存路径生成失败")});", null
-                    )
-                }
-                return@Thread
-            }
-
-            Log.d(TAG, "save: outputPath=$outputPath")
-            val result = ColorGradingJniBridge.commitPreview(lutId, true, meteringMode, evOffset, outputPath)
+            Log.d(TAG, "save: calling commitPreview (JNI)")
+            val result = ColorGradingJniBridge.commitPreview(lutId, true, meteringMode, evOffset)
 
             activity.runOnUiThread {
                 if (result.isSuccess) {
+                    val outputPath = result.getOrDefault("")
                     Log.d(TAG, "save: committed successfully to $outputPath")
-                    // Notify Tauri frontend about the new graded file
                     val mainActivity = MainActivity.instance
                     if (mainActivity != null) {
                         mainActivity.getWebView()?.evaluateJavascript(
                             "(async function(){ try { await window.__TAURI__.invoke('notify_color_grading_done',{outputPaths:[${JSONObject.quote(outputPath)}]}); } catch(e) { console.warn('notify_color_grading_done error:',e); } })();",
                             null
                         )
-                        // Save last-used settings
                         mainActivity.getWebView()?.evaluateJavascript(
                             "try { window.__tauriSaveColorGradingLastUsed?.(${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},${evOffset}); } catch(e) {}",
                             null
@@ -226,7 +213,6 @@ internal class NativeColorGradingPreviewBridge(
             }
         }.start()
 
-        // Delay finish to let the save thread start
         activity.runOnUiThread {
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 activity.finish()
@@ -257,29 +243,6 @@ internal class NativeColorGradingPreviewBridge(
             put("lastUsed", lastUsed ?: JSONObject.NULL)
             put("presets", JSONArray(presetsJson))
         }.toString()
-    }
-
-    /**
-     * Generate a save path matching the batch processing convention:
-     * <parent>/ColorGrading/<stem>_<presetId>_<timestamp>.jpg
-     */
-    private fun generateSavePath(lutId: String): String? {
-        val activity = activityRef.get() ?: return null
-        val original = java.io.File(filePath)
-        if (!original.exists()) {
-            Log.e(TAG, "generateSavePath: original file not found: $filePath")
-            return null
-        }
-        val parent = original.parentFile ?: return null
-        val stem = original.nameWithoutExtension
-        val outputDir = java.io.File(parent, "ColorGrading")
-        if (!outputDir.exists() && !outputDir.mkdirs()) {
-            Log.e(TAG, "generateSavePath: failed to create ${outputDir.absolutePath}")
-            return null
-        }
-        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-        val output = java.io.File(outputDir, "${stem}_${lutId}_${timestamp}.jpg")
-        return output.absolutePath
     }
 
     companion object {
