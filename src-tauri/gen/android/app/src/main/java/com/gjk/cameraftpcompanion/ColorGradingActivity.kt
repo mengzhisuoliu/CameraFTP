@@ -201,13 +201,20 @@ internal class NativeColorGradingPreviewBridge(
             activity.runOnUiThread {
                 if (result.isSuccess) {
                     Log.d(TAG, "save: committed successfully to $outputPath")
-                    // Save last-used settings through MainActivity's WebView bridge
+                    // Notify Tauri frontend about the new graded file
                     val mainActivity = MainActivity.instance
                     if (mainActivity != null) {
+                        mainActivity.getWebView()?.evaluateJavascript(
+                            "(async function(){ try { await window.__TAURI__.invoke('notify_color_grading_done',{outputPaths:[${JSONObject.quote(outputPath)}]}); } catch(e) { console.warn('notify_color_grading_done error:',e); } })();",
+                            null
+                        )
+                        // Save last-used settings
                         mainActivity.getWebView()?.evaluateJavascript(
                             "try { window.__tauriSaveColorGradingLastUsed?.(${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},${evOffset}); } catch(e) {}",
                             null
                         )
+                    } else {
+                        Log.w(TAG, "save: MainActivity not available — notification skipped")
                     }
                 } else {
                     val msg = result.exceptionOrNull()?.message ?: "保存失败"
