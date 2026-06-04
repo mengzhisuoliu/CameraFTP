@@ -91,7 +91,7 @@ const BASE_DRAFT: AppConfig = {
   advancedConnection: { enabled: false, auth: { anonymous: true, username: '', passwordHash: '' } },
   previewConfig: null,
   androidImageViewer: null,
-  autoColorGrading: { enabled: true, presetId: 'fujifilm-provia', meteringMode: 'highlight-safe', evOffset: 0 },
+  autoColorGrading: { enabled: true, presetId: 'fujifilm-provia', meteringMode: 'matrix', evOffset: 0 },
   colorGradingLastUsed: null,
   aiEdit: {
     autoEdit: false, prompt: '', manualPrompt: '', manualModel: '',
@@ -180,11 +180,11 @@ describe('Color grading bridge functions', () => {
   describe('__tauriTriggerColorGrading', () => {
     it('passes meteringMode and evOffset to enqueueColorGrading', async () => {
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'highlight-safe', 0, false);
+        await trigger('/photo.nef', 'fujifilm-provia', 'matrix', 0, false);
       });
 
       expect(enqueueColorGradingMock).toHaveBeenCalledWith(
-        ['/photo.nef'], 'fujifilm-provia', 'highlight-safe', 0,
+        ['/photo.nef'], 'fujifilm-provia', 'matrix', 0,
       );
     });
 
@@ -200,12 +200,12 @@ describe('Color grading bridge functions', () => {
 
     it('always saves colorGradingLastUsed on confirm', async () => {
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'highlight-safe', 0, false);
+        await trigger('/photo.nef', 'fujifilm-provia', 'matrix', 0, false);
       });
 
       expect(useConfigStore.getState().draft?.colorGradingLastUsed).toEqual({
         presetId: 'fujifilm-provia',
-        meteringMode: 'highlight-safe',
+        meteringMode: 'matrix',
         evOffset: 0,
       });
     });
@@ -219,7 +219,7 @@ describe('Color grading bridge functions', () => {
       });
 
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'highlight-safe', 0, false);
+        await trigger('/photo.nef', 'fujifilm-provia', 'matrix', 0, false);
       });
 
       expect(useConfigStore.getState().draft?.autoColorGrading).toEqual({
@@ -248,7 +248,7 @@ describe('Color grading bridge functions', () => {
       });
 
       await act(async () => {
-        await trigger('/photo.nef', 'fujifilm-provia', 'highlight-safe', 0, true);
+        await trigger('/photo.nef', 'fujifilm-provia', 'matrix', 0, true);
       });
 
       expect(useConfigStore.getState().draft?.autoColorGrading?.enabled).toBe(false);

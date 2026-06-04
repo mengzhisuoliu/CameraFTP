@@ -6,6 +6,10 @@
 
 import type { SelectOption } from '../components/ui/Select';
 
+export const DEFAULT_PRESET_ID = 'fujifilm-provia';
+export const DEFAULT_METERING_MODE = 'matrix';
+export const DEFAULT_EV_OFFSET = 0;
+
 export const METERING_MODES: SelectOption[] = [
   { value: 'highlight-safe', label: '高光保护' },
   { value: 'matrix', label: '矩阵测光' },

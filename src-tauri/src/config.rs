@@ -151,8 +151,8 @@ impl Default for AutoColorGradingConfig {
         Self {
             enabled: false,
             preset_id: crate::color_grading::presets::DEFAULT_PRESET_ID.to_string(),
-            ev_offset: 0.0,
-            metering_mode: "highlight-safe".to_string(),
+            ev_offset: crate::color_grading::presets::DEFAULT_EV_OFFSET,
+            metering_mode: crate::color_grading::presets::DEFAULT_METERING_MODE.to_string(),
         }
     }
 }
@@ -174,8 +174,8 @@ impl Default for ColorGradingLastUsed {
     fn default() -> Self {
         Self {
             preset_id: crate::color_grading::presets::DEFAULT_PRESET_ID.to_string(),
-            ev_offset: 0.0,
-            metering_mode: "highlight-safe".to_string(),
+            ev_offset: crate::color_grading::presets::DEFAULT_EV_OFFSET,
+            metering_mode: crate::color_grading::presets::DEFAULT_METERING_MODE.to_string(),
         }
     }
 }

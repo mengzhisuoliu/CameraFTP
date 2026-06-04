@@ -42,6 +42,12 @@ static COLOR_GRADING_PRESETS: LazyLock<Vec<ColorGradingPreset>> = LazyLock::new(
 /// Default preset ID used when no user preference is stored.
 pub const DEFAULT_PRESET_ID: &str = "fujifilm-provia";
 
+/// Default metering mode used when no user preference is stored.
+pub const DEFAULT_METERING_MODE: &str = "matrix";
+
+/// Default EV offset used when no user preference is stored.
+pub const DEFAULT_EV_OFFSET: f32 = 0.0;
+
 pub fn all_presets() -> &'static [ColorGradingPreset] {
     &COLOR_GRADING_PRESETS
 }

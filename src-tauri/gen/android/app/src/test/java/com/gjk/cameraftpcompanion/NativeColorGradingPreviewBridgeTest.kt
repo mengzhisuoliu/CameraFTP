@@ -19,14 +19,14 @@ class NativeColorGradingPreviewBridgeTest {
     @Test
     fun buildArgsJson_nativeTypes_preservedAcrossJsonSerialization() {
         val json = NativeColorGradingPreviewBridge.buildColorGradingArgsJson(
-            "/photo.nef", "fujifilm-provia", "highlight-safe", 0.0f, false,
+            "/photo.nef", "fujifilm-provia", "matrix", 0.0f, false,
         )
         val arr = JSONArray(json)
 
         assertEquals(5, arr.length())
         assertEquals("/photo.nef", arr.getString(0))
         assertEquals("fujifilm-provia", arr.getString(1))
-        assertEquals("highlight-safe", arr.getString(2))
+        assertEquals("matrix", arr.getString(2))
         assertEquals(0.0, arr.getDouble(3), 0.001)
         assertFalse(arr.getBoolean(4))
     }
@@ -47,7 +47,7 @@ class NativeColorGradingPreviewBridgeTest {
     @Test
     fun buildArgsJson_negativeEv_preservedAsNativeNumber() {
         val json = NativeColorGradingPreviewBridge.buildColorGradingArgsJson(
-            "/photo.nef", "fujifilm-provia", "highlight-safe", -3.7f, false,
+            "/photo.nef", "fujifilm-provia", "matrix", -3.7f, false,
         )
         val arr = JSONArray(json)
 

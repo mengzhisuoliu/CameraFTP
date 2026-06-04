@@ -225,11 +225,11 @@ describe('useColorGradingProgress', () => {
   });
 
   it('enqueueColorGrading passes files to backend with meteringMode and evOffset', async () => {
-    await enqueueColorGrading(['/tmp/a.nef', '/tmp/b.nef'], 'preset-1', 'highlight-safe', 0);
+    await enqueueColorGrading(['/tmp/a.nef', '/tmp/b.nef'], 'preset-1', 'matrix', 0);
     expect(invokeMock).toHaveBeenCalledWith('enqueue_color_grading', {
       filePaths: ['/tmp/a.nef', '/tmp/b.nef'],
       lutId: 'preset-1',
-      meteringMode: 'highlight-safe',
+      meteringMode: 'matrix',
       evOffset: 0,
     });
   });

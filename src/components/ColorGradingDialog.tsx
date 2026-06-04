@@ -15,6 +15,7 @@ import type { SelectOption } from './ui/Select';
 import type { ColorGradingPreset } from '../types';
 import { useConfigStore, useDraftConfig } from '../stores/configStore';
 import { ExposureConfigSection } from './ExposureConfigSection';
+import { DEFAULT_PRESET_ID, DEFAULT_METERING_MODE, DEFAULT_EV_OFFSET } from '../constants/color-grading';
 
 interface ColorGradingDialogProps {
   isOpen: boolean;
@@ -33,17 +34,17 @@ export function ColorGradingDialog({ isOpen, colorGradingPresets, onConfirm, onC
   const draft = useDraftConfig();
 
   const [selectedId, setSelectedId] = useState('');
-  const [meteringMode, setMeteringMode] = useState('highlight-safe');
-  const [evOffset, setEvOffset] = useState(0.0);
+  const [meteringMode, setMeteringMode] = useState(DEFAULT_METERING_MODE);
+  const [evOffset, setEvOffset] = useState(DEFAULT_EV_OFFSET);
   const [syncToAuto, setSyncToAuto] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       const lastUsed = draft?.colorGradingLastUsed;
-      const initialPreset = lastUsed?.presetId || colorGradingPresets[0]?.id || 'fujifilm-provia';
+      const initialPreset = lastUsed?.presetId || colorGradingPresets[0]?.id || DEFAULT_PRESET_ID;
       setSelectedId(initialPreset);
-      setMeteringMode(lastUsed?.meteringMode ?? 'highlight-safe');
-      setEvOffset(lastUsed?.evOffset ?? 0.0);
+      setMeteringMode(lastUsed?.meteringMode ?? DEFAULT_METERING_MODE);
+      setEvOffset(lastUsed?.evOffset ?? DEFAULT_EV_OFFSET);
       setSyncToAuto(false);
     }
   // draft intentionally excluded — effect should only run on mount/dialog open

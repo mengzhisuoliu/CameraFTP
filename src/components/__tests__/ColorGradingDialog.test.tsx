@@ -100,7 +100,7 @@ describe('ColorGradingDialog', () => {
       await flush();
     });
 
-    expect(onConfirm).toHaveBeenCalledWith('fujifilm-provia', 'highlight-safe', 0);
+    expect(onConfirm).toHaveBeenCalledWith('fujifilm-provia', 'matrix', 0);
     expect(updateDraftMock).toHaveBeenCalled();
   });
 

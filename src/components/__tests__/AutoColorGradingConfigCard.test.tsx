@@ -68,7 +68,7 @@ describe('AutoColorGradingConfigCard', () => {
       autoColorGrading: {
         enabled: false,
         presetId: 'fujifilm-provia',
-        meteringMode: 'highlight-safe',
+        meteringMode: 'matrix',
         evOffset: 0,
       },
     });
@@ -86,7 +86,7 @@ describe('AutoColorGradingConfigCard', () => {
       autoColorGrading: {
         enabled: true,
         presetId: 'fujifilm-provia',
-        meteringMode: 'highlight-safe',
+        meteringMode: 'matrix',
         evOffset: 0,
       },
     });
@@ -103,7 +103,7 @@ describe('AutoColorGradingConfigCard', () => {
       autoColorGrading: {
         enabled: false,
         presetId: 'fujifilm-provia',
-        meteringMode: 'highlight-safe',
+        meteringMode: 'matrix',
         evOffset: 0,
       },
     });
@@ -118,7 +118,7 @@ describe('AutoColorGradingConfigCard', () => {
       autoColorGrading: {
         enabled: false,
         presetId: 'fujifilm-provia',
-        meteringMode: 'highlight-safe',
+        meteringMode: 'matrix',
         evOffset: 0,
       },
     });

@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ColorGradingEvent } from '../types';
 import { createTaskProgressHook } from './createTaskProgressHook';
 import type { TaskProgressState, DoneEvent } from './createTaskProgressHook';
+import { DEFAULT_METERING_MODE, DEFAULT_EV_OFFSET } from '../constants/color-grading';
 
 export interface ColorGradingProgressState {
   isProcessing: boolean;
@@ -85,8 +86,8 @@ export function useColorGradingProgress(): ColorGradingProgressState {
 export async function enqueueColorGrading(
   files: string[],
   lutId: string,
-  meteringMode: string = 'highlight-safe',
-  evOffset: number = 0.0,
+  meteringMode: string = DEFAULT_METERING_MODE,
+  evOffset: number = DEFAULT_EV_OFFSET,
 ): Promise<void> {
   await invoke('enqueue_color_grading', { filePaths: files, lutId, meteringMode, evOffset });
 }

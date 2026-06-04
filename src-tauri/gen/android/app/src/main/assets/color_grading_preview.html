@@ -148,7 +148,7 @@
     <div class="dropdown" id="meteringDropdown">
       <div class="section-label">测光模式</div>
       <button class="dropdown-btn" type="button" onclick="toggleDropdown('metering')">
-        <span id="meteringLabel">高光保护</span>
+        <span id="meteringLabel">矩阵测光</span>
         <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
       </button>
       <div class="dropdown-panel" id="meteringPanel">
@@ -181,7 +181,7 @@
   var filePath = '';
   var presets = [];
   var selectedLut = 'provia';
-  var selectedMetering = 'highlight-safe';
+  var selectedMetering = 'matrix';
   var currentEv = 0.0;
   var applyPending = false;
   var hasPendingApply = false;
@@ -199,11 +199,11 @@
     if (presets.length > 0) {
       var lastUsed = config.lastUsed || {};
       var defaultLut = lastUsed.presetId || presets[0][0];
-      var defaultMetering = lastUsed.meteringMode || 'highlight-safe';
+      var defaultMetering = lastUsed.meteringMode || 'matrix';
       var defaultEv = lastUsed.evOffset || 0;
 
       selectedLut = presets.some(function(p) { return p[0] === defaultLut; }) ? defaultLut : presets[0][0];
-      selectedMetering = METERING_NAMES[defaultMetering] ? defaultMetering : 'highlight-safe';
+      selectedMetering = METERING_NAMES[defaultMetering] ? defaultMetering : 'matrix';
       currentEv = typeof defaultEv === 'number' ? defaultEv : 0;
 
       var html = '';
@@ -329,7 +329,7 @@
     var defaultLut = presets.length > 0 ? presets[0][0] : '';
     var defaultLutName = presets.length > 0 ? presets[0][1] : '';
     selectedLut = defaultLut;
-    selectedMetering = 'highlight-safe';
+    selectedMetering = 'matrix';
     currentEv = 0;
     document.getElementById('evSlider').value = 0;
     updateEvDisplay();
@@ -338,10 +338,10 @@
     for (var i = 0; i < lutOpts.length; i++) {
       lutOpts[i].classList.toggle('selected', lutOpts[i].getAttribute('data-value') === defaultLut);
     }
-    document.getElementById('meteringLabel').textContent = '高光保护';
+    document.getElementById('meteringLabel').textContent = '矩阵测光';
     var meteringOpts = document.getElementById('meteringPanel').querySelectorAll('.dropdown-opt');
     for (var j = 0; j < meteringOpts.length; j++) {
-      meteringOpts[j].classList.toggle('selected', meteringOpts[j].getAttribute('data-value') === 'highlight-safe');
+      meteringOpts[j].classList.toggle('selected', meteringOpts[j].getAttribute('data-value') === 'matrix');
     }
     requestApply();
   }
