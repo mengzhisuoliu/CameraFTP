@@ -59,7 +59,6 @@ use commands::{
     is_raw_file,
     load_config,
     navigate_to_file,
-    notify_color_grading_done,
     open_external_link,
     open_folder_select_file,
     open_preview_window,
@@ -204,7 +203,6 @@ pub fn run() {
                     app.handle().clone(),
                     Arc::clone(&config_service),
                 ));
-                cg_service.set_global();
                 app.manage(cg_service);
                 color_grading::preview::ColorGradingPreviewState::ensure_init();
             }
@@ -294,7 +292,6 @@ pub fn run() {
             get_metering_modes,
             enqueue_color_grading,
             cancel_color_grading,
-            notify_color_grading_done,
             begin_color_grading_preview,
             apply_color_grading_preview,
             commit_color_grading_preview,

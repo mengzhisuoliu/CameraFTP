@@ -40,6 +40,15 @@ class ColorGradingActivity : AppCompatActivity() {
     @Volatile
     internal var isApplyInFlight = false
 
+    @Volatile
+    internal var isSaving = false
+
+    @Volatile
+    internal var isDecoding = false
+
+    @Volatile
+    internal var cancelDecoding = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -109,14 +118,16 @@ class ColorGradingActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // Unconditionally end the preview session — covers both the case where
-        // a session is active AND the case where beginPreview is still decoding
-        // (isSessionActive is set to true only after successful decode).
-        if (isSessionActive) {
+        if (isSaving) {
+            // save thread is running — commit_and_end cleans up the session internally.
+            // Do NOT call endPreview here to avoid racing with commitPreview.
+        } else if (isDecoding) {
+            // beginPreview thread is still decoding RAW. Set a flag so the decode
+            // callback can clean up the session immediately after it completes.
+            cancelDecoding = true
+        } else if (isSessionActive) {
             endPreviewSession()
         } else {
-            // No active session yet, but a beginPreview thread might be running.
-            // end() is a no-op when there's no session, so this is safe.
             Thread { ColorGradingJniBridge.endPreview() }.start()
         }
         webView?.let {
@@ -149,17 +160,26 @@ internal class NativeColorGradingPreviewBridge(
     fun beginPreview(filePath: String) {
         val activity = activityRef.get() ?: return
         Log.d(TAG, "beginPreview: $filePath (JNI)")
+        activity.isDecoding = true
         Thread {
             val result = ColorGradingJniBridge.beginPreview(filePath)
             activity.runOnUiThread {
+                activity.isDecoding = false
                 if (result.isSuccess) {
-                    activity.isSessionActive = true
-                    activity.webView?.evaluateJavascript("window.onPreviewReady?.();", null)
+                    if (activity.cancelDecoding) {
+                        // onDestroy was called during decode — clean up now
+                        Thread { ColorGradingJniBridge.endPreview() }.start()
+                    } else {
+                        activity.isSessionActive = true
+                        activity.webView?.evaluateJavascript("window.onPreviewReady?.();", null)
+                    }
                 } else {
-                    val msg = result.exceptionOrNull()?.message ?: "解码失败"
-                    activity.webView?.evaluateJavascript(
-                        "window.onPreviewError?.(${JSONObject.quote(msg)});", null
-                    )
+                    if (!activity.cancelDecoding) {
+                        val msg = result.exceptionOrNull()?.message ?: "解码失败"
+                        activity.webView?.evaluateJavascript(
+                            "window.onPreviewError?.(${JSONObject.quote(msg)});", null
+                        )
+                    }
                 }
             }
         }.start()
@@ -194,11 +214,13 @@ internal class NativeColorGradingPreviewBridge(
         val activity = activityRef.get() ?: return
         Log.d(TAG, "save: lut=$lutId metering=$meteringMode ev=$evOffset")
 
+        activity.isSaving = true
         activity.previewJpegBytes = null
 
         Thread {
             Log.d(TAG, "save: calling commitPreview (JNI)")
             val result = ColorGradingJniBridge.commitPreview(lutId, true, meteringMode, evOffset)
+            activity.isSaving = false
 
             activity.runOnUiThread {
                 if (result.isSuccess) {
@@ -245,21 +267,12 @@ internal class NativeColorGradingPreviewBridge(
                 } else {
                     val msg = result.exceptionOrNull()?.message ?: "保存失败"
                     Log.e(TAG, "save: failed - $msg")
-                    activity.webView?.evaluateJavascript(
-                        "window.notifyPreviewError?.(${JSONObject.quote(msg)});", null
-                    )
-                    // Re-apply preview so the user sees the image again
-                    val maxWidth = activity.resources.displayMetrics.widthPixels
-                    val maxHeight = activity.resources.displayMetrics.heightPixels
-                    Thread {
-                        val retryResult = ColorGradingJniBridge.applyPreview(lutId, true, meteringMode, evOffset, maxWidth, maxHeight)
-                        activity.runOnUiThread {
-                            if (retryResult.isSuccess) {
-                                activity.previewJpegBytes = retryResult.getOrDefault(ByteArray(0))
-                                activity.webView?.evaluateJavascript("window.refreshPreview?.();", null)
-                            }
-                        }
-                    }.start()
+                    // commit_and_end has already consumed the session, so re-applying preview
+                    // would fail ("No active preview session"). Finish the activity instead.
+                    android.widget.Toast.makeText(activity, msg, android.widget.Toast.LENGTH_LONG).show()
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        activity.finish()
+                    }, 1500)
                 }
             }
         }.start()

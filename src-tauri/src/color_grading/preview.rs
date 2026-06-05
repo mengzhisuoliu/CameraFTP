@@ -203,18 +203,18 @@ impl ColorGradingPreviewState {
         }
 
         // Take the session out of the guard for spawn_blocking ownership transfer.
-        // On the success path, end_session_internal is called after spawn_blocking.
         // On any error path above this line, sg.drop() will clean up the session.
+        // Inside spawn_blocking, end_session_internal is called regardless of success/failure.
         let active = sg.take().unwrap();
         let session_addr = active.session.ptr as usize;
         let log_space = preset.log_space.clone();
         let metering = metering_mode.to_string();
 
-        let output_path = tokio::task::spawn_blocking(move || {
+        let result = tokio::task::spawn_blocking(move || {
             let input_path = Path::new(&input_path_str);
             let output = super::output::color_grading_output_path(input_path, &preset_id)?;
             let session = RaPreviewSession { ptr: session_addr as *mut std::ffi::c_void };
-            lib.commit_preview(
+            let commit_result = lib.commit_preview(
                 &session,
                 Some(log_space.as_str()),
                 &lut_data,
@@ -222,16 +222,18 @@ impl ColorGradingPreviewState {
                 &metering,
                 SAVE_JPEG_QUALITY,
                 &output,
-            )?;
+            );
+
+            // End C++ session regardless of commit_preview success or failure.
+            end_session_internal(&lib, active);
+
+            commit_result?;
             Ok::<_, AppError>(output)
         })
         .await
         .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;
 
-        end_session_internal(&lib, active);
-        // sg.session is None — drop is a no-op
-
-        Ok(output_path.to_string_lossy().into_owned())
+        Ok(result.to_string_lossy().into_owned())
     }
 
     pub async fn end(&self) -> Result<(), AppError> {

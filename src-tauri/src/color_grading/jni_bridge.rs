@@ -237,25 +237,6 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     }
 }
 
-/// JNI: Emit color-grading-progress Done event via Tauri.
-/// Returns JSON: `{"ok":true}` or `{"ok":false,"error":"message"}`
-#[cfg(target_os = "android")]
-#[no_mangle]
-pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJniBridge_nativeNotifyDone(
-    mut env: JNIEnv,
-    _class: JClass,
-    output_path: JString,
-) -> jstring {
-    let path_str = match env.get_string(&output_path) {
-        Ok(s) => s.to_string_lossy().into_owned(),
-        Err(_) => return json_error(&mut env, "Invalid outputPath"),
-    };
-
-    let service = crate::color_grading::service::ColorGradingService::get_global();
-    service.notify_done(vec![path_str]);
-    new_json_ok(&mut env)
-}
-
 /// JNI: Persist color grading last-used config directly to disk.
 /// Returns JSON: `{"ok":true}` or `{"ok":false,"error":"message"}`
 #[cfg(target_os = "android")]

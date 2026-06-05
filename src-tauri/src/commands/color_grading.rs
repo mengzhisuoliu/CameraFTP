@@ -34,15 +34,6 @@ pub async fn enqueue_color_grading(
 }
 
 #[command]
-pub async fn notify_color_grading_done(
-    color_grading: State<'_, Arc<ColorGradingService>>,
-    output_paths: Vec<String>,
-) -> Result<(), AppError> {
-    color_grading.notify_done(output_paths);
-    Ok(())
-}
-
-#[command]
 pub async fn cancel_color_grading(
     color_grading: State<'_, Arc<ColorGradingService>>,
 ) -> Result<(), AppError> {

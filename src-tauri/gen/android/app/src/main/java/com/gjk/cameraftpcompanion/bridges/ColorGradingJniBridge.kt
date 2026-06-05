@@ -123,16 +123,6 @@ class ColorGradingJniBridge {
             }
         }
 
-        fun notifyDone(outputPath: String): Result<Unit> {
-            return try {
-                val json = nativeNotifyDone(outputPath)
-                JniResultParser.parseResult(json)
-            } catch (e: Exception) {
-                Log.e(TAG, "notifyDone failed", e)
-                Result.failure(e)
-            }
-        }
-
         fun saveLastUsed(presetId: String, meteringMode: String, evOffset: Float): Result<Unit> {
             return try {
                 val json = nativeSaveLastUsed(presetId, meteringMode, evOffset)
@@ -155,8 +145,6 @@ class ColorGradingJniBridge {
         private external fun nativeGetPresets(): String
         @JvmStatic
         private external fun nativeGetLastUsed(): String
-        @JvmStatic
-        private external fun nativeNotifyDone(outputPath: String): String
         @JvmStatic
         private external fun nativeSaveLastUsed(presetId: String, meteringMode: String, evOffset: Float): String
     }
