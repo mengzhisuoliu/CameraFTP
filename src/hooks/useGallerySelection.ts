@@ -152,17 +152,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
 
   const handleDragSelect = useCallback((mediaIds: Set<string>) => {
     if (mediaIds.size === 0) return;
-    setSelectedIds((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      for (const id of mediaIds) {
-        if (!next.has(id)) {
-          next.add(id);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
+    setSelectedIds(mediaIds);
   }, []);
 
   const handleRefreshStart = useCallback(() => {
