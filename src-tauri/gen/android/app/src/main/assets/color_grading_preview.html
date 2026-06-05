@@ -114,6 +114,13 @@
   .btn-save:active { background: #2563eb; }
   .btn-save.saving { background: #555; pointer-events: none; }
   .actions.disabled { opacity: 0.3; pointer-events: none; }
+
+  .saving-overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+    background: rgba(17,17,17,0.85); z-index: 15;
+  }
+  .saving-overlay.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -124,6 +131,10 @@
     <div class="spinner"></div>
     <div class="loading-text">正在解码 RAW 图片...</div>
     <div class="loading-hint">请勿返回，否则将中断解码</div>
+  </div>
+  <div class="saving-overlay hidden" id="savingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text">正在保存...</div>
   </div>
   <div class="error-overlay hidden" id="errorOverlay">
     <div class="error-text" id="errorText">解码失败</div>
@@ -332,6 +343,7 @@
     if (state === 'SAVING') {
       state = 'READY';
       document.getElementById('saveBtn').classList.remove('saving');
+      document.getElementById('savingOverlay').classList.add('hidden');
       setDisabled(false);
     }
 
@@ -367,6 +379,7 @@
     if (state === 'SAVING') return;
     state = 'SAVING';
     document.getElementById('saveBtn').classList.add('saving');
+    document.getElementById('savingOverlay').classList.remove('hidden');
     setDisabled(true);
     NativeBridge.save(selectedLut, selectedMetering, currentEv);
   }
