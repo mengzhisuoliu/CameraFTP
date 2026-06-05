@@ -27,6 +27,10 @@ export interface VirtualGalleryGridProps {
   onTouchStart?: (mediaId: string, event: TouchEvent, isScrolling: boolean) => void;
   onTouchMove?: (event: TouchEvent) => void;
   onTouchEnd?: () => void;
+  /** Drag-select: called with the mediaId under the finger during drag */
+  onDragSelect?: (mediaId: string) => void;
+  /** Ref to check if drag-select is active (from useGallerySelection) */
+  isDragSelectingRef?: React.RefObject<boolean>;
   /** Called when scrolling near the end to trigger infinite scroll */
   onNearEnd?: () => void;
 }
@@ -43,6 +47,8 @@ export function VirtualGalleryGrid({
   onTouchStart,
   onTouchMove,
   onTouchEnd,
+  onDragSelect,
+  isDragSelectingRef,
   onNearEnd,
 }: VirtualGalleryGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -69,6 +75,38 @@ export function VirtualGalleryGrid({
 
     return () => observer.disconnect();
   }, []);
+
+  // Native non-passive touchmove listener for drag-select scroll prevention
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleNativeTouchMove = (event: globalThis.TouchEvent) => {
+      if (!isDragSelectingRef?.current || !onDragSelect) return;
+
+      event.preventDefault();
+
+      const touch = event.touches[0];
+      if (!touch) return;
+
+      const element = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (!element) return;
+
+      const cell = (element as HTMLElement).closest<HTMLElement>('[data-media-id]');
+      if (!cell) return;
+
+      const mediaId = cell.dataset.mediaId;
+      if (mediaId) {
+        onDragSelect(mediaId);
+      }
+    };
+
+    el.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+
+    return () => {
+      el.removeEventListener('touchmove', handleNativeTouchMove);
+    };
+  }, [onDragSelect, isDragSelectingRef]);
 
   // Cleanup scroll timer on unmount
   useEffect(() => {

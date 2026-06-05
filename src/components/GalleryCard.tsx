@@ -63,6 +63,8 @@ export const GalleryCard = memo(function GalleryCard() {
     handleCancelAiEditPrompt,
     handleCancelSelection,
     toggleMenu,
+    isDragSelectingRef,
+    handleDragSelect,
   } = useGallerySelection({
     activeTab,
     onDeleteApplied: async (idsToDelete) => {
@@ -273,6 +275,8 @@ export const GalleryCard = memo(function GalleryCard() {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onDragSelect={handleDragSelect}
+          isDragSelectingRef={isDragSelectingRef}
         />
       </div>
 

@@ -38,6 +38,8 @@ type UseGallerySelectionResult = {
   handleCancelAiEditPrompt: () => void;
   handleCancelSelection: () => void;
   toggleMenu: () => void;
+  isDragSelectingRef: RefObject<boolean>;
+  handleDragSelect: (mediaId: string) => void;
 };
 
 export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }: UseGallerySelectionOptions): UseGallerySelectionResult {
@@ -51,6 +53,8 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
   const isSelectionModeRef = useRef(false);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const wasScrollingAtTouchStartRef = useRef(false);
+  const isDragSelectingRef = useRef(false);
+  const lastDragSelectIdRef = useRef<string | null>(null);
 
   const clearTransientSelectionUiState = useCallback(() => {
     setShowMenu(false);
@@ -106,12 +110,17 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       if (!wasScrollingAtTouchStartRef.current) {
         setIsSelectionMode(true);
         isSelectionModeRef.current = true;
+        isDragSelectingRef.current = true;
         setSelectedIds(new Set([imagePath]));
       }
     }, LONG_PRESS_DURATION);
   }, []);
 
   const handleTouchMove = useCallback((event: React.TouchEvent) => {
+    if (isDragSelectingRef.current) {
+      return;
+    }
+
     if (!touchStartPosRef.current || !longPressTimerRef.current) {
       return;
     }
@@ -133,8 +142,21 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+    isDragSelectingRef.current = false;
+    lastDragSelectIdRef.current = null;
     touchStartPosRef.current = null;
     wasScrollingAtTouchStartRef.current = false;
+  }, []);
+
+  const handleDragSelect = useCallback((mediaId: string) => {
+    if (lastDragSelectIdRef.current === mediaId) return;
+    lastDragSelectIdRef.current = mediaId;
+    setSelectedIds((prev) => {
+      if (prev.has(mediaId)) return prev;
+      const next = new Set(prev);
+      next.add(mediaId);
+      return next;
+    });
   }, []);
 
   const handleRefreshStart = useCallback(() => {
@@ -341,5 +363,7 @@ export function useGallerySelection({ activeTab, onDeleteApplied, getUriForId }:
     handleCancelAiEditPrompt,
     handleCancelSelection,
     toggleMenu,
+    isDragSelectingRef,
+    handleDragSelect,
   };
 }
