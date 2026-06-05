@@ -55,6 +55,9 @@ function GallerySelectionHarness({
     handleShare,
     handleCancelSelection,
     toggleMenu,
+    isDragSelectingRef,
+    dragAnchorIndexRef,
+    handleDragSelect,
   } = useGallerySelection({
     activeTab,
     onDeleteApplied: onDeleteApplied ?? (() => {}),
@@ -87,6 +90,14 @@ function GallerySelectionHarness({
       <button data-testid="delete" onClick={() => void handleDelete()}>delete</button>
       <button data-testid="share" onClick={() => void handleShare()}>share</button>
       <button data-testid="cancel-selection" onClick={handleCancelSelection}>cancel-selection</button>
+      <span data-testid="drag-selecting">{isDragSelectingRef.current ? 'yes' : 'no'}</span>
+      <span data-testid="drag-anchor">{dragAnchorIndexRef.current}</span>
+      <button
+        data-testid="drag-select"
+        onClick={() => handleDragSelect(new Set(['id-a', 'id-b', 'id-c']))}
+      >
+        drag-select
+      </button>
     </div>
   );
 }
@@ -330,5 +341,73 @@ describe('useGallerySelection', () => {
 
     expect(window.GalleryAndroid?.deleteImages).toHaveBeenCalledTimes(1);
     expect(getContainer().querySelector('[data-testid="show-menu"]')?.textContent).toBe('no');
+  });
+
+  describe('drag-select', () => {
+    it('sets isDragSelectingRef and dragAnchorIndexRef on long press', async () => {
+      await act(async () => {
+        getRoot().render(<GallerySelectionHarness />);
+        await flush();
+      });
+
+      await act(async () => {
+        getContainer().querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        vi.advanceTimersByTime(400);
+        await flush();
+      });
+
+      expect(getContainer().querySelector('[data-testid="drag-selecting"]')?.textContent).toBe('yes');
+      expect(getContainer().querySelector('[data-testid="drag-anchor"]')?.textContent).toBe('0');
+      expect(getContainer().querySelector('[data-testid="selected-count"]')?.textContent).toBe('1');
+    });
+
+    it('resets refs on touch end', async () => {
+      await act(async () => {
+        getRoot().render(<GallerySelectionHarness />);
+        await flush();
+      });
+
+      await act(async () => {
+        getContainer().querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        vi.advanceTimersByTime(400);
+        await flush();
+      });
+
+      expect(getContainer().querySelector('[data-testid="drag-selecting"]')?.textContent).toBe('yes');
+
+      await act(async () => {
+        getContainer().querySelector('[data-testid="touch-end"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        // handleTouchEnd only modifies refs, not state — force a re-render to observe the ref changes
+        getContainer().querySelector('[data-testid="toggle-menu"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flush();
+      });
+
+      expect(getContainer().querySelector('[data-testid="drag-selecting"]')?.textContent).toBe('no');
+      expect(getContainer().querySelector('[data-testid="drag-anchor"]')?.textContent).toBe('-1');
+    });
+
+    it('handleDragSelect updates selectedIds', async () => {
+      await act(async () => {
+        getRoot().render(<GallerySelectionHarness />);
+        await flush();
+      });
+
+      // Enter selection mode first
+      await act(async () => {
+        getContainer().querySelector('[data-testid="start-selection"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        vi.advanceTimersByTime(400);
+        await flush();
+      });
+
+      expect(getContainer().querySelector('[data-testid="selected-count"]')?.textContent).toBe('1');
+
+      // Drag-select replaces selection
+      await act(async () => {
+        getContainer().querySelector('[data-testid="drag-select"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await flush();
+      });
+
+      expect(getContainer().querySelector('[data-testid="selected-count"]')?.textContent).toBe('3');
+    });
   });
 });

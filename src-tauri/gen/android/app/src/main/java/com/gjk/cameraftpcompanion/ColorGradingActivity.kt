@@ -37,6 +37,9 @@ class ColorGradingActivity : AppCompatActivity() {
     @Volatile
     internal var isSessionActive = false
 
+    @Volatile
+    internal var isApplyInFlight = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -164,9 +167,11 @@ internal class NativeColorGradingPreviewBridge(
         val maxWidth = activity.resources.displayMetrics.widthPixels
         val maxHeight = activity.resources.displayMetrics.heightPixels
         Log.d(TAG, "applyPreview: lut=$lutId metering=$meteringMode ev=$evOffset size=${maxWidth}x${maxHeight} (JNI)")
+        activity.isApplyInFlight = true
         Thread {
             val result = ColorGradingJniBridge.applyPreview(lutId, true, meteringMode, evOffset, maxWidth, maxHeight)
             activity.runOnUiThread {
+                activity.isApplyInFlight = false
                 if (result.isSuccess) {
                     activity.previewJpegBytes = result.getOrDefault(ByteArray(0))
                     activity.webView?.evaluateJavascript("window.refreshPreview?.();", null)
@@ -185,9 +190,24 @@ internal class NativeColorGradingPreviewBridge(
         val activity = activityRef.get() ?: return
         Log.d(TAG, "save: lut=$lutId metering=$meteringMode ev=$evOffset")
 
-        activity.previewJpegBytes = null
-
         Thread {
+            // Wait for any in-flight applyPreview to finish before calling commitPreview
+            var waitMs = 0L
+            while (activity.isApplyInFlight && waitMs < 3000) {
+                Thread.sleep(50)
+                waitMs += 50
+            }
+            if (activity.isApplyInFlight) {
+                activity.runOnUiThread {
+                    val msg = "保存超时：预览正在处理中"
+                    activity.webView?.evaluateJavascript(
+                        "window.notifyPreviewError?.(${JSONObject.quote(msg)});", null
+                    )
+                }
+                return@Thread
+            }
+
+            activity.previewJpegBytes = null
             Log.d(TAG, "save: calling commitPreview (JNI)")
             val result = ColorGradingJniBridge.commitPreview(lutId, true, meteringMode, evOffset)
 
@@ -249,18 +269,7 @@ internal class NativeColorGradingPreviewBridge(
                     activity.webView?.evaluateJavascript(
                         "window.notifyPreviewError?.(${JSONObject.quote(msg)});", null
                     )
-                    // Re-apply preview so the user sees the image again instead of a blank screen
-                    val maxWidth = activity.resources.displayMetrics.widthPixels
-                    val maxHeight = activity.resources.displayMetrics.heightPixels
-                    Thread {
-                        val retryResult = ColorGradingJniBridge.applyPreview(lutId, true, meteringMode, evOffset, maxWidth, maxHeight)
-                        activity.runOnUiThread {
-                            if (retryResult.isSuccess) {
-                                activity.previewJpegBytes = retryResult.getOrDefault(ByteArray(0))
-                                activity.webView?.evaluateJavascript("window.refreshPreview?.();", null)
-                            }
-                        }
-                    }.start()
+                    // No Kotlin-side retry — JS notifyPreviewError handles recovery via hasPendingApply
                 }
             }
         }.start()
@@ -293,11 +302,5 @@ internal class NativeColorGradingPreviewBridge(
 
     companion object {
         private const val TAG = "NativeColorGradingPreviewBridge"
-
-        internal fun buildColorGradingArgsJson(
-            filePath: String, lutId: String, meteringMode: String, evOffset: Float, syncToAuto: Boolean
-        ): String {
-            return "[${JSONObject.quote(filePath)},${JSONObject.quote(lutId)},${JSONObject.quote(meteringMode)},$evOffset,$syncToAuto]"
-        }
     }
 }

@@ -189,8 +189,8 @@ impl ColorGradingPreviewState {
         // The guard holds the session until we explicitly take it for spawn_blocking.
         let mut sg = SessionGuard { session: Some(active), lib: lib.clone() };
 
-        let input_path = Path::new(&sg.session.as_ref().unwrap().image_path);
-        let output_path = super::output::color_grading_output_path(input_path, &preset.id)?;
+        let input_path_str = sg.session.as_ref().unwrap().image_path.clone();
+        let preset_id = preset.id.clone();
 
         const SAVE_JPEG_QUALITY: i32 = 95;
 
@@ -209,9 +209,10 @@ impl ColorGradingPreviewState {
         let session_addr = active.session.ptr as usize;
         let log_space = preset.log_space.clone();
         let metering = metering_mode.to_string();
-        let output = output_path.clone();
 
-        tokio::task::spawn_blocking(move || {
+        let output_path = tokio::task::spawn_blocking(move || {
+            let input_path = Path::new(&input_path_str);
+            let output = super::output::color_grading_output_path(input_path, &preset_id)?;
             let session = RaPreviewSession { ptr: session_addr as *mut std::ffi::c_void };
             lib.commit_preview(
                 &session,
@@ -221,7 +222,8 @@ impl ColorGradingPreviewState {
                 &metering,
                 SAVE_JPEG_QUALITY,
                 &output,
-            )
+            )?;
+            Ok::<_, AppError>(output)
         })
         .await
         .map_err(|e| AppError::ColorGradingError(format!("Blocking task failed: {}", e)))??;

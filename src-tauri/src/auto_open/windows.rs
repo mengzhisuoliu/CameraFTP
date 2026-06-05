@@ -188,43 +188,9 @@ pub fn open_folder_and_select_file(file_path: &PathBuf) -> Result<(), AppError> 
     Ok(())
 }
 
-/// 打开文件夹
+/// Open a directory in Windows Explorer.
 pub fn open_directory(dir_path: &PathBuf) -> Result<(), AppError> {
-    let path_str = dir_path.to_string_lossy();
-
-    unsafe {
-        let _ = CoInitialize(None);
-    }
-
-    let path_wide: Vec<u16> = OsStr::new(path_str.as_ref())
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-
-    let explore_wide: Vec<u16> = OsStr::new("explore")
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-
-    let result = unsafe {
-        ShellExecuteW(
-            None,
-            PCWSTR(explore_wide.as_ptr()),
-            PCWSTR(path_wide.as_ptr()),
-            None,
-            None,
-            SW_SHOWNORMAL,
-        )
-    };
-
-    if result.0 as usize <= 32 {
-        return Err(AppError::Other(format!(
-            "ShellExecute explore failed with code {:?}",
-            result.0
-        )));
-    }
-
-    Ok(())
+    open_with_shell_execute(dir_path, Some("explore"), None)
 }
 
 fn open_with_shell_execute(

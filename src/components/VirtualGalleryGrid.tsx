@@ -55,6 +55,8 @@ export function VirtualGalleryGrid({
   onNearEnd,
 }: VirtualGalleryGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
@@ -111,7 +113,7 @@ export function VirtualGalleryGrid({
       const endIdx = Math.max(anchorIndex, gridIndex);
       const rangeIds = new Set<string>();
       for (let i = startIdx; i <= endIdx; i++) {
-        const item = items[i];
+        const item = itemsRef.current[i];
         if (item) rangeIds.add(item.mediaId);
       }
       onDragSelect(rangeIds);
@@ -122,7 +124,7 @@ export function VirtualGalleryGrid({
     return () => {
       el.removeEventListener('touchmove', handleNativeTouchMove);
     };
-  }, [onDragSelect, isDragSelectingRef, dragAnchorIndexRef, items]);
+  }, [onDragSelect, isDragSelectingRef, dragAnchorIndexRef]);
 
   // Cleanup scroll timer on unmount
   useEffect(() => {

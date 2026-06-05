@@ -197,6 +197,7 @@
   var currentEv = 0.0;
   var applyPending = false;
   var hasPendingApply = false;
+  var evThrottleTimer = null;
 
   var DEFAULT_LUT_ID = 'fujifilm-provia';
   var DEFAULT_METERING_ID = 'matrix';
@@ -283,7 +284,11 @@
   function onEvChange() {
     currentEv = parseFloat(document.getElementById('evSlider').value);
     updateEvDisplay();
-    requestApply();
+    if (evThrottleTimer) clearTimeout(evThrottleTimer);
+    evThrottleTimer = setTimeout(function() {
+      evThrottleTimer = null;
+      requestApply();
+    }, 50);
   }
   function updateEvDisplay() {
     var v = currentEv;
@@ -349,8 +354,8 @@
 
     if (hasPendingApply) {
       hasPendingApply = false;
-      applyPending = true;
-      NativeBridge.applyPreview(selectedLut, selectedMetering, currentEv);
+      applyPending = false;
+      requestApply();
     }
   };
 

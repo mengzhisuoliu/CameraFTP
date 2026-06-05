@@ -18,7 +18,11 @@ export const BottomNav = memo(function BottomNav() {
     if (isAndroid) {
       setActiveTab('gallery');
     } else {
-      await invoke('open_save_directory');
+      try {
+        await invoke('open_save_directory');
+      } catch {
+        // Directory may not exist or drive unavailable — silently ignore
+      }
     }
   }, [isAndroid, setActiveTab]);
 
