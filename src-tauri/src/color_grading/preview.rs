@@ -41,7 +41,6 @@ static GLOBAL_PREVIEW_STATE: OnceLock<ColorGradingPreviewState> = OnceLock::new(
 struct ActiveSession {
     session: RaPreviewSession,
     image_path: String,
-    enable_lens_correction: bool,
 }
 
 pub struct ColorGradingPreviewState {
@@ -99,7 +98,6 @@ impl ColorGradingPreviewState {
         *guard = Some(ActiveSession {
             session,
             image_path: image_path.to_string(),
-            enable_lens_correction: true,
         });
 
         Ok(())
@@ -108,7 +106,6 @@ impl ColorGradingPreviewState {
     pub async fn apply(
         &self,
         lut_id: &str,
-        enable_lens_correction: bool,
         metering_mode: &str,
         ev_offset: f32,
         max_width: u32,
@@ -119,30 +116,15 @@ impl ColorGradingPreviewState {
             .ok_or_else(|| AppError::ColorGradingError(format!("Unknown LUT preset: {}", lut_id)))?;
         let lut_data = lut_data::get_lut_data(&preset.id)?;
 
-        let lensfun_db_path = super::resources::get_resources()
-            .ok()
-            .map(|r| r.lensfun_db_dir.to_string_lossy().into_owned());
-
         let mut guard = self.inner.lock().await;
         let active = guard.as_mut()
             .ok_or_else(|| AppError::ColorGradingError("No active preview session".into()))?;
-
-        if enable_lens_correction != active.enable_lens_correction {
-            tracing::info!(
-                from = active.enable_lens_correction,
-                to = enable_lens_correction,
-                "Toggling lens correction"
-            );
-            let session = RaPreviewSession { ptr: active.session.ptr };
-            lib.toggle_lens_correction(&session, enable_lens_correction, lensfun_db_path.as_deref())?;
-            active.enable_lens_correction = enable_lens_correction;
-        }
 
         let session_addr = active.session.ptr as usize;
         let log_space = preset.log_space.clone();
         let metering = metering_mode.to_string();
 
-        tracing::debug!(lut = lut_id, ev = ev_offset, lens = enable_lens_correction,
+        tracing::debug!(lut = lut_id, ev = ev_offset,
                         max_w = max_width, max_h = max_height, "Applying preview grading");
 
         tokio::task::spawn_blocking(move || {
@@ -168,7 +150,6 @@ impl ColorGradingPreviewState {
     pub async fn commit_and_end(
         &self,
         lut_id: &str,
-        enable_lens_correction: bool,
         metering_mode: &str,
         ev_offset: f32,
     ) -> Result<String, AppError> {
@@ -176,10 +157,6 @@ impl ColorGradingPreviewState {
         let preset = find_preset(lut_id)
             .ok_or_else(|| AppError::ColorGradingError(format!("Unknown LUT preset: {}", lut_id)))?;
         let lut_data = lut_data::get_lut_data(&preset.id)?;
-
-        let lensfun_db_path = super::resources::get_resources()
-            .ok()
-            .map(|r| r.lensfun_db_dir.to_string_lossy().into_owned());
 
         let mut guard = self.inner.lock().await;
         let active = guard.take()
@@ -193,14 +170,6 @@ impl ColorGradingPreviewState {
         let preset_id = preset.id.clone();
 
         const SAVE_JPEG_QUALITY: i32 = 95;
-
-        {
-            let active = sg.session.as_ref().unwrap();
-            if enable_lens_correction != active.enable_lens_correction {
-                let session = RaPreviewSession { ptr: active.session.ptr };
-                lib.toggle_lens_correction(&session, enable_lens_correction, lensfun_db_path.as_deref())?;
-            }
-        }
 
         // Take the session out of the guard for spawn_blocking ownership transfer.
         // On any error path above this line, sg.drop() will clean up the session.

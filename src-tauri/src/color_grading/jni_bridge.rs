@@ -8,7 +8,7 @@
 #[cfg(target_os = "android")]
 use jni::objects::{JClass, JString};
 #[cfg(target_os = "android")]
-use jni::sys::{jboolean, jfloat, jint, jstring};
+use jni::sys::{jfloat, jint, jstring};
 #[cfg(target_os = "android")]
 use jni::JNIEnv;
 
@@ -101,7 +101,6 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     mut env: JNIEnv,
     _class: JClass,
     lut_id: JString,
-    enable_lens_correction: jboolean,
     metering_mode: JString,
     ev_offset: jfloat,
     max_width: jint,
@@ -119,7 +118,6 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     let state = crate::color_grading::preview::ColorGradingPreviewState::get_global();
     let result = run_blocking(state.apply(
         &lut_id_str,
-        enable_lens_correction != 0,
         &metering_str,
         ev_offset,
         max_width as u32,
@@ -185,7 +183,6 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     mut env: JNIEnv,
     _class: JClass,
     lut_id: JString,
-    enable_lens_correction: jboolean,
     metering_mode: JString,
     ev_offset: jfloat,
 ) -> jstring {
@@ -201,7 +198,6 @@ pub unsafe extern "C" fn Java_com_gjk_cameraftpcompanion_bridges_ColorGradingJni
     let state = crate::color_grading::preview::ColorGradingPreviewState::get_global();
     let result = run_blocking(state.commit_and_end(
         &lut_id_str,
-        enable_lens_correction != 0,
         &metering_str,
         ev_offset,
     ));

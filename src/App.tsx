@@ -115,7 +115,6 @@ function App() {
     w.__tauriApplyColorGradingPreview = async (lutId: string, meteringMode: string, evOffset: number) => {
       return await invoke<string>('apply_color_grading_preview', {
         lutId, meteringMode, evOffset,
-        enableLensCorrection: true,
       });
     };
 

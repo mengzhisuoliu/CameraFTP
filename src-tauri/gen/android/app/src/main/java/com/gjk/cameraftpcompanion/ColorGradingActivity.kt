@@ -193,7 +193,7 @@ internal class NativeColorGradingPreviewBridge(
         Log.d(TAG, "applyPreview: lut=$lutId metering=$meteringMode ev=$evOffset size=${maxWidth}x${maxHeight} (JNI)")
         activity.isApplyInFlight = true
         Thread {
-            val result = ColorGradingJniBridge.applyPreview(lutId, true, meteringMode, evOffset, maxWidth, maxHeight)
+            val result = ColorGradingJniBridge.applyPreview(lutId, meteringMode, evOffset, maxWidth, maxHeight)
             activity.runOnUiThread {
                 activity.isApplyInFlight = false
                 if (result.isSuccess) {
@@ -219,7 +219,7 @@ internal class NativeColorGradingPreviewBridge(
 
         Thread {
             Log.d(TAG, "save: calling commitPreview (JNI)")
-            val result = ColorGradingJniBridge.commitPreview(lutId, true, meteringMode, evOffset)
+            val result = ColorGradingJniBridge.commitPreview(lutId, meteringMode, evOffset)
             activity.isSaving = false
 
             activity.runOnUiThread {

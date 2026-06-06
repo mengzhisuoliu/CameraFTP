@@ -64,14 +64,13 @@ class ColorGradingJniBridge {
 
         fun applyPreview(
             lutId: String,
-            enableLensCorrection: Boolean,
             meteringMode: String,
             evOffset: Float,
             maxWidth: Int,
             maxHeight: Int
         ): Result<ByteArray> {
             return try {
-                val json = nativeApplyPreview(lutId, enableLensCorrection, meteringMode, evOffset, maxWidth, maxHeight)
+                val json = nativeApplyPreview(lutId, meteringMode, evOffset, maxWidth, maxHeight)
                 JniResultParser.parseResultWithBuffer(json)
             } catch (e: Exception) {
                 Log.e(TAG, "applyPreview failed", e)
@@ -91,12 +90,11 @@ class ColorGradingJniBridge {
 
         fun commitPreview(
             lutId: String,
-            enableLensCorrection: Boolean,
             meteringMode: String,
             evOffset: Float
         ): Result<String> {
             return try {
-                val json = nativeCommitPreview(lutId, enableLensCorrection, meteringMode, evOffset)
+                val json = nativeCommitPreview(lutId, meteringMode, evOffset)
                 JniResultParser.parseResultWithOutputPath(json)
             } catch (e: Exception) {
                 Log.e(TAG, "commitPreview failed", e)
@@ -136,11 +134,11 @@ class ColorGradingJniBridge {
         @JvmStatic
         private external fun nativeBeginPreview(filePath: String): String
         @JvmStatic
-        private external fun nativeApplyPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float, maxWidth: Int, maxHeight: Int): String
+        private external fun nativeApplyPreview(lutId: String, meteringMode: String, evOffset: Float, maxWidth: Int, maxHeight: Int): String
         @JvmStatic
         private external fun nativeEndPreview(): String
         @JvmStatic
-        private external fun nativeCommitPreview(lutId: String, enableLensCorrection: Boolean, meteringMode: String, evOffset: Float): String
+        private external fun nativeCommitPreview(lutId: String, meteringMode: String, evOffset: Float): String
         @JvmStatic
         private external fun nativeGetPresets(): String
         @JvmStatic
