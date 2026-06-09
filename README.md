@@ -275,6 +275,7 @@ cameraftp/
 │   │   ├── usePreviewToolbarAutoHide.ts # 工具栏自动隐藏
 │   │   ├── usePreviewExif.ts     # 预览EXIF数据
 │   │   ├── usePreviewConfigListener.ts # 预览配置监听
+│   │   ├── preview-window-events.ts # 预览窗口事件常量
 │   │   └── useQuitFlow.ts       # 退出流程
 │   ├── services/                 # 业务逻辑服务
 │   │   ├── server-events.ts      # 服务器事件处理
@@ -356,7 +357,8 @@ cameraftp/
 │   │   │   ├── preview.rs        # 实时预览会话
 │   │   │   └── jni_bridge.rs     # Android JNI桥接
 │   │   ├── image_preview/        # 图片预览缓存（Windows）
-│   │   │   └── mod.rs            # 预览缓存服务
+│   │   │   ├── mod.rs            # 预览缓存服务
+│   │   │   └── extract.rs        # RAW内嵌JPEG预览提取
 │   │   ├── file_index/           # 文件索引服务
 │   │   │   ├── service.rs        # 索引服务（EXIF排序）
 │   │   │   ├── types.rs          # 索引类型
@@ -372,7 +374,8 @@ cameraftp/
 │   │   ├── crypto/               # 加密模块
 │   │   │   └── tls.rs            # TLS证书生成/轮换
 │   │   ├── utils/                # 工具模块
-│   │   │   └── fs.rs             # 文件系统工具
+│   │   │   ├── fs.rs             # 文件系统工具
+│   │   │   └── batch_state.rs    # 批量任务进度追踪
 │   │   ├── config.rs             # 配置类型定义
 │   │   ├── config_service.rs     # 配置服务
 │   │   ├── crypto.rs             # Argon2id密码哈希
