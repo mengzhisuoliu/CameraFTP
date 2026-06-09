@@ -213,7 +213,8 @@ cameraftp/
 │   ├── build-common.sh           # 公共函数库
 │   ├── build-windows.sh          # Windows构建
 │   ├── build-android.sh          # Android构建
-│   └── build-frontend.sh         # 前端构建
+│   ├── build-frontend.sh         # 前端构建
+│   └── build-raw-alchemy.sh      # RawAlchemyCpp动态库构建
 │
 ├── 📁 src/                       # React前端源码
 │   ├── main.tsx                  # React入口
@@ -350,7 +351,10 @@ cameraftp/
 │   │   │   ├── resources.rs      # 资源提取
 │   │   │   ├── ffi.rs            # RawAlchemyCpp FFI绑定
 │   │   │   ├── lut_data.rs       # LUT数据加载
-│   │   │   └── lensfun_db.rs     # Lensfun镜头数据库
+│   │   │   ├── lensfun_db.rs     # Lensfun镜头数据库
+│   │   │   ├── output.rs         # 输出处理
+│   │   │   ├── preview.rs        # 实时预览会话
+│   │   │   └── jni_bridge.rs     # Android JNI桥接
 │   │   ├── image_preview/        # 图片预览缓存（Windows）
 │   │   │   └── mod.rs            # 预览缓存服务
 │   │   ├── file_index/           # 文件索引服务
@@ -385,13 +389,21 @@ cameraftp/
 │           ├── ImageViewerActivity.kt             # 全屏图片查看Activity
 │           ├── ImageViewerAdapter.kt              # 图片查看适配器
 │           ├── AndroidServiceStateCoordinator.kt  # 服务状态协调（Rust↔Android）
+│           ├── UiUtils.kt                          # UI工具类
+│           ├── ColorGradingActivity.kt             # 调色原生Activity
 │           ├── bridges/                           # JS Bridge目录
 │           │   ├── BaseJsBridge.kt                # Bridge基类
 │           │   ├── GalleryBridge.kt               # 原始图库Bridge
 │           │   ├── GalleryBridgeV2.kt             # 增强图库Bridge（分页+缓存）
 │           │   ├── ImageViewerBridge.kt           # 图片查看Bridge
 │           │   ├── MediaStoreBridge.kt            # MediaStore集成Bridge
-│           │   └── ImageProcessorBridge.kt        # 图片预处理Bridge（JNI调用）
+│           │   ├── ImageProcessorBridge.kt        # 图片预处理Bridge（JNI调用）
+│           │   └── ColorGradingJniBridge.kt       # 调色JNI Bridge
+│           ├── controllers/                        # 控制器目录
+│           │   ├── ExifController.kt               # EXIF数据控制器
+│           │   ├── WebViewOverlayController.kt     # WebView叠加控制器
+│           │   ├── TaskProgressController.kt       # 任务进度控制器
+│           │   └── DeleteController.kt             # 删除操作控制器
 │           └── galleryv2/                         # Gallery V2实现
 │               ├── MediaPageProvider.kt           # 分页媒体加载
 │               ├── ThumbnailCacheV2.kt            # 缩略图缓存（内存+磁盘）
@@ -415,16 +427,28 @@ Android平台使用Kotlin实现以下功能：
 | **ImageViewerActivity.kt** | 全屏图片查看（ViewPager2 + 捏合缩放 + EXIF叠加） |
 | **ImageViewerAdapter.kt** | 图片查看适配器 |
 | **AndroidServiceStateCoordinator.kt** | 服务状态协调（Rust↔Android JNI同步） |
+| **UiUtils.kt** | UI工具类 |
+| **ColorGradingActivity.kt** | 调色原生Activity，JNI调用RAW处理 |
 | **bridges/GalleryBridge.kt** | 原始图库Bridge |
 | **bridges/GalleryBridgeV2.kt** | 增强图库Bridge，支持分页加载和缩略图缓存 |
 | **bridges/ImageViewerBridge.kt** | 图片查看Bridge，支持全屏查看和EXIF回调 |
 | **bridges/MediaStoreBridge.kt** | MediaStore集成Bridge，供Kotlin/Rust集成调用 |
 | **bridges/ImageProcessorBridge.kt** | 图片预处理Bridge（JNI调用），解码+降采样+Base64编码 |
+| **bridges/ColorGradingJniBridge.kt** | 调色JNI Bridge，调用RawAlchemyCpp C API |
 | **galleryv2/MediaPageProvider.kt** | 分页媒体加载 |
 | **galleryv2/ThumbnailCacheV2.kt** | 缩略图缓存，内存+磁盘两级 |
 | **galleryv2/ThumbnailDecoder.kt** | 缩略图解码 |
 | **galleryv2/ThumbnailKeyV2.kt** | 缓存键 |
 | **galleryv2/ThumbnailPipelineManager.kt** | 缩略图管道管理 |
+
+#### Controllers
+
+| 文件 | 功能 |
+|------|------|
+| **controllers/ExifController.kt** | EXIF数据预加载控制器 |
+| **controllers/WebViewOverlayController.kt** | WebView叠加层控制器 |
+| **controllers/TaskProgressController.kt** | 任务进度控制器 |
+| **controllers/DeleteController.kt** | 删除操作控制器 |
 
 #### JS Bridge 说明
 
