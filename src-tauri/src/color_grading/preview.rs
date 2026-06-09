@@ -88,7 +88,6 @@ impl ColorGradingPreviewState {
             move || {
                 lib.begin_preview_session(
                     &input_path,
-                    true,
                     lensfun.as_deref(),
                     half_size,
                     max_preview_width,

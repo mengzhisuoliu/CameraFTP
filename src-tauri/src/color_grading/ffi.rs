@@ -441,7 +441,6 @@ impl RawAlchemyLib {
     pub(crate) fn begin_preview_session(
         &self,
         input_path: &Path,
-        enable_lens_correction: bool,
         lensfun_db_path: Option<&str>,
         half_size: bool,
         max_preview_width: u32,
@@ -458,7 +457,7 @@ impl RawAlchemyLib {
         let result = unsafe {
             (self.begin_preview_session)(
                 input_c.as_ptr(),
-                if enable_lens_correction { 1 } else { 0 },
+                ENABLE_LENS_CORRECTION,
                 lensfun_c
                     .as_ref()
                     .map(|c| c.as_ptr())

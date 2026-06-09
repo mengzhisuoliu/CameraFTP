@@ -216,6 +216,9 @@ internal class NativeColorGradingPreviewBridge(
         // Mark as saving to prevent onDestroy from racing with endPreview
         activity.isSaving = true
 
+        // Release preview buffer — no longer needed after save
+        activity.previewJpegBytes = null
+
         // Save last-used config via JNI
         ColorGradingJniBridge.saveLastUsed(lutId, meteringMode, evOffset)
 

@@ -19,16 +19,6 @@ object JniResultParser {
         return Result.failure(Exception(obj.optString("error", "Unknown error")))
     }
 
-    fun parseResultWithOutputPath(json: String): Result<String> {
-        val obj = JSONObject(json)
-        if (obj.optBoolean("ok", false)) {
-            val path = obj.optString("outputPath", "")
-            if (path.isEmpty()) return Result.failure(Exception("Empty outputPath"))
-            return Result.success(path)
-        }
-        return Result.failure(Exception(obj.optString("error", "Unknown error")))
-    }
-
     fun parseResultWithBuffer(bytes: ByteArray?): Result<ByteArray> {
         if (bytes != null && bytes.isNotEmpty()) {
             return Result.success(bytes)
