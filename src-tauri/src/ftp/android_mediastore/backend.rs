@@ -635,7 +635,7 @@ impl AndroidMediaStoreBackend {
         }
 
         // Copy data from reader to file
-        let mut buffer = vec![0u8; 8192];
+        let mut buffer = vec![0u8; 256 * 1024];
         let mut total_written: u64 = start_pos;
 
         loop {
