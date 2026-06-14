@@ -14,6 +14,10 @@
     <!-- Foreground service permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- CHANGE_WIFI_STATE: satisfies the connectedDevice FGS "any-of" runtime prerequisite
+         (ForegroundServiceTypePolicy.java, enforced via ActiveServices.java for targetSdk ≥ 34).
+         Normal protection level — auto-granted at install, no runtime prompt. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     
     <!-- Notification permission -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
