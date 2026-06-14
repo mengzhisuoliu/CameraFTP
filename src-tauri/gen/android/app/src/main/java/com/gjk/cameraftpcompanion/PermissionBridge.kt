@@ -11,7 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Environment
+import android.os.storage.StorageManager
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
@@ -359,7 +359,9 @@ class PermissionBridge(activity: MainActivity) : BaseJsBridge(activity) {
             return null
         }
 
-        val storageRoot = Environment.getExternalStorageDirectory().absolutePath
+        val storageManager = activity.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+        val storageRoot = storageManager.primaryStorageVolume.directory?.absolutePath
+            ?: return null
         val absolutePath = imageFile.absolutePath
         if (!absolutePath.startsWith("$storageRoot/")) {
             return null
