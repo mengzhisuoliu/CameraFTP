@@ -89,6 +89,72 @@ pub mod embedded_dll {
             }
         }
     }
+
+    // OpenMP runtime shipped next to raw_alchemy_core.dll by the CMake POST_BUILD
+    // step. raw_alchemy_core.dll has a load-time import dependency on libomp.dll;
+    // see preload_libomp() for why it must be loaded before the core DLL.
+    const LIBOMP_DLL_GZ: &[u8] =
+        include_bytes!(concat!(env!("OUT_DIR"), "/libomp.dll.gz"));
+
+    /// Extract the embedded libomp.dll to the CameraFTP temp dir and preload it
+    /// into the process.
+    ///
+    /// `raw_alchemy_core.dll` imports `libomp.dll` at load time. Windows resolves
+    /// such dependencies against already-loaded modules by name FIRST, so loading
+    /// libomp here — before the caller does `Library::new(raw_alchemy_core.dll)` —
+    /// makes that resolution succeed without libomp being on the system PATH, in
+    /// System32, or even in the DLL's own directory (which LoadLibraryW(flags=0)
+    /// does not search).
+    ///
+    /// The handle is intentionally leaked: dropping it could FreeLibrary libomp
+    /// while raw_alchemy_core.dll still references it. libomp is needed for the
+    /// whole process lifetime anyway.
+    pub fn preload_libomp() -> Result<(), AppError> {
+        use std::io::Read;
+
+        let temp_dir = std::env::temp_dir().join("CameraFTP");
+        std::fs::create_dir_all(&temp_dir).map_err(|e| {
+            AppError::ColorGradingError(format!(
+                "Failed to create temp dir {}: {}",
+                temp_dir.display(),
+                e
+            ))
+        })?;
+
+        let libomp_path = temp_dir.join("libomp.dll");
+        if !libomp_path.exists() {
+            let mut decoder = flate2::read::GzDecoder::new(LIBOMP_DLL_GZ);
+            let mut bytes = Vec::new();
+            decoder.read_to_end(&mut bytes).map_err(|e| {
+                AppError::ColorGradingError(format!("Failed to decompress embedded libomp: {}", e))
+            })?;
+
+            // Atomic write: temp file + rename
+            let tmp_path = libomp_path.with_extension("tmp");
+            std::fs::write(&tmp_path, &bytes).map_err(|e| {
+                AppError::ColorGradingError(format!(
+                    "Failed to write libomp to {}: {}",
+                    tmp_path.display(),
+                    e
+                ))
+            })?;
+            std::fs::rename(&tmp_path, &libomp_path).map_err(|e| {
+                AppError::ColorGradingError(format!("Failed to rename libomp: {}", e))
+            })?;
+        }
+
+        let lib = unsafe { Library::new(&libomp_path) }.map_err(|e| {
+            AppError::ColorGradingError(format!(
+                "Failed to preload libomp from {}: {}",
+                libomp_path.display(),
+                e
+            ))
+        })?;
+        // Keep libomp resident for the process lifetime — see fn doc.
+        std::mem::forget(lib);
+        tracing::debug!("Preloaded libomp from {}", libomp_path.display());
+        Ok(())
+    }
 }
 
 #[repr(i32)]

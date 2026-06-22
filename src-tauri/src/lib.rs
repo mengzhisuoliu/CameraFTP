@@ -364,7 +364,18 @@ fn resolve_raw_alchemy_lib_path() -> std::path::PathBuf {
     {
         // DLL is embedded in the exe via include_bytes! and extracted to temp at startup.
         match color_grading::ffi::embedded_dll::extract_to_temp() {
-            Ok(path) => path,
+            Ok(path) => {
+                // raw_alchemy_core.dll imports libomp.dll at load time; preload the
+                // OpenMP runtime (extracted to the same temp dir) before returning the
+                // core path so the subsequent LoadLibrary resolves the dependency.
+                if let Err(e) = color_grading::ffi::embedded_dll::preload_libomp() {
+                    tracing::error!(
+                        "Failed to preload libomp: {}. raw_alchemy_core.dll may fail to load.",
+                        e
+                    );
+                }
+                path
+            }
             Err(e) => {
                 tracing::error!("Failed to extract embedded DLL: {}. Falling back to exe dir.", e);
                 let exe_dir = std::env::current_exe()

@@ -2,6 +2,7 @@ fn main() {
     pack_lut_zip();
     compress_lensfun_db();
     compress_raw_alchemy_dll();
+    compress_libomp_dll();
 
     let mut attributes = tauri_build::Attributes::new();
 
@@ -196,7 +197,7 @@ fn compress_raw_alchemy_dll() {
     let rawalchemy_dir = std::path::Path::new("lib/rawalchemy");
     if !rawalchemy_dir.exists() {
         println!("cargo:warning=RawAlchemyCpp not found, skipping DLL embedding");
-        write_empty_dll_placeholder();
+        write_empty_dll_placeholder("raw_alchemy_core.dll.gz");
         return;
     }
 
@@ -217,7 +218,7 @@ fn compress_raw_alchemy_dll() {
             "cargo:warning=raw_alchemy_core.dll not found at {}, skipping DLL embedding",
             dll_path.display()
         );
-        write_empty_dll_placeholder();
+        write_empty_dll_placeholder("raw_alchemy_core.dll.gz");
         return;
     }
 
@@ -242,9 +243,9 @@ fn compress_raw_alchemy_dll() {
     );
 }
 
-fn write_empty_dll_placeholder() {
+fn write_empty_dll_placeholder(filename: &str) {
     let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR env var not set — this should be provided by Cargo; are you running outside of 'cargo build'?"));
-    let placeholder = out_dir.join("raw_alchemy_core.dll.gz");
+    let placeholder = out_dir.join(filename);
     // Write a minimal gzip file (empty payload) so include_bytes! still compiles
     use std::io::Write;
     let mut f = std::fs::File::create(&placeholder).expect("Failed to create DLL placeholder file in OUT_DIR — check disk space and write permissions");
@@ -254,4 +255,75 @@ fn write_empty_dll_placeholder() {
         0x00, 0x00, 0x00, 0x00,
     ];
     f.write_all(empty_gz).expect("Failed to write DLL placeholder content — check disk space and write permissions");
+}
+
+/// Gzip-compress libomp.dll (the OpenMP runtime, copied next to
+/// raw_alchemy_core.dll by the CMake POST_BUILD step) into OUT_DIR for embedding.
+/// raw_alchemy_core.dll has a load-time dependency on libomp.dll; the host
+/// preloads it before LoadLibrary-ing the core DLL so the dependency resolves
+/// without libomp needing to be on the system PATH or in System32.
+fn compress_libomp_dll() {
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::fs;
+    use std::io::{Read, Write};
+
+    if !is_windows_msvc_target() {
+        return;
+    }
+
+    let rawalchemy_dir = std::path::Path::new("lib/rawalchemy");
+    if !rawalchemy_dir.exists() {
+        write_empty_dll_placeholder("libomp.dll.gz");
+        return;
+    }
+
+    let build_type = if std::env::var("PROFILE").as_deref() == Ok("debug") {
+        "Debug"
+    } else {
+        "Release"
+    };
+
+    let libomp_path = rawalchemy_dir
+        .join("build-windows-dll")
+        .join("bin")
+        .join(build_type)
+        .join("libomp.dll");
+
+    if !libomp_path.exists() {
+        println!(
+            "cargo:warning=libomp.dll not found at {}, skipping libomp embedding",
+            libomp_path.display()
+        );
+        write_empty_dll_placeholder("libomp.dll.gz");
+        return;
+    }
+
+    println!("cargo:rerun-if-changed={}", libomp_path.display());
+
+    let mut input = fs::File::open(&libomp_path)
+        .expect("Failed to open libomp.dll — ensure the CMake POST_BUILD copy completed");
+    let mut data = Vec::new();
+    input
+        .read_to_end(&mut data)
+        .expect("Failed to read libomp.dll — file may be locked by another process or corrupted");
+
+    let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR env var not set — this should be provided by Cargo; are you running outside of 'cargo build'?"));
+    let output_path = out_dir.join("libomp.dll.gz");
+    let output = fs::File::create(&output_path)
+        .expect("Failed to create compressed libomp.dll file in OUT_DIR — check disk space and write permissions");
+    let mut encoder = GzEncoder::new(output, Compression::best());
+    encoder
+        .write_all(&data)
+        .expect("Failed to compress libomp.dll to gzip — check disk space");
+    encoder
+        .finish()
+        .expect("Failed to finish libomp.dll gzip compression — check disk space and write permissions");
+
+    let compressed_size = fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
+    println!(
+        "cargo:warning=Embedded libomp.dll: {} KB → {} KB (gzip)",
+        data.len() / 1024,
+        compressed_size / 1024
+    );
 }
