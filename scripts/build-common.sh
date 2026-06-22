@@ -391,6 +391,19 @@ clean_build_cache() {
         fi
     done
 
+    # Clean submodule (RawAlchemyCpp) build artifacts via its own clean script.
+    # The submodule owns its artifact list (mirrors its .gitignore), so the
+    # parent never hardcodes submodule paths. If clean.sh is absent the
+    # submodule is left untouched — providing cleanup is the submodule's
+    # responsibility, not the parent's.
+    local rawalchemy_dir="src-tauri/lib/rawalchemy"
+    if [ -d "$rawalchemy_dir" ] && [ -x "$rawalchemy_dir/scripts/clean.sh" ]; then
+        info "清理子模块 RawAlchemyCpp (委托 scripts/clean.sh)..."
+        if ! ( cd "$rawalchemy_dir" && ./scripts/clean.sh ); then
+            warn "子模块部分目录未能清理（文件可能被构建进程占用）"
+        fi
+    fi
+
     local cargo_cmd
     if cargo_cmd=$(get_tool_cmd "cargo"); then
         info "运行 cargo clean..."
