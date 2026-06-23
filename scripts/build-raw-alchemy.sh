@@ -26,6 +26,15 @@ build_raw_alchemy_windows() {
     win_path="$(wslpath -w "$abs_dir")"
 
     cd "$abs_dir"
+
+    # WSL2 workaround: file edits from WSL don't reliably update the Windows-visible
+    # modification timestamp on /mnt/ mounted drives. CMake/Ninja uses mtime to decide
+    # whether to recompile, so it silently skips changed sources. Force-update
+    # LastWriteTime on all source files via PowerShell to propagate the timestamp.
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        powershell.exe -NoProfile -Command "Get-ChildItem -Path '$win_path\src','$win_path\include' -Recurse -Include '*.cpp','*.h','*.c' | ForEach-Object { \$_.LastWriteTime = Get-Date }" > /dev/null 2>&1
+    fi
+
     cmd.exe /C "scripts\\build_windows.bat $build_type"
     cd - > /dev/null
 
