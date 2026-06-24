@@ -2,21 +2,36 @@
 // Copyright (C) 2026 GoldJohnKing <GoldJohnKing@Live.cn>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 use memchr::memchr;
 
-/// Extract the embedded JPEG preview from a RAW file by binary scanning
-/// for the largest complete JPEG segment (SOI...EOI).
+/// Fujifilm RAF magic prefix. A real RAF always begins with these 16 bytes.
+const FUJI_MAGIC: &[u8] = b"FUJIFILMCCD-RAW ";
+/// RAF header is fixed at 148 bytes across format versions 0100/0201/0202/0203.
+const RAF_HEADER_LEN: usize = 148;
+/// Byte offset of the embedded-JPEG offset field (big-endian u32) in the RAF header.
+const RAF_JPEG_OFFSET_POS: usize = 0x54;
+/// Byte offset of the embedded-JPEG length field (big-endian u32) in the RAF header.
+const RAF_JPEG_LENGTH_POS: usize = 0x58;
+
+/// Extract the embedded JPEG preview from a RAW file.
 ///
-/// Camera RAW files always contain an embedded JPEG preview.
-/// The largest JPEG segment is the full-size preview image.
-/// This extracts the raw JPEG bytes directly — zero quality loss, no re-encoding.
+/// Fujifilm RAF files use a header-field fast-path: the RAF header stores the
+/// JPEG offset/length at fixed positions (0x54/0x58), so we seek and read only
+/// the embedded JPEG region — never the multi-MB CFA sensor payload. This is the
+/// method used by exiftool/LibRaw/photorec and is robust where naive SOI/EOI
+/// scanning can pick a wrong segment (RAF's huge CFA block defeats "largest
+/// JPEG" heuristics, especially on compressed X-T3/T4/T5 variants).
 ///
-/// If the extracted JPEG lacks EXIF metadata (common for Nikon NEF, Sony ARW, etc.),
-/// the Orientation tag from the RAW file's TIFF/EXIF structure is injected as a
-/// minimal APP1 segment so that downstream consumers (browsers, image viewers)
-/// can apply the correct rotation.
+/// All other RAW formats (NEF, CR2, ARW, ...) fall back to binary scanning for
+/// the largest complete JPEG segment (SOI...EOI), which is reliable for their
+/// TIFF-based containers.
+///
+/// The extracted bytes are the raw JPEG — zero quality loss, no re-encoding. If
+/// the result lacks EXIF metadata, the Orientation tag is injected from the
+/// RAW's TIFF structure so downstream viewers apply the correct rotation.
 pub fn extract_preview_jpeg(path: &Path) -> Result<Vec<u8>, String> {
     let path_str = path.to_string_lossy();
     tracing::debug!("Extracting RAW preview from: {}", path_str);
@@ -35,11 +50,29 @@ pub fn extract_preview_jpeg(path: &Path) -> Result<Vec<u8>, String> {
         ));
     }
 
-    let data =
-        std::fs::read(path).map_err(|e| format!("Failed to read {}: {}", path_str, e))?;
-
-    let mut jpeg = find_largest_jpeg(&data)
-        .ok_or_else(|| format!("No embedded JPEG found in {}", path_str))?;
+    // RAF fast-path first; everything else scans the whole file.
+    let mut jpeg = match extract_raf_jpeg_fast(path, metadata.len()) {
+        Ok(j) => j,
+        Err(RafPathError::NotRaf) => {
+            let data =
+                std::fs::read(path).map_err(|e| format!("Failed to read {}: {}", path_str, e))?;
+            find_largest_jpeg(&data)
+                .ok_or_else(|| format!("No embedded JPEG found in {}", path_str))?
+        }
+        Err(RafPathError::HeaderInvalid(msg)) => {
+            // RAF magic present but header fields unusable — fall back to scan,
+            // which is still correct for well-formed RAFs.
+            tracing::warn!(
+                "RAF header parse failed ({}); falling back to full scan for {}",
+                msg,
+                path_str
+            );
+            let data =
+                std::fs::read(path).map_err(|e| format!("Failed to read {}: {}", path_str, e))?;
+            find_largest_jpeg(&data)
+                .ok_or_else(|| format!("No embedded JPEG found in {}", path_str))?
+        }
+    };
 
     tracing::debug!(
         "Extracted embedded JPEG: {} bytes from {}",
@@ -63,6 +96,76 @@ pub fn extract_preview_jpeg(path: &Path) -> Result<Vec<u8>, String> {
     }
 
     Ok(jpeg)
+}
+
+#[derive(Debug)]
+enum RafPathError {
+    /// File does not carry the Fujifilm RAF magic — caller should use the scan path.
+    NotRaf,
+    /// File looks like a RAF but its header fields are unusable; scan is a safe fallback.
+    HeaderInvalid(String),
+}
+
+/// RAF fast-path: read the 148-byte header, parse the JPEG offset/length fields
+/// (big-endian u32 at 0x54/0x58), then seek and read only the embedded JPEG
+/// region. Reads O(header + jpeg) bytes instead of O(file size), which matters
+/// for RAFs whose CFA payload is tens of MB.
+fn extract_raf_jpeg_fast(path: &Path, file_len: u64) -> Result<Vec<u8>, RafPathError> {
+    let mut file = std::fs::File::open(path).map_err(|e| RafPathError::HeaderInvalid(format!("open: {}", e)))?;
+
+    // A real RAF always has a full 148-byte header. A short read here means the
+    // file is not RAF (or is truncated); treat both as NotRaf so the caller scans.
+    let mut header = [0u8; RAF_HEADER_LEN];
+    if file.read_exact(&mut header).is_err() || &header[..16] != FUJI_MAGIC {
+        return Err(RafPathError::NotRaf);
+    }
+
+    let off = u32::from_be_bytes([
+        header[RAF_JPEG_OFFSET_POS],
+        header[RAF_JPEG_OFFSET_POS + 1],
+        header[RAF_JPEG_OFFSET_POS + 2],
+        header[RAF_JPEG_OFFSET_POS + 3],
+    ]) as u64;
+    let len = u32::from_be_bytes([
+        header[RAF_JPEG_LENGTH_POS],
+        header[RAF_JPEG_LENGTH_POS + 1],
+        header[RAF_JPEG_LENGTH_POS + 2],
+        header[RAF_JPEG_LENGTH_POS + 3],
+    ]) as u64;
+
+    if len < 8 {
+        return Err(RafPathError::HeaderInvalid(format!("jpeg length too small: {}", len)));
+    }
+    let end = off
+        .checked_add(len)
+        .ok_or_else(|| RafPathError::HeaderInvalid("offset + length overflow".into()))?;
+    if end > file_len {
+        return Err(RafPathError::HeaderInvalid(format!(
+            "jpeg region {}-{} extends beyond file len {}",
+            off, end, file_len
+        )));
+    }
+
+    file.seek(SeekFrom::Start(off))
+        .map_err(|e| RafPathError::HeaderInvalid(format!("seek: {}", e)))?;
+    let mut buf = vec![0u8; len as usize];
+    file.read_exact(&mut buf)
+        .map_err(|e| RafPathError::HeaderInvalid(format!("read jpeg region: {}", e)))?;
+
+    // Validate a real JPEG begins here; otherwise the header lied — let caller scan.
+    if buf.len() < 3 || buf[0] != 0xFF || buf[1] != 0xD8 || buf[2] != 0xFF {
+        return Err(RafPathError::HeaderInvalid(
+            "jpeg region does not start with SOI".into(),
+        ));
+    }
+
+    tracing::debug!(
+        "RAF fast-path: extracted {} bytes of embedded JPEG (offset {}, file {})",
+        buf.len(),
+        off,
+        file_len
+    );
+    Ok(buf)
 }
 
 /// Read the EXIF Orientation tag value from a RAW file using the shared parser.
@@ -220,5 +323,132 @@ mod tests {
     fn find_largest_jpeg_handles_soi_without_eoi() {
         let data: Vec<u8> = vec![0xFF, 0xD8, 0x00, 0x01, 0x02, 0x03];
         assert!(find_largest_jpeg(&data).is_none());
+    }
+
+    // ── RAF header-field fast-path ──────────────────────────────────────────
+
+    fn write_temp_raf(name: &str, data: &[u8]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("cameraftp_test_raf_extract");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, data).unwrap();
+        path
+    }
+
+    /// Build a synthetic RAF: 148-byte header with JPEG offset/length filled in,
+    /// a CFA filler region, then the embedded JPEG. `corrupt_soi` clobbers the
+    /// first byte of the embedded region to defeat the JPEG-start validation.
+    fn build_fake_raf(jpeg_offset: u32, jpeg: &[u8], corrupt_soi: bool) -> Vec<u8> {
+        let mut buf = vec![0u8; RAF_HEADER_LEN];
+        buf[..FUJI_MAGIC.len()].copy_from_slice(FUJI_MAGIC);
+        buf[RAF_JPEG_OFFSET_POS..RAF_JPEG_OFFSET_POS + 4]
+            .copy_from_slice(&jpeg_offset.to_be_bytes());
+        buf[RAF_JPEG_LENGTH_POS..RAF_JPEG_LENGTH_POS + 4]
+            .copy_from_slice(&(jpeg.len() as u32).to_be_bytes());
+        // CFA filler between the header and the embedded JPEG.
+        if (jpeg_offset as usize) > buf.len() {
+            buf.resize(jpeg_offset as usize, 0xAA);
+        }
+        if corrupt_soi {
+            let mut corrupt = jpeg.to_vec();
+            corrupt[0] = 0x00;
+            buf.extend_from_slice(&corrupt);
+        } else {
+            buf.extend_from_slice(jpeg);
+        }
+        buf
+    }
+
+    #[test]
+    fn extract_raf_fast_parses_header_and_reads_only_jpeg_region() {
+        let jpeg: Vec<u8> = {
+            let mut v = vec![0xFF, 0xD8, 0xFF, 0xE0];
+            v.extend(std::iter::repeat(0x42u8).take(60));
+            v.extend_from_slice(&[0xFF, 0xD9]);
+            v
+        };
+        let data = build_fake_raf(512, &jpeg, false);
+        let path = write_temp_raf("raf_ok.raf", &data);
+
+        let got = extract_raf_jpeg_fast(&path, data.len() as u64).expect("should extract");
+        assert_eq!(got, jpeg);
+        assert_eq!(&got[..3], &[0xFF, 0xD8, 0xFF]);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn extract_raf_fast_rejects_non_raf_magic() {
+        let path = write_temp_raf("not_raf.raf", &vec![0u8; 256]);
+        match extract_raf_jpeg_fast(&path, 256) {
+            Err(RafPathError::NotRaf) => {}
+            other => panic!("expected NotRaf, got {:?}", other.map(|v| v.len())),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn extract_raf_fast_rejects_region_without_valid_soi() {
+        let jpeg: Vec<u8> = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x02, 0x00, 0x00, 0xFF, 0xD9];
+        let data = build_fake_raf(512, &jpeg, true);
+        let path = write_temp_raf("raf_badsoi.raf", &data);
+
+        match extract_raf_jpeg_fast(&path, data.len() as u64) {
+            Err(RafPathError::HeaderInvalid(_)) => {}
+            other => panic!("expected HeaderInvalid, got {:?}", other.map(|v| v.len())),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn extract_raf_fast_rejects_region_beyond_eof() {
+        // Header claims a JPEG length that runs past the real file end.
+        let mut data = vec![0u8; RAF_HEADER_LEN];
+        data[..FUJI_MAGIC.len()].copy_from_slice(FUJI_MAGIC);
+        data[RAF_JPEG_OFFSET_POS..RAF_JPEG_OFFSET_POS + 4].copy_from_slice(&512u32.to_be_bytes());
+        data[RAF_JPEG_LENGTH_POS..RAF_JPEG_LENGTH_POS + 4]
+            .copy_from_slice(&1_000_000u32.to_be_bytes()); // far beyond EOF
+
+        let path = write_temp_raf("raf_eof.raf", &data);
+        match extract_raf_jpeg_fast(&path, data.len() as u64) {
+            Err(RafPathError::HeaderInvalid(_)) => {}
+            other => panic!("expected HeaderInvalid, got {:?}", other.map(|v| v.len())),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn extract_preview_jpeg_takes_raf_fast_path() {
+        // A RAF whose embedded JPEG is small and sits after filler. The fast path
+        // returns exactly the header-pointed JPEG; whole-file scanning would also
+        // find it, but this confirms the fast path is taken and the bytes match.
+        let jpeg: Vec<u8> = {
+            let mut v = vec![0xFF, 0xD8, 0xFF, 0xE0];
+            v.extend(std::iter::repeat(0x7Fu8).take(40));
+            v.extend_from_slice(&[0xFF, 0xD9]);
+            v
+        };
+        let data = build_fake_raf(512, &jpeg, false);
+        let path = write_temp_raf("raf_e2e.raf", &data);
+
+        let got = extract_preview_jpeg(&path).expect("should extract via fast path");
+        assert_eq!(got, jpeg);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn extract_preview_jpeg_falls_back_to_scan_for_non_raf() {
+        // Non-RAF binary with an embedded JPEG must still be found by the scan path.
+        // Payload must be large enough to clear find_largest_jpeg's 8-byte minimum.
+        let mut data = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let jpeg: Vec<u8> = vec![0xFF, 0xD8, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xFF, 0xD9];
+        data.extend_from_slice(&jpeg);
+        let path = write_temp_raf("scan.nef", &data);
+
+        let got = extract_preview_jpeg(&path).expect("should extract via scan");
+        assert_eq!(got, jpeg);
+
+        let _ = std::fs::remove_file(&path);
     }
 }

@@ -13,6 +13,14 @@ use crate::image_utils::is_raw_file;
 const MAX_CACHE_ENTRIES: usize = 50;
 
 pub fn content_type_for(path: &Path) -> &'static str {
+    // RAW files are served as their extracted embedded-JPEG bytes, so the truthful
+    // media type is image/jpeg. Returning application/octet-stream here made
+    // Chromium/WebView2 refuse to render the <img> (it does not sniff from
+    // octet-stream), which broke RAW previews in the Windows preview window.
+    if is_raw_file(path) {
+        return "image/jpeg";
+    }
+
     let ext = path.extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
@@ -108,10 +116,18 @@ mod tests {
     }
 
     #[test]
+    fn content_type_for_raw_returns_jpeg() {
+        // RAW files are served as their extracted embedded JPEG bytes.
+        assert_eq!(content_type_for(Path::new("photo.nef")), "image/jpeg");
+        assert_eq!(content_type_for(Path::new("photo.cr2")), "image/jpeg");
+        assert_eq!(content_type_for(Path::new("photo.raf")), "image/jpeg");
+        assert_eq!(content_type_for(Path::new("photo.RAF")), "image/jpeg");
+    }
+
+    #[test]
     fn content_type_for_unknown_defaults_to_octet_stream() {
-        assert_eq!(content_type_for(Path::new("photo.nef")), "application/octet-stream");
-        assert_eq!(content_type_for(Path::new("photo.cr2")), "application/octet-stream");
         assert_eq!(content_type_for(Path::new("photo.png")), "application/octet-stream");
+        assert_eq!(content_type_for(Path::new("photo.mp4")), "application/octet-stream");
         assert_eq!(content_type_for(Path::new("photo")), "application/octet-stream");
     }
 
