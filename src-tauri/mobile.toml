@@ -2,5 +2,5 @@
 appIdentifier = "com.gjk.cameraftpcompanion"
 
 [android]
-minSdkVersion = 30
+minSdkVersion = 35
 targetSdkVersion = 36

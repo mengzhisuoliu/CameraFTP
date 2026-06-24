@@ -9,6 +9,15 @@
 
 ---
 
+## 📋 系统要求
+
+| 平台 | 最低版本 | 说明 |
+|------|---------|------|
+| 📱 **Android** | **Android 15（API 35）及以上** | 需授权存储、通知权限，并关闭电池优化 |
+| 🖥️ **Windows** | Windows 10 64 位及以上 | 需预装 WebView2 运行时 |
+
+---
+
 ## ✨ 功能特性
 
 - 🚀 **一键启动** - 一键启动，无需复杂配置，自动显示连接信息（IP+端口）
@@ -193,7 +202,7 @@ AGPL-3.0-or-later © 2026 GoldJohnKing <GoldJohnKing@Live.cn>
 | **AI修图** | Volcengine Seedream | doubao-seedream-5-0 |
 | **调色引擎** | RawAlchemyCpp | LUT + Lensfun |
 | **Android Native** | Kotlin | JVM 21 |
-| **Android API** | min 33 / target 36 | Android 13+ |
+| **Android API** | min 35 / target 36 | Android 15+ |
 | **JDK** | Java | 21 |
 
 ---
